@@ -6,15 +6,15 @@ YOLOv5n v7.0 forward，bus 影像 640 × 640，FP32，batch 一。每個設定�
 
 | 後端 | 1 執行緒 | 4 執行緒 |
 |---|---:|---:|
-| Bend-Conv | 245.3 | 116.2 |
-| NumPy / OpenBLAS | 223.0 | 232.1 |
-| PyTorch | 92.7 | 45.3 |
+| Bend-Conv | 271.7 | 151.4 |
+| NumPy / OpenBLAS | 249.9 | 260.0 |
+| PyTorch | 89.8 | 51.8 |
 
-2026-10-04 量測，當時機器上有其他工作在跑；沒有固定 CPU affinity 與頻率。每個設定都通過與官方參考的逐層、預測與偵測比對。
+2026-10-05 由 [Benchmark workflow](https://github.com/Kaz9487/Bend-Conv/actions/runs/37268568117) 在 GitHub 提供的 runner 上量測。每次分配到的 runner 不盡相同，也沒有固定 CPU affinity 與頻率。每個設定都通過與官方參考的逐層、預測與偵測比對。
 
 ## 重現
 
-先完成 [YOLO 範例的設定](../examples/yolov5/README.zh-TW.md)：
+從 Actions 分頁啟動 Benchmark workflow；或先完成 [YOLO 範例的設定](../examples/yolov5/README.zh-TW.md)，在本機執行：
 
 ```sh
 python run.py backends      # 上面的表
@@ -25,8 +25,8 @@ python run.py benchmark     # 單一卷積形狀
 
 ## 環境
 
-- CPU：12th Gen Intel Core i5-12500H。WSL 下的 Linux。
-- Bend v2.0.35（官方、未修改）；Clang 19.1.7，`-O3 -march=native -ffp-contract=off -std=c11`。
+- GitHub 提供的 `ubuntu-24.04` runner：AMD EPYC 7763，4 個虛擬 CPU（2 核心，各 2 執行緒）。
+- Bend v2.0.35（官方、未修改）；Clang 18.1.3，`-O3 -march=native -ffp-contract=off -std=c11`。
 - NumPy 2.4.6 與其內附的 OpenBLAS；PyTorch 2.14.0（CPU、eager、FP32），inter-op 一個執行緒。
 
 ## 計時範圍
@@ -37,12 +37,12 @@ Forward 計算：配置、所有權複製、packing、kernel、gather 與偵測�
 
 | 設定 | 樣本（毫秒） |
 |---|---|
-| Bend-Conv，1 執行緒 | 231.7, 251.6, 245.1, 245.3, 245.4, 230.8, 247.1 |
-| Bend-Conv，4 執行緒 | 116.2, 156.9, 117.7, 138.9, 112.6, 105.3, 114.3 |
-| NumPy，1 執行緒 | 226.2, 224.3, 215.6, 205.6, 211.4, 223.0, 242.3 |
-| NumPy，4 執行緒 | 232.3, 217.0, 232.1, 248.9, 236.0, 221.8, 217.3 |
-| PyTorch，1 執行緒 | 97.8, 84.4, 92.7, 82.9, 93.7, 85.0, 132.3 |
-| PyTorch，4 執行緒 | 61.1, 41.3, 45.3, 54.6, 49.7, 38.8, 39.4 |
+| Bend-Conv，1 執行緒 | 271.7, 272.1, 272.3, 271.7, 271.3, 271.4, 271.6 |
+| Bend-Conv，4 執行緒 | 151.3, 151.5, 151.2, 151.2, 151.7, 151.7, 151.4 |
+| NumPy，1 執行緒 | 248.4, 249.9, 250.6, 250.8, 248.1, 249.9, 249.9 |
+| NumPy，4 執行緒 | 259.2, 264.2, 260.6, 260.6, 259.1, 260.0, 260.0 |
+| PyTorch，1 執行緒 | 89.3, 89.1, 89.3, 90.3, 89.9, 90.5, 89.8 |
+| PyTorch，4 執行緒 | 51.5, 51.8, 52.0, 54.3, 51.8, 51.4, 51.5 |
 
 ## 其他卷積形狀
 

@@ -6,15 +6,15 @@ YOLOv5n v7.0 forward, the bus image at 640 × 640, FP32, batch one. Two warmups 
 
 | Backend | 1 thread | 4 threads |
 |---|---:|---:|
-| Bend-Conv | 245.3 | 116.2 |
-| NumPy / OpenBLAS | 223.0 | 232.1 |
-| PyTorch | 92.7 | 45.3 |
+| Bend-Conv | 271.7 | 151.4 |
+| NumPy / OpenBLAS | 249.9 | 260.0 |
+| PyTorch | 89.8 | 51.8 |
 
-Measured on 2026-10-04 on a machine that was running other work; CPU affinity and frequency were not pinned. Every setting passed the layer, prediction and detection comparison with the official reference.
+Measured on 2026-10-05 by the [Benchmark workflow](https://github.com/Kaz9487/Bend-Conv/actions/runs/37268568117) on a GitHub-hosted runner. Hosted runners differ from run to run, and CPU affinity and frequency are not pinned. Every setting passed the layer, prediction and detection comparison with the official reference.
 
 ## Reproduce
 
-After the [YOLO example setup](../examples/yolov5/README.md):
+Start the Benchmark workflow from the Actions tab, or run it locally after the [YOLO example setup](../examples/yolov5/README.md):
 
 ```sh
 python run.py backends      # the table above
@@ -25,8 +25,8 @@ Samples and the environment go to `out/results/backends/`; the report is `out/re
 
 ## Environment
 
-- CPU: 12th Gen Intel Core i5-12500H. Linux under WSL.
-- Bend v2.0.35 (official, unmodified); Clang 19.1.7 with `-O3 -march=native -ffp-contract=off -std=c11`.
+- GitHub-hosted `ubuntu-24.04` runner: AMD EPYC 7763, 4 virtual CPUs (2 cores, 2 threads each).
+- Bend v2.0.35 (official, unmodified); Clang 18.1.3 with `-O3 -march=native -ffp-contract=off -std=c11`.
 - NumPy 2.4.6 with its bundled OpenBLAS; PyTorch 2.14.0 (CPU, eager, FP32), one inter-op thread.
 
 ## What is timed
@@ -37,12 +37,12 @@ The forward computation: allocation, ownership copies, packing, kernels, gather 
 
 | Setting | Samples (ms) |
 |---|---|
-| Bend-Conv, 1 thread | 231.7, 251.6, 245.1, 245.3, 245.4, 230.8, 247.1 |
-| Bend-Conv, 4 threads | 116.2, 156.9, 117.7, 138.9, 112.6, 105.3, 114.3 |
-| NumPy, 1 thread | 226.2, 224.3, 215.6, 205.6, 211.4, 223.0, 242.3 |
-| NumPy, 4 threads | 232.3, 217.0, 232.1, 248.9, 236.0, 221.8, 217.3 |
-| PyTorch, 1 thread | 97.8, 84.4, 92.7, 82.9, 93.7, 85.0, 132.3 |
-| PyTorch, 4 threads | 61.1, 41.3, 45.3, 54.6, 49.7, 38.8, 39.4 |
+| Bend-Conv, 1 thread | 271.7, 272.1, 272.3, 271.7, 271.3, 271.4, 271.6 |
+| Bend-Conv, 4 threads | 151.3, 151.5, 151.2, 151.2, 151.7, 151.7, 151.4 |
+| NumPy, 1 thread | 248.4, 249.9, 250.6, 250.8, 248.1, 249.9, 249.9 |
+| NumPy, 4 threads | 259.2, 264.2, 260.6, 260.6, 259.1, 260.0, 260.0 |
+| PyTorch, 1 thread | 89.3, 89.1, 89.3, 90.3, 89.9, 90.5, 89.8 |
+| PyTorch, 4 threads | 51.5, 51.8, 52.0, 54.3, 51.8, 51.4, 51.5 |
 
 ## Other convolution shapes
 

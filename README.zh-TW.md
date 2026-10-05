@@ -78,12 +78,12 @@ law native_inference_matches_matrix:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/performance_dark.svg">
-  <img alt="YOLOv5n inference 時間：1 與 4 執行緒，Bend-Conv 245.3 與 116.2 毫秒，NumPy 223.0 與 232.1 毫秒，PyTorch 92.7 與 45.3 毫秒" src="docs/performance_light.svg" width="720">
+  <img alt="YOLOv5n inference 時間：1 與 4 執行緒，Bend-Conv 271.7 與 151.4 毫秒，NumPy 249.9 與 260.0 毫秒，PyTorch 89.8 與 51.8 毫秒" src="docs/performance_light.svg" width="720">
 </picture>
 
 \* 只含模型計算，不包含影像載入、前處理與 NMS。
 
-在 Intel Core i5-12500H 上量測。量測方式與樣本見[效能](docs/performance.zh-TW.md)。
+在 GitHub 提供的 runner（AMD EPYC 7763，4 個虛擬 CPU）上量測。量測方式與樣本見[效能](docs/performance.zh-TW.md)。
 
 ## 文件
 

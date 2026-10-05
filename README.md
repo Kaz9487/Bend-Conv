@@ -78,12 +78,12 @@ law native_inference_matches_matrix:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/performance_dark.svg">
-  <img alt="YOLOv5n inference time: Bend-Conv 245.3 and 116.2 ms, NumPy 223.0 and 232.1 ms, PyTorch 92.7 and 45.3 ms at 1 and 4 threads" src="docs/performance_light.svg" width="720">
+  <img alt="YOLOv5n inference time: Bend-Conv 271.7 and 151.4 ms, NumPy 249.9 and 260.0 ms, PyTorch 89.8 and 51.8 ms at 1 and 4 threads" src="docs/performance_light.svg" width="720">
 </picture>
 
 \* Model computation only. Image loading, preprocessing and non-maximum suppression are not included.
 
-Measured on an Intel Core i5-12500H. Method and samples are in [performance](docs/performance.md).
+Measured on a GitHub-hosted runner (AMD EPYC 7763, 4 virtual CPUs). Method and samples are in [performance](docs/performance.md).
 
 ## Documentation
 

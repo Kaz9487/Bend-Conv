@@ -4,7 +4,7 @@
 
 本專案所有值得注意的變更都記錄在這裡。格式依循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號採用[語意化版本](https://semver.org/lang/zh-TW/)。在 1.0.0 之前，公開 API 可能在次版本之間變動。
 
-## [0.0.1] - 尚未發布
+## [0.0.1] - 2026-10-05
 
 第一個公開版本。需要官方 Bend v2.0.35。
 

@@ -132,7 +132,7 @@ for path in all_files:
                 errors.append(f'Example uses an internal module instead of the public API: {path.relative_to(ROOT)} -> {imported}')
 
 # Public prose has one primary edition and two linked translations.
-public_documents = [*ROOT.glob('README*.md'), *ROOT.glob('CHANGELOG*.md')]
+public_documents = [*ROOT.glob('README*.md'), *ROOT.glob('CHANGELOG*.md'), *ROOT.glob('CONTRIBUTING*.md')]
 for folder in ['docs', 'lib', 'convolution', 'benchmarks', 'examples', 'data']:
     public_documents.extend((ROOT / folder).rglob('*.md'))
 for path in public_documents:

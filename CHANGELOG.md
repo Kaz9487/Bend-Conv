@@ -4,7 +4,7 @@
 
 All notable changes to this project are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0.0 the public API may change between minor versions.
 
-## [0.0.1] - Unreleased
+## [0.0.1] - 2026-10-05
 
 First public release. Requires the official Bend v2.0.35.
 
