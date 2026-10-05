@@ -66,4 +66,4 @@ jobs:
               if [ -f "$file" ]; then printf '%s ' "$name"; python -c "import json,sys; print(json.load(open(sys.argv[1]))['seconds'])" "$file"; fi
             done
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
