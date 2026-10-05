@@ -1,0 +1,8 @@
+line-length = 100
+cache-dir = "out/ruff_cache"
+target-version = "py311"
+include = ["lib/**/*.py", "convolution/**/*.py", "examples/**/*.py", "benchmarks/**/*.py", "scripts/**/*.py"]
+exclude = [".tools", ".venv", "out", "data"]
+
+[format]
+quote-style = "single"

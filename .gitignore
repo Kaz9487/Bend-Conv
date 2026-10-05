@@ -1,0 +1,45 @@
+# Local toolchains and Python environments
+/.tools/
+/.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+
+# Generated code, binaries, model exports and machine-specific measurements
+/out/
+*.exe
+*.dll
+*.so
+*.o
+*.obj
+*.pdb
+*.log
+
+# Keep contracts and the explicitly attributed YOLOv5 example assets.
+/data/*
+!/data/contracts/
+!/data/README.md
+!/data/README.zh-TW.md
+!/data/LICENSE.yolov5
+!/data/images/
+/data/images/*
+!/data/images/bus.jpg
+!/data/images/zidane.jpg
+!/data/weights/
+/data/weights/*
+!/data/weights/yolov5n-v7.0.pt
+
+# Credentials and local editor settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

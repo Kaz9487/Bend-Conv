@@ -1,0 +1,7 @@
+{
+  "convolution/specification.bend": "5fa34508d5d26a4e50606eda8cc2e5b85293bf55a46eda0daa299d455b3c0ba3",
+  "convolution/specification_law.bend": "8c8e7c7d76a5e9b887c346102219ac26d0b9518f5d3cfbd3704804c410ac77ae",
+  "lib/ordered_matrix.bend": "5b9e2e9552cdb05a6901b8d672358f96964d7fab96b3ee3cbaa212e176777d0c",
+  "convolution/matrix_specification.bend": "a42a1fd560e4d5d4b4f35acb4d1b7f1a32055c966fb22e0b0656c7fdfb572c4e",
+  "convolution/proofs/matrix_convolution_law.bend": "0d8eca14f21148450646223bec83fa1eceeef7cce3e8d485a477395a43e42bc5"
+}

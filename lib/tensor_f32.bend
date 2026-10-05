@@ -1,0 +1,285 @@
+# The everyday F32 tensor module: import this one module and call F.add,
+# F.concat, F.check, ... without element-type arguments. Every function is a
+# direct specialization of the generic tensor modules; Base determines operand
+# order, rounding, NaN and signed-zero behavior.
+import Base
+import ./storage_buffer.bend as Buffers
+import ./math_activation.bend as Activations
+import ./tensor.bend as Tensors
+import ./tensor_layout.bend as Layout
+import ./tensor_window.bend as Window
+import ./tensor_convolution.bend as TensorConvolution
+
+def Tensor() -> Type:
+  Tensors.Tensor<F32>
+
+def Problem() -> Data:
+  Tensors.Problem
+
+# Storage exchanged with foreign I/O; see from_storage and into_storage.
+def Storage() -> Type:
+  Buffers.Buffer<F32>
+
+# Construction
+
+def full(+shape: List<&2,U32>,+value: F32) -> Tensor():
+  Tensors.full(~F32,shape,value)
+
+def zeros(+shape: List<&2,U32>) -> Tensor():
+  Tensors.full(~F32,shape,0.0)
+
+def ones(+shape: List<&2,U32>) -> Tensor():
+  full(shape,1.0)
+
+def from_list(+shape: List<&2,U32>,+values: List<&2,F32>) -> Tensor():
+  Tensors.from_list(~F32,shape,values,0.0)
+
+def from_storage(+shape: List<&2,U32>,storage: Storage()) -> Tensor():
+  Tensors.from_storage(~F32,shape,storage,0.0)
+
+# Execution context: operations may use count workers, like a tensor's device.
+# Read the runtime's pool once with IO.thread_count(); results keep the count.
+def with_workers(tensor: Tensor(),+count: U32) -> Tensor():
+  Tensors.with_workers(~F32,tensor,count)
+
+def workers(tensor: Tensor()) -> Tensor() & U32:
+  Tensors.workers(~F32,tensor)
+
+# Observation and exits
+
+def shape(tensor: Tensor()) -> Tensor() & List<&2,U32>:
+  Tensors.shape(~F32,tensor)
+
+def check(tensor: Tensor()) -> Result<&1,&1,Tensor() & Problem(),Tensor()>:
+  Tensors.check(~F32,tensor)
+
+def describe(problem: Problem()) -> String:
+  Tensors.describe(problem)
+
+def expect(tensor: Tensor()) -> IO(Tensor()):
+  Tensors.expect(~F32,tensor)
+
+def to_list(tensor: Tensor()) -> Result<&2,&2,Problem(),List<&2,F32>>:
+  Tensors.to_list(~F32,tensor)
+
+def item(tensor: Tensor()) -> Result<&2,&2,Problem(),F32>:
+  Tensors.item(~F32,tensor)
+
+# Reads with a fallback for a failed tensor, for callers that do not inspect
+# the problem.
+def to_list_or(tensor: Tensor(),fallback: List<&2,F32>) -> List<&2,F32>:
+  Tensors.value_or(~List<&2,F32>,Tensors.to_list(~F32,tensor),fallback)
+
+def item_or(tensor: Tensor(),fallback: F32) -> F32:
+  Tensors.value_or(~F32,Tensors.item(~F32,tensor),fallback)
+
+def into_storage(tensor: Tensor()) -> Result<&2,&1,Problem(),Storage()>:
+  Tensors.into_storage(~F32,tensor)
+
+def expect_storage(tensor: Tensor()) -> IO(Storage()):
+  Tensors.expect_storage(~F32,tensor)
+
+# Operations consume their tensor arguments and return one result. Keep a
+# tensor by copying it first; copy uses then, and shape uses then_shape.
+
+def then(pair: Tensor() & Tensor(),body: Tensor() -> Tensor() -> Tensor()) -> Tensor():
+  Tensors.then(~Tensor(),~Tensor(),~Tensor(),pair,body)
+
+def then_shape(pair: Tensor() & List<&2,U32>,body: Tensor() -> List<&2,U32> -> Tensor()) -> Tensor():
+  Tensors.then(~Tensor(),~List<&2,U32>,~Tensor(),pair,body)
+
+def copy(tensor: Tensor()) -> Tensor() & Tensor():
+  Layout.copy(~F32,tensor)
+
+# Binary elementwise operations reuse the left tensor's storage. The number
+# after the name is the operation's scalar work for the band schedule.
+def add(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.add,"add",1.0,left,right)
+
+def sub(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.sub,"sub",1.0,left,right)
+
+def mul(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.mul,"mul",1.0,left,right)
+
+# Base division: a zero divisor gives an infinity or NaN, never a failure.
+def div(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.div,"div",1.0,left,right)
+
+def maximum(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.max,"maximum",2.0,left,right)
+
+def minimum(left: Tensor(),right: Tensor()) -> Tensor():
+  Tensors.combine(~F32,~F32.min,"minimum",2.0,left,right)
+
+def add_scalar(tensor: Tensor(),+value: F32) -> Tensor():
+  Tensors.combine_scalar(~F32,~F32.add,"add_scalar",1.0,tensor,value)
+
+def sub_scalar(tensor: Tensor(),+value: F32) -> Tensor():
+  Tensors.combine_scalar(~F32,~F32.sub,"sub_scalar",1.0,tensor,value)
+
+def mul_scalar(tensor: Tensor(),+value: F32) -> Tensor():
+  Tensors.combine_scalar(~F32,~F32.mul,"mul_scalar",1.0,tensor,value)
+
+def div_scalar(tensor: Tensor(),+value: F32) -> Tensor():
+  Tensors.combine_scalar(~F32,~F32.div,"div_scalar",1.0,tensor,value)
+
+# Activations: Act.silu() and the other values of lib/math_activation.bend
+# carry their own planner cost. activate applies one to a tensor; relu, silu,
+# ... below are its shorthands. Custom carries only a cost; its function
+# reaches conv2d_with or apply.
+def activate(tensor: Tensor(),+activation: Activations.Activation) -> Tensor():
+  match activation:
+    case Activations.Identity{}: tensor
+    case Activations.ReLU{}: Tensors.apply(~F32,~Activations.relu_value,"relu",Activations.operations(Activations.ReLU{}),tensor)
+    case Activations.ReLU6{}: Tensors.apply(~F32,~Activations.relu6_value,"relu6",Activations.operations(Activations.ReLU6{}),tensor)
+    case Activations.LeakyReLU{+slope}: Tensors.combine_scalar(~F32,~Activations.leaky_relu_value,"leaky_relu",Activations.operations(Activations.LeakyReLU{slope}),tensor,slope)
+    case Activations.Sigmoid{}: Tensors.apply(~F32,~Activations.sigmoid_value,"sigmoid",Activations.operations(Activations.Sigmoid{}),tensor)
+    case Activations.SiLU{}: Tensors.apply(~F32,~Activations.silu_value,"silu",Activations.operations(Activations.SiLU{}),tensor)
+    case Activations.Tanh{}: Tensors.apply(~F32,~Activations.tanh_value,"tanh",Activations.operations(Activations.Tanh{}),tensor)
+    case Activations.HardSigmoid{}: Tensors.apply(~F32,~Activations.hard_sigmoid_value,"hard_sigmoid",Activations.operations(Activations.HardSigmoid{}),tensor)
+    case Activations.HardSwish{}: Tensors.apply(~F32,~Activations.hard_swish_value,"hard_swish",Activations.operations(Activations.HardSwish{}),tensor)
+    case Activations.GELUTanh{}: Tensors.apply(~F32,~Activations.gelu_tanh_value,"gelu_tanh",Activations.operations(Activations.GELUTanh{}),tensor)
+    case Activations.Custom{count}: tensor
+
+def relu(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.relu())
+
+def relu6(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.relu6())
+
+def leaky_relu(tensor: Tensor(),slope: F32) -> Tensor():
+  activate(tensor,Activations.leaky_relu(slope))
+
+def sigmoid(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.sigmoid())
+
+def silu(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.silu())
+
+def tanh(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.tanh())
+
+def hard_sigmoid(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.hard_sigmoid())
+
+def hard_swish(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.hard_swish())
+
+# PyTorch's gelu(approximate='tanh').
+def gelu_tanh(tensor: Tensor()) -> Tensor():
+  activate(tensor,Activations.gelu_tanh())
+
+# Ordered convolution over CHW or NCHW; the activation runs on each finished
+# leaf while it is in cache.
+def conv2d(input: Tensor(),weights: Tensor(),bias: Tensor(),stride: U32,padding: U32,activation: Activations.Activation) -> Tensor():
+  TensorConvolution.conv2d(~Activations.identity_value,activation,input,weights,bias,stride,padding)
+
+# conv2d with a custom activation of the given scalar operations per element.
+def conv2d_with(~activation: F32 -> F32,operations: F32,input: Tensor(),weights: Tensor(),bias: Tensor(),stride: U32,padding: U32) -> Tensor():
+  TensorConvolution.conv2d(~activation,Activations.Custom{operations},input,weights,bias,stride,padding)
+
+# Custom elementwise functions are passed as direct templates, never records,
+# with their scalar operations per element.
+def apply(~operation: F32 -> F32,operations: F32,tensor: Tensor()) -> Tensor():
+  Tensors.apply(~F32,~operation,"apply",operations,tensor)
+
+# The function also receives the element's row-major index.
+def apply_indexed(~operation: U32 -> F32 -> F32,operations: F32,tensor: Tensor()) -> Tensor():
+  Tensors.apply_indexed(~F32,~operation,operations,tensor)
+
+# start, start + 1, ... as a rank-1 tensor of count elements.
+def arange(+start: F32,+count: U32) -> Tensor():
+  add_scalar(Tensors.apply_indexed(~F32,~(index => value => U32.to_f32(index)),1.0,zeros([count])),start)
+
+# Reductions return a rank-0 tensor, so failures propagate like any result.
+
+def sum(tensor: Tensor()) -> Tensor():
+  Tensors.reduce_all(~F32,~F32.add,"sum",tensor,0.0)
+
+def max(tensor: Tensor()) -> Tensor():
+  Tensors.reduce_all(~F32,~F32.max,"max",tensor,F32.div(F32.neg(1.0),0.0))
+
+def min(tensor: Tensor()) -> Tensor():
+  Tensors.reduce_all(~F32,~F32.min,"min",tensor,F32.div(1.0,0.0))
+
+# sum divided by the number of elements; an empty tensor gives NaN.
+def mean(tensor: Tensor()) -> Tensor():
+  then_shape(shape(tensor),tensor => extents =>
+    Tensors.combine_scalar(~F32,~F32.div,"mean",1.0,Tensors.reduce_all(~F32,~F32.add,"mean",tensor,0.0),
+      U32.to_f32(Tensors.count_or_zero(extents))))
+
+# Layout: results are new dense tensors, except reshape, which relabels.
+
+def reshape(tensor: Tensor(),+shape: List<&2,U32>) -> Tensor():
+  Layout.reshape(~F32,tensor,shape)
+
+# The result's axis i is the argument's axis order[i].
+def transpose(tensor: Tensor(),order: List<&2,U32>) -> Tensor():
+  Layout.transpose(~F32,tensor,order)
+
+# count elements from start along axis, every step-th one.
+def slice(tensor: Tensor(),axis: U32,start: U32,count: U32,step: U32) -> Tensor():
+  Layout.slice(~F32,tensor,axis,start,count,step)
+
+# target with part written at start along axis.
+def set_slice(target: Tensor(),axis: U32,start: U32,part: Tensor()) -> Tensor():
+  Layout.set_slice(~F32,target,axis,start,part)
+
+def Parts() -> Type:
+  Tensors.Parts<F32>
+
+# Build the parts of concat: F.cons(a, F.cons(b, F.single(c))).
+def single(tensor: Tensor()) -> Parts():
+  Tensors.Single{tensor}
+
+def cons(tensor: Tensor(),rest: Parts()) -> Parts():
+  Tensors.Cons{tensor,rest}
+
+def concat(parts: Parts(),+axis: U32) -> Tensor():
+  Layout.concat(~F32,parts,axis)
+
+# Repeats each element of the last two axes scale times in each direction.
+def upsample_nearest(tensor: Tensor(),+scale: U32) -> Tensor():
+  Layout.upsample_nearest(~F32,tensor,scale)
+
+# Over the last two axes; positions outside the input count as -inf.
+def max_pool2d_with(tensor: Tensor(),+kernel: U32,+stride: U32,+padding: U32) -> Tensor():
+  Window.pool2d(~F32,~F32.max,"max_pool2d",F32.div(F32.neg(1.0),0.0),tensor,kernel,stride,padding)
+
+# Windows of kernel by kernel that do not overlap: stride kernel, padding 0.
+def max_pool2d(tensor: Tensor(),+kernel: U32) -> Tensor():
+  max_pool2d_with(tensor,kernel,kernel,0)
+
+# Broadcasting and axis operations.
+
+# The tensor repeated to shape under NumPy broadcasting; add, sub, mul, max
+# and min broadcast their operands in the same way.
+def broadcast_to(tensor: Tensor(),+shape: List<&2,U32>) -> Tensor():
+  Layout.broadcast_to(~F32,tensor,shape)
+
+# Reductions along one axis remove that axis. Each result element takes the
+# elements of the axis in increasing index, starting from 0, -inf or +inf.
+def sum_axis(tensor: Tensor(),+axis: U32) -> Tensor():
+  Layout.reduce_axis(~F32,~F32.add,"sum_axis",0.0,tensor,axis)
+
+def max_axis(tensor: Tensor(),+axis: U32) -> Tensor():
+  Layout.reduce_axis(~F32,~F32.max,"max_axis",F32.div(F32.neg(1.0),0.0),tensor,axis)
+
+def min_axis(tensor: Tensor(),+axis: U32) -> Tensor():
+  Layout.reduce_axis(~F32,~F32.min,"min_axis",F32.div(1.0,0.0),tensor,axis)
+
+# sum_axis divided by the extent of the axis.
+def mean_axis(tensor: Tensor(),+axis: U32) -> Tensor():
+  then_shape(shape(tensor),tensor => extents =>
+    Tensors.combine_scalar(~F32,~F32.div,"mean_axis",1.0,Layout.reduce_axis(~F32,~F32.add,"mean_axis",0.0,tensor,axis),
+      U32.to_f32(Layout.extent_at(extents,U32.to_nat(axis)))))
+
+# before[i] new elements in front of axis i and after[i] behind it, all equal
+# to value.
+def pad(tensor: Tensor(),+before: List<&2,U32>,+after: List<&2,U32>,+value: F32) -> Tensor():
+  Layout.pad(~F32,Layout.Constant{value},tensor,before,after)
+
+# The same, each new element repeating the nearest element of the tensor.
+def pad_edge(tensor: Tensor(),+before: List<&2,U32>,+after: List<&2,U32>) -> Tensor():
+  Layout.pad(~F32,Layout.Edge{},tensor,before,after)

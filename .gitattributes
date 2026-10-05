@@ -1,0 +1,13 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.mjs text eol=lf
+*.cmd text eol=lf
+
+# The frozen specification files are byte-hashed: keep their bytes as they are.
+convolution/specification.bend -text
+convolution/specification_law.bend -text
+convolution/matrix_specification.bend -text
+convolution/proofs/matrix_convolution_law.bend -text
+lib/ordered_matrix.bend -text
+

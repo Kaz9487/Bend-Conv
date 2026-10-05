@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/bendlang/bend.git",
+  "tag": "v2.0.35",
+  "commit": "79df8d9c40722ee9507a1e253f283b51025f9d6c",
+  "checker": "unmodified upstream bend2/main.ts",
+  "entry_adapter": "Direct source entry; no import wrappers. File argument normalization, WSL delegation on Windows and build provenance only."
+}

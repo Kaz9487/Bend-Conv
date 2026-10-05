@@ -1,0 +1,108 @@
+ (missing, or already matched)
+ + (a in p.al ? a + 
+ + String(ctr.n) + (ctr.n === 1 ? 
+ + line + 
+ + m[1] + 
+ + name_key(t.k) + 
+ + nv + 
+ + s + 
+ + sub + 
+ + x + 
+ b : Nat))
+ declares 
+ field
+ fields
+ is a constructor: write 
+ is a variable here, not comptime: pass it at run time)
+ is in scope)
+ names an earlier import)
+ parameter
+ parameters
+ patterns (one per scrutinee)
+ shadows 
+ takes 
+ with 
+' cannot head one)
+'->' (a def with no return type fills a law; no law named 
+'>' or ',' (a compound type argument takes parens: F<(A & B)>)
+'def' (@unsafe marks the def below it)
+'def', 'type' or 'law'
+'unsafe' (the one decorator)
+<..> is Kind(g))
+a .c or .js path
+a body (a template is not foreign)
+a bound variable
+a braced constructor pattern (
+a case (this match has no row to return)
+a character
+a closing '
+a closing \"
+a constructor of 
+a datatype
+a declared constructor
+a declared constructor (
+a declared constructor (unknown: 
+a declared datatype (unknown: 
+a decreasing self-call (arguments are read left to right: each passed unchanged until one shrinks)
+a defined name
+a do-block heading this return
+a family instance (write 
+a family name before <..> (a comparison here needs parens)
+a file at 
+a filled definition (an unfilled law is a dead claim: live code cannot use it)
+a float literal with a finite f32 value (got 
+a foreign definition returning base IO(...) directly (return type aliases are not unfolded)
+a fresh alias (
+a fresh field name (duplicate declaration: 
+a fresh ~ binder name
+a function type
+a kind (type 
+a lambda binder (one name: k => body)
+a live scrutinee (a - scrutinee matches only in a dead region)
+a match heading this case (this case is orphaned)
+a name
+a name (a parallel or typed let binds names; destructure in its body)
+a name (got the keyword '
+a name (words joined by dots, got '
+a name before @ (a rewrite binder is one name: %e@E : P)
+a name for each ~ clause of the law (
+a named def before ! (only f!(..) offloads)
+a nat literal (NUMBER n)
+a nat literal up to 4294967295n (got 
+a numeric literal (NUMBER is U32, NUMBER n is Nat)
+a package as <name>@<version>: a-z, 0-9 and -, 1 to 64 characters, at four numbers like 1.0.0.0
+a package named 
+a parameter or field scrutinee (a match cannot scrutinize a computed value: give it its own def)
+a parameter or field scrutinee (a match cannot scrutinize a local binder: give it its own def)
+a pattern (a binder or a constructor)
+a plain binder (only leading binders take ~)
+a plain clause (only leading clauses take ~)
+a power of two count (^d takes a depth)
+a quantified datatype after + (+D<..> sets D's leading quantities to &2)
+a template applied to closed ~ arguments (
+a template applied to closed ~ arguments (a def parameter is not comptime)
+a template that stops instantiating itself (64 levels at most)
+a term
+a term (
+a term (a match heads a def body, not a term)
+a term (the keyword '
+a type for this operator (write (a 
+a type name after : (the operators' namespace)
+a u32 literal up to 4294967295 (got 
+a variable pattern (this column has no constructor row)
+a ~ argument that stops growing
+an annotated term (cannot infer)
+an equation {a == b : T}
+an escape (\\n \\t \\r \\0 \\\\ \\' \\\" \\u{1F600})
+an import ('import Base', or 'import <path> as <Name>')
+an import cycle through 
+an import of a .bend file
+an import path of plain names (letters, digits, _ and -; the hub's files import the hub's)
+an unambiguous name (the alias 
+an undestructed scrutinee (this value is already a constructor: bind its fields directly; if an outer match destructed it, fold the pattern into the outer case)
+cases for 
+duplicate declaration: 
+no such file: 
+non-inferrable term
+unreachable (a telescope binds its parameters and fields)
+{}, or rename the binder)

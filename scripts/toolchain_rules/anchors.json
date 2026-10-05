@@ -1,0 +1,48 @@
+{
+  "bend.ts": {
+    "A1 match order": "can't be matched in this position",
+    "A3 computed scrutinee": "a match cannot scrutinize a computed value: give it its own def",
+    "A4 local binder": "a match cannot scrutinize a local binder: give it its own def",
+    "A5 undestructed": "an undestructed scrutinee",
+    "A6 erased scrutinee": "a live scrutinee (a - scrutinee matches only in a dead region)",
+    "A match_flatten spec": "a ctr column decides at its binder's own position",
+    "B1 consumed twice": "(consumed more than once)",
+    "B2 plus needs Data": "can be used many times, so its type must be Data.",
+    "B3 certify once": "certify-once",
+    "B4 field quantity": "si = ri · q (a field's quantity times its scrutinee's)",
+    "C1 leading tilde": "a plain binder (only leading binders take ~)",
+    "C3 closed template args": "a template applied to closed ~ arguments",
+    "C3 template depth": "a template that stops instantiating itself (64 levels at most)",
+    "C4 decreasing": "a decreasing self-call (arguments are read left to right: each passed unchanged until one shrinks)",
+    "C5 unfilled law": "a filled definition (an unfilled law is a dead claim: live code cannot use it)",
+    "C6 law visibility": "it is visible and stuck before, and unfolds after",
+    "C7 stuck call": "a stuck call is canonical: its head def compares by name, not by eta",
+    "D1 rewrite goal": "const b_gol = term_apply(term_apply(tm.p, e_wnf.b), tm.e);",
+    "D1 rewrite body": "const a_gol = term_apply(term_apply(tm.p, e_wnf.a), Rfl<HBody>(tm.s));",
+    "E literal unfolding": "means its constructor tree and unfolds one layer at a time where a head",
+    "E nat literal cap": "export const NAT_LITERAL_MAX = 256;"
+  },
+  "main.ts": {
+    "E stack overflow message": "the machine stack overflowed (a deep recursion, or a"
+  },
+  "comp.ts": {
+    "F1 flat definition": "def it calls have no fork, no bang call and only tail self-calls.",
+    "F1 flat test fork": "flat &&= !((s.$ === \"Let\" && s.k.length >= 2)",
+    "F1 flat test calls": "|| (ck.k !== null && (ck.b || (ck.k === d && !tail))));",
+    "F3 callee flatness": "const flat = flat_of(k);",
+    "F4 spin far": "const SPIN_FAR = 256;",
+    "F4 inline or far": "${seg.lines.length < SPIN_FAR",
+    "F5 fold fuel": "const FOLD_FUEL = 8192;",
+    "G1 wide": "const WIDE = 247;",
+    "G1 box layout": "An Array, an IO.OP, a recursive datatype, and a datatype with a field",
+    "G2 heat": "A shared value heats its type (hot)",
+    "G3 global hot": "} else if (\"All Var App\".includes(w?.$!)) {",
+    "G3 global hot add": "fl.hot.add(\"*\");",
+    "G4 binding uses": "A binding counts its uses: the last takes the value, an earlier",
+    "G5 direct or closure": "the def's parameters, else Clo~apply over the outermost live one.",
+    "H1 fork": "else the call becomes a cut. A fork runs a join task and a kid per",
+    "H2 monk turn": "lane skips a fork-free one). The host grows a row ring by",
+    "H2 monk skip": "if ((hi >> 31) != ring_lap(*get) || (!seq && fid_nofk((u32)term_aux(t)))) {",
+    "H3 clone": "ANode{l, r} is blk_node; Array.clone is blk_copy."
+  }
+}
