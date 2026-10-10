@@ -197,12 +197,12 @@ def certificate(~Element: Data,input: Buffer.Model<Element>) -> Certificate.Cert
   Buffer.Model{tree,length,certificate} = input
   certificate
 
-def valid(~Element: Data,+count: U32,+input: Buffer.Model<Element>,exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},ready: Buffer.Ready<Element,input>,
+def valid(~Element: Data,+count: U32,+input: Buffer.Model<Element>,exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},ready: Buffer.Sized<Element,input>,
   fits: {Views.fits(Vector.vector(count),count) == True{} : Bool}) ->
   {Operations.valid_buffer(Buffer.length(~Element,input),Storage.capacity(~Element,Tree.pack(Element,Buffer.tree(~Element,input)),
       certificate(~Element,input)),Vector.vector(count)) == True{} : Bool}:
   Buffer.Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = input
-  Buffer.Ready{depth_ok,+room} = ready
+  Buffer.Sized{depth_ok,+room} = ready
   +model = {Buffer.Model{tree,length,Certificate.Certificate{depth,equation}} : Buffer.Model<Element>}
   %Shape.capacity(Element,depth,tree,Buffer.balanced(~Element,model)) :
     {Operations.valid_buffer(length,_,Vector.vector(count)) == True{} : Bool}
@@ -233,19 +233,19 @@ def refinement_leaf_model(~Element: Data,~operation: Element -> Element -> Eleme
   +view = {Views.View{[Views.Axis{count,1}],0} : Views.View}
   left_content(~Element,OperationsLaws.combine_denotation(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view))
 
-def refinement_leaf(~Element: Data,~operation: Element -> Element -> Element,+count: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>) ->
-  {Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,count,Buffer.pack(~Element,left),Buffer.pack(~Element,right))) ==
+def refinement_leaf(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+count: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>) ->
+  {Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,count,Buffer.pack(~Element,left),Buffer.pack(~Element,right))) ==
     refinement_leaf_model(~Element,~operation,count,left,right) : Buffer.Content<Element>}:
   +view = {Views.View{[Views.Axis{count,1}],0} : Views.View}
   Equal.trans(Buffer.Content<Element>,
-    Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,count,Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
-    left_content(~Element,OperationsLaws.observe_pair_outcome(~Element,Operations.combine(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view))),
+    Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,count,Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
+    left_content(~Element,OperationsLaws.observe_pair_outcome(~Element,Operations.combine_with(~Element,~kernel,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view))),
     refinement_leaf_model(~Element,~operation,count,left,right),
-    selected_content(~Element,Operations.combine(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)),
+    selected_content(~Element,Operations.combine_with(~Element,~kernel,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)),
     Equal.cong(Operations.Outcome<OperationsLaws.PairOwners(Element)>,Buffer.Content<Element>,result => left_content(~Element,result),
-      OperationsLaws.observe_pair_outcome(~Element,Operations.combine(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)),
+      OperationsLaws.observe_pair_outcome(~Element,Operations.combine_with(~Element,~kernel,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)),
       OperationsLaws.combine_denotation(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view),
-      OperationsLaws.combine(~Element,~operation,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)))
+      OperationsLaws.combine(~Element,~operation,~kernel,~kernel_law,Buffer.pack(~Element,left),view,Buffer.pack(~Element,right),view)))
 
 def band_model(~Element: Data,~operation: Element -> Element -> Element,geometry: Bands.Geometry,first: U32,rows: U32,
   left: Buffer.Model<Element>,right: Buffer.Model<Element>) -> Model.Content<Element>:
@@ -255,21 +255,21 @@ def band_model(~Element: Data,~operation: Element -> Element -> Element,geometry
 def model(~Element: Data,~operation: Element -> Element -> Element,geometry: Bands.Geometry,left: Model.Model<Element>,right: Model.Model<Element>) -> Model.Content<Element>:
   Each.content_zip(~Element,~Bands.Geometry,~band_model(~Element,~operation),geometry,left,right)
 
-def band(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>) ->
-  {Model.contents(~Element,Bands.combine_band(~Element,~operation,geometry,first,rows,Buffer.pack(~Element,left),Buffer.pack(~Element,right),Unit{})) ==
+def band(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>) ->
+  {Model.contents(~Element,Bands.combine_band_with(~Element,~kernel,geometry,first,rows,Buffer.pack(~Element,left),Buffer.pack(~Element,right),Unit{})) ==
     band_model(~Element,~operation,geometry,first,rows,left,right) : Model.Content<Element>}:
   Equal.cong(Buffer.Content<Element>,Model.Content<Element>,buffer => Model.RowBand{buffer,first,rows},
-    Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
-    refinement_leaf_model(~Element,~operation,Bands.local_count(geometry,rows),left,right),refinement_leaf(~Element,~operation,Bands.local_count(geometry,rows),left,right))
+    Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
+    refinement_leaf_model(~Element,~operation,Bands.local_count(geometry,rows),left,right),refinement_leaf(~Element,~operation,~kernel,~kernel_law,Bands.local_count(geometry,rows),left,right))
 
 # The band combine in either mode. Where the two trees differ in shape, the
 # left bands are kept.
-def combine(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>) ->
-  {Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))) ==
+def combine(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>) ->
+  {Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))) ==
     model(~Element,~operation,geometry,left,right) : Model.Content<Element>}:
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    {Model.contents(~Element,Bands.combine_planned(~Element,~operation,geometry,parallel,_,Model.pack(~Element,right))) == model(~Element,~operation,geometry,left,right) : Model.Content<Element>}
-  Each.zipped(~Element,~Bands.Geometry,~Bands.combine_band(~Element,~operation),~band_model(~Element,~operation),~band(~Element,~operation),
+    {Model.contents(~Element,Bands.combine_planned_with(~Element,~kernel,geometry,parallel,_,Model.pack(~Element,right))) == model(~Element,~operation,geometry,left,right) : Model.Content<Element>}
+  Each.zipped(~Element,~Bands.Geometry,~Bands.combine_band_with(~Element,~kernel),~band_model(~Element,~operation),~band(~Element,~operation,~kernel,~kernel_law),
     left,right,parallel && Bands.same_image(geometry,Model.layout(~Element,left)),parallel,geometry,geometry)
 
 # The actual binary operation retains the left owner's complete row layout,
@@ -293,15 +293,15 @@ def model_layout(~Element: Data,~operation: Element -> Element -> Element,+geome
       Equal.sym(Bands.Plan,Model.layout(~Element,Model.Fork{left,right}),Model.content_layout(~Element,Model.content(~Element,Model.Fork{left,right})),
         Model.layout_matches_content(~Element,Model.Fork{left,right}))
 
-def combine_layout(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>) ->
-  {Model.content_layout(~Element,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))) ==
+def combine_layout(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>) ->
+  {Model.content_layout(~Element,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))) ==
     Model.layout(~Element,left) : Bands.Plan}:
   Equal.trans(Bands.Plan,
-    Model.content_layout(~Element,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
+    Model.content_layout(~Element,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
     Model.content_layout(~Element,model(~Element,~operation,geometry,left,right)),Model.layout(~Element,left),
     Equal.cong(Model.Content<Element>,Bands.Plan,content => Model.content_layout(~Element,content),
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
-      model(~Element,~operation,geometry,left,right),combine(~Element,~operation,geometry,parallel,left,right)),
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
+      model(~Element,~operation,geometry,left,right),combine(~Element,~operation,~kernel,~kernel_law,geometry,parallel,left,right)),
     model_layout(~Element,~operation,geometry,left,right))
 
 # Actual alignment yields equal layout trees. Their constructor fields give
@@ -481,11 +481,11 @@ def leaf_content(~Element: Data,~operation: Element -> Element -> Element,left: 
   Buffer.Content{right,right_length} = right
   Buffer.Content{run(~Element,~operation,length,0,right,left),length}
 
-def leaf_ready(~Element: Data,~operation: Element -> Element -> Element,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,ready: Buffer.Ready<Element,left>) ->
+def leaf_ready(~Element: Data,~operation: Element -> Element -> Element,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,ready: Buffer.Sized<Element,left>) ->
   Buffer.ContentReady<Element,leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right))>:
   Buffer.Model{+left_tree,+length,+certificate} = left
   Buffer.Model{+right_tree,right_length,right_certificate} = right
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +left_model = {Buffer.Model{left_tree,length,certificate} : Buffer.Model<Element>}
   Buffer.ContentReady{Buffer.depth(~Element,left_model),
     balanced(~Element,~operation,length,0,right_tree,left_tree,Buffer.depth(~Element,left_model),Buffer.balanced(~Element,left_model)),depth_ok,
@@ -497,13 +497,13 @@ def leaf_ready(~Element: Data,~operation: Element -> Element -> Element,+left: B
 # values of the same pixel.
 def combined_cell(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  ready: Buffer.Ready<Element,left>,left_cell: BandValues.At(~Element,~Left,~left_value,left_context,geometry,first,rows,Buffer.tree(~Element,left),Buffer.length(~Element,left),channel,row,column),
+  ready: Buffer.Sized<Element,left>,left_cell: BandValues.At(~Element,~Left,~left_value,left_context,geometry,first,rows,Buffer.tree(~Element,left),Buffer.length(~Element,left),channel,row,column),
   right_cell: BandValues.At(~Element,~Right,~right_value,right_context,geometry,first,rows,Buffer.tree(~Element,right),Buffer.length(~Element,right),channel,row,column)) ->
   BandValues.At(~Element,~Context<Left,Right>,~value(~Element,~Left,~Right,~operation,~left_value,~right_value),Context{left_context,right_context},geometry,first,rows,
     Buffer.content_tree(~Element,leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right))),Buffer.content_length(~Element,leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right))),channel,row,column):
   Buffer.Model{+left_tree,+length,+left_certificate} = left
   Buffer.Model{+right_tree,+right_length,right_certificate} = right
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   Shape.Both{+selected,left_equal} = left_cell
   Shape.Both{right_selected,right_equal} = right_cell
   +left_model = {Buffer.Model{left_tree,length,left_certificate} : Buffer.Model<Element>}
@@ -524,7 +524,7 @@ def combined_cell(~Element: Data,~Left: Data,~Right: Data,~operation: Element ->
 # What one pair of aligned leaves supplies to every cell.
 type LeafCells<-Element: Data,-Left: Data,-Right: Data,-left_value: Left -> U32 -> Element,-right_value: Right -> U32 -> Element> is Data:
   LeafCells{left_context: Left,right_context: Right,geometry: Bands.Geometry,first: U32,rows: U32,left: Buffer.Model<Element>,right: Buffer.Model<Element>,
-    ready: Buffer.Ready<Element,left>,left_values: BandValues.Leaf(~Element,~Left,~left_value,left_context,geometry,first,rows,Buffer.tree(~Element,left),Buffer.length(~Element,left)),
+    ready: Buffer.Sized<Element,left>,left_values: BandValues.Leaf(~Element,~Left,~left_value,left_context,geometry,first,rows,Buffer.tree(~Element,left),Buffer.length(~Element,left)),
     right_values: BandValues.Leaf(~Element,~Right,~right_value,right_context,geometry,first,rows,Buffer.tree(~Element,right),Buffer.length(~Element,right))}
 
 def cells_geometry(~Element: Data,~Left: Data,~Right: Data,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,evidence: LeafCells<Element,Left,Right,left_value,right_value>) -> Bands.Geometry:
@@ -555,7 +555,7 @@ def leaf_cell(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Ele
 
 def semantics_leaf(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
-  ready: Buffer.Ready<Element,left>,
+  ready: Buffer.Sized<Element,left>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.RowBand{Buffer.content(~Element,left),first,rows}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.RowBand{Buffer.content(~Element,right),first,rows})) ->
   BandValues.Values(~Element,~Context<Left,Right>,~value(~Element,~Left,~Right,~operation,~left_value,~right_value),Context{left_context,right_context},geometry,
@@ -591,7 +591,7 @@ def descriptor_contiguous(+count: U32,descriptor: Vector.Descriptor<count>) -> {
 
 def call_guard(~Element: Data,+count: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
   left_exact: {U32.to_nat(count) == Buffer.length(~Element,left) : Nat},right_exact: {U32.to_nat(count) == Buffer.length(~Element,right) : Nat},
-  left_ready: Buffer.Ready<Element,left>,right_ready: Buffer.Ready<Element,right>,+descriptor: Vector.Descriptor<count>) -> {guard(~Element,count,left,right) == True{} : Bool}:
+  left_ready: Buffer.Sized<Element,left>,right_ready: Buffer.Sized<Element,right>,+descriptor: Vector.Descriptor<count>) -> {guard(~Element,count,left,right) == True{} : Bool}:
   Vector.Descriptor{counted,+contiguous,+fits} = descriptor
   %Equal.sym(Bool,Shapes.same(Views.shape(Vector.vector(count)),Views.shape(Vector.vector(count))),True{},same_shape(count)) :
     {_ && Views.is_contiguous(Vector.vector(count)) &&
@@ -631,7 +631,7 @@ def accepted_content(~Element: Data,~operation: Element -> Element -> Element,+c
 
 def checked_leaf_model(~Element: Data,~operation: Element -> Element -> Element,+count: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
   +left_exact: {U32.to_nat(count) == Buffer.length(~Element,left) : Nat},+right_exact: {U32.to_nat(count) == Buffer.length(~Element,right) : Nat},
-  left_ready: Buffer.Ready<Element,left>,right_ready: Buffer.Ready<Element,right>,+descriptor: Vector.Descriptor<count>) ->
+  left_ready: Buffer.Sized<Element,left>,right_ready: Buffer.Sized<Element,right>,+descriptor: Vector.Descriptor<count>) ->
   {refinement_leaf_model(~Element,~operation,count,left,right) == leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right)) : Buffer.Content<Element>}:
   match left right:
     case Buffer.Model{+left_tree,+left_length,+left_certificate} Buffer.Model{+right_tree,+right_length,+right_certificate}:

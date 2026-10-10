@@ -183,3 +183,24 @@ def position_exact(+start: U32,+group: Nat,+lane: Sequence.Index(8n),+upper: U32
   %Equal.sym(U32,lane_position(U32.from_nat(base),lane),U32.from_nat(logical_position(start,group,lane)),lane_position_encoded(base,
       lane)) : {U32.to_nat(_) == logical_position(start,group,lane) : Nat}
   Bounds.roundtrip(logical_position(start,group,lane),upper,upper_ok,room)
+
+# Only the written prefix is observed. Reusing a workspace does not change
+# any tile lane read by the reduction.
+def workspace_readback(+limits: Machine.Limits,+count: U32,+start: U32,+input: Tree.Tree<F32>,+workspace: Tree.Tree<Tile.Tile8>,
+  +height: U32,+width: U32,+kernel: U32,+stride: U32,+padding: U32,+output_width: U32,+inner: U32,+lane: Sequence.Index(8n),+query: U32,+depth: Nat,
+  +balanced: Shape.Balanced(F32,depth,ArrayProjection.project(workspace,lane)),+depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
+  +room: {Nat.is_le(U32.to_nat(count),U32.to_nat(Tree.capacity(F32,ArrayProjection.project(workspace,lane)))) == True{} : Bool},
+  +positive: {Nat.is_lt(0n,U32.to_nat(count)) == True{} : Bool},
+  +bounded: {Nat.is_le(U32.to_nat(count),U32.to_nat(Machine.capacity(limits))) == True{} : Bool},
+  +inside: {Nat.is_lt(U32.to_nat(query),U32.to_nat(count)) == True{} : Bool}) ->
+  {ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,workspace,height,width,kernel,stride,padding,output_width,inner),query)) ==
+    ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,allocated(count),height,width,kernel,stride,padding,output_width,inner),query)) : F32}:
+  +value = LaneReads.value(input,lane_position((start + (query / inner) * 8 : U32),lane),(query % inner : U32),height,width,kernel,stride,padding,output_width)
+  Equal.trans(F32,ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,workspace,height,width,kernel,stride,padding,output_width,inner),query)),value,
+    ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,allocated(count),height,width,kernel,stride,padding,output_width,inner),query)),
+    Equal.trans(F32,ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,workspace,height,width,kernel,stride,padding,output_width,inner),query)),
+      ReductionSamples.select(lane,PackingTabulation.entry(query,start,input,height,width,kernel,stride,padding,output_width,inner)),value,
+      readback(U32.to_nat(count),start,input,workspace,height,width,kernel,stride,padding,output_width,inner,lane,query,depth,balanced,depth_ok,room,inside),
+      vector_lane(input,(start + (query / inner) * 8 : U32),(query % inner : U32),height,width,kernel,stride,padding,output_width,lane)),
+    Equal.sym(F32,ReductionSamples.select(lane,Tree.read(Tile.Tile8,PackingTabulation.fill(U32.to_nat(count),0,start,input,allocated(count),height,width,kernel,stride,padding,output_width,inner),query)),value,
+      allocated_readback(limits,count,start,input,height,width,kernel,stride,padding,output_width,inner,lane,query,positive,bounded,inside)))

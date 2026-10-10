@@ -112,11 +112,11 @@ def observation_shape(~Element: Data,-input: Tensors.Tensor<Element>,observation
   DenseObservation{buffer,shape,fill,status,workers,equation,status_equal,shape_equal} = observation
   shape
 
-def ready_status(+status: Tensors.Status,ready: {Dense.status_ready(status) == True{} : Bool}) -> {status == Tensors.Ready{} : Tensors.Status}:
+def ready_status(+status: Tensors.Status,ready: {Dense.status_ready(status) == True{} : Bool}) -> {status == Tensors.Usable{} : Tensors.Status}:
   match status:
-    case Tensors.Ready{}: {==}
+    case Tensors.Usable{}: {==}
     case Tensors.Failed{problem}:
-      Empty.absurd({Tensors.Failed{problem} == Tensors.Ready{} : Tensors.Status},WordEncoding.false_true(ready))
+      Empty.absurd({Tensors.Failed{problem} == Tensors.Usable{} : Tensors.Status},WordEncoding.false_true(ready))
 
 def set_slice_densified(~Element: Data,target: Tensors.Tensor<Element>,+axis: U32,+start: U32,part: Tensors.Tensor<Element>) ->
   {Layout.set_slice(~Element,target,axis,start,part) == Layout.set_slice(~Element,dense_tensor(~Element,target),axis,start,dense_tensor(~Element,part)) : Tensors.Tensor<Element>}:

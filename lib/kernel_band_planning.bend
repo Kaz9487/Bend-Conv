@@ -24,19 +24,16 @@ def leaf_cost(preparation: F32,+tail: F32,cost: KernelPlanning.Movement) -> Move
   KernelPlanning.Movement{packed,output,copies,span,total,minimum} = cost
   Movement{(total + tail : F32),(span + tail : F32),1,0.0,preparation,minimum,1}
 
-# A leaf whose window is not its core copies each window row once from a
-# halo or the core (BandWindow.assemble) before packing; a 1x1 stride-1 leaf uses
-# its core directly.
-def assembly(+channels: U32,+width: U32,+kernel: U32,+stride: U32,+window_rows: U32,+byte_ns: F32) -> F32:
-  Bool.pick(F32,U32.is_eq(kernel,1) && U32.is_eq(stride,1),0.0,transfer((channels * window_rows * width : U32),byte_ns))
+# BandWindow.assemble reuses the core exactly when both row ranges agree.
+def assembly(channels: U32,width: U32,first: U32,rows: U32,window_first: U32,+window_rows: U32,byte_ns: F32) -> F32:
+  Bool.pick(F32,U32.is_eq(first,window_first) && U32.is_eq(rows,window_rows),0.0,transfer((channels * window_rows * width : U32),byte_ns))
 
-def leaf_window(+work: KernelPlanning.Work,window: BandWindow.RowWindow,+config: Cost.Configuration) -> Movement:
+def leaf_window(+work: KernelPlanning.Work,first: U32,count: U32,window: BandWindow.RowWindow,+config: Cost.Configuration) -> Movement:
   match work window config:
-    case KernelPlanning.Work{positions,inner,rows,owners,KernelPlanning.Geometry{+channels,h,+width,+k,+s,p,+ow},activation} BandWindow.RowWindow{BandWindow.Rows{out_first,+out_count},BandWindow.Rows{af,+ac},BandWindow.Rows{bf,+bc},BandWindow.Rows{wf,+wc}} Cost.Configuration{mac,+byte_ns,operation_ns,grain,wake}:
+    case KernelPlanning.Work{positions,inner,rows,owners,KernelPlanning.Geometry{+channels,h,+width,k,s,p,+ow},activation} BandWindow.RowWindow{BandWindow.Rows{out_first,+out_count},BandWindow.Rows{af,+ac},BandWindow.Rows{bf,+bc},BandWindow.Rows{wf,+wc}} Cost.Configuration{mac,+byte_ns,operation_ns,grain,wake}:
       leaf_cost((transfer((channels * ac * width : U32),byte_ns) + transfer((channels * bc * width : U32),byte_ns) : F32),
-        (assembly(channels,width,k,s,wc,byte_ns) +
-          Bool.pick(F32,U32.is_eq((out_count * ow : U32),KernelWindow.padded((out_count * ow : U32))),0.0,transfer((rows * out_count * ow : U32),byte_ns)) : F32),
-        KernelPlanning.leaf_cost(KernelWindow.padded((out_count * ow : U32)),work,config))
+        assembly(channels,width,first,count,wf,wc,byte_ns),
+        KernelPlanning.leaf_cost(KernelWindow.padded((out_count * ow : U32)),(out_count * ow : U32),work,config))
 
 def merge(clone: F32,left: Movement,right: Movement) -> Movement:
   Movement{lw,ls,lo,lsettled,lp,lmin,ln} = left
@@ -61,14 +58,12 @@ def clone_cost(work: KernelPlanning.Work,config: Cost.Configuration) -> F32:
   Cost.Configuration{mac,byte_ns,operation_ns,grain,wake} = config
   (KernelPlanning.payload_float(KernelPlanning.fork_bytes(work,0n)) * byte_ns : F32)
 
-def reorder_cost(+work: KernelPlanning.Work,config: Cost.Configuration) -> F32:
-  KernelPlanning.Work{positions,inner,rows,owners,geometry,activation} = work
-  Cost.Configuration{mac,byte_ns,operation_ns,grain,wake} = config
-  ((U32.to_f32(rows) * U32.to_f32(inner) * 4.0 + KernelPlanning.payload_float(KernelPlanning.weight_bytes(work))) * byte_ns : F32)
+def reorder_cost(work: KernelPlanning.Work,config: Cost.Configuration) -> F32:
+  KernelPlanning.reorder_ns(work,config)
 
 def movement(layout: Bands.Plan,+workers: U32,+work: KernelPlanning.Work,+window: BandWindow.Geometry,+config: Cost.Configuration) -> Movement:
   match layout:
-    case Bands.Rows{first,+count}: leaf_window(work,BandWindow.window(window,first,count),config)
+    case Bands.Rows{+first,+count}: leaf_window(work,first,count,BandWindow.window(window,first,count),config)
     case Bands.Split{+left,+right}:
       merge_layout(Bands.same_image(BandWindow.input_geometry(window),Bands.Split{left,right}),workers,clone_cost(work,config),
         movement(left,workers,work,window,config),movement(right,workers,work,window,config))

@@ -28,6 +28,13 @@ def maximum_choice(+left: Nat,+right: Nat) -> {Nat.max(left,right) == Bool.pick(
       Equal.trans(Nat,1n+Nat.max(left,right),1n+Bool.pick(Nat,Nat.is_lt(left,right),right,left),Bool.pick(Nat,Nat.is_lt(left,right),1n+right,1n+left),
         Equal.cong(Nat,Nat,n => 1n+n,Nat.max(left,right),Bool.pick(Nat,Nat.is_lt(left,right),right,left),maximum_choice(left,right)),successor_pick(Nat.is_lt(left,right),right,left))
 
+def minimum_when_ordered(+left: Nat,+right: Nat,ordered: {Nat.is_le(left,right) == True{} : Bool}) -> {Nat.min(left,right) == left : Nat}:
+  match left right:
+    case 0n right: {==}
+    case 1n+left 0n: Empty.absurd({Nat.min(1n+left,0n) == 1n+left : Nat},WordEncoding.false_true(ordered))
+    case 1n+ +left 1n+ +right:
+      Equal.cong(Nat,Nat,n => 1n+n,Nat.min(left,right),left,minimum_when_ordered(left,right,ordered))
+
 def minimum_left(+left: Nat,+right: Nat) -> {Nat.is_le(Nat.min(left,right),left) == True{} : Bool}:
   match left right:
     case 0n right: {==}
@@ -95,3 +102,18 @@ def clipped_end(+first: Nat,+end: Nat) -> {Nat.add(first,Nat.sub(end,first)) == 
     case 1n+ +first 0n: Order.commutative(1n+first,0n)
     case 1n+ +first 1n+ +end:
       Equal.cong(Nat,Nat,value => 1n+value,Nat.add(first,Nat.sub(end,first)),Nat.max(first,end),clipped_end(first,end))
+
+def below_zero_right(choice: Bool) -> {False{} == choice && False{} : Bool}:
+  match choice:
+    case False{}: {==}
+    case True{}: {==}
+
+# A lane belongs to a clipped count exactly when it belongs to both bounds.
+def below_minimum(+value: Nat,+left: Nat,+right: Nat) ->
+  {Nat.is_lt(value,Nat.min(left,right)) == Nat.is_lt(value,left) && Nat.is_lt(value,right) : Bool}:
+  match value left right:
+    case value 0n right: {==}
+    case value 1n+left 0n:
+      below_zero_right(Nat.is_lt(value,1n+left))
+    case 0n 1n+left 1n+right: {==}
+    case 1n+value 1n+left 1n+right: below_minimum(value,left,right)

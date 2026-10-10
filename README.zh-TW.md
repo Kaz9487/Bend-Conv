@@ -1,12 +1,14 @@
 <div align="center">
 
-# Bend-Conv
+<img alt="Stelliferous：夜空下的星圖師與守燈人，per aspera ad astra" src="docs/banner.jpg" width="100%">
 
-以 [Bend](https://github.com/bendlang/bend) 寫成、也以 Bend 證明的推論用張量與卷積函式庫。
+# Stelliferous
+
+以 [Bend](https://github.com/bendlang/bend) 寫成、也以 Bend 證明的張量與卷積函式庫。
 
 [開始使用](docs/getting_started.zh-TW.md) | [API 參考](lib/README.zh-TW.md) | [證明](docs/proofs.zh-TW.md) | [效能](docs/performance.zh-TW.md)
 
-[![Bend](https://img.shields.io/badge/Bend-v2.0.35-7c3aed)](scripts/toolchain.json)
+[![Bend](https://img.shields.io/badge/Bend-v2.0.36-7c3aed)](scripts/toolchain.json)
 [![Proofs](https://img.shields.io/badge/proofs-official%20checker-16a34a)](docs/proofs.zh-TW.md)
 [![Results](https://img.shields.io/badge/results-bit--exact%20across%20threads-0ea5e9)](docs/design.zh-TW.md)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-64748b)](#授權)
@@ -17,14 +19,14 @@
 
 ---
 
-Bend-Conv 是基於 Bend 2 的張量函式庫，提供卷積網路需要的運算，目前支援 F32 的運算。
+Stelliferous 是基於 Bend 2 的張量函式庫，提供卷積網路需要的運算，目前支援 F32 的運算。
 
 ## 開始使用
 
-需要 Node.js、[Bun](https://bun.sh)、Python 3 與 Clang；Linux、macOS 或 WSL。
+需要 Node.js、[Bun](https://bun.sh)、Python 3 與 Clang，在 Linux、macOS 或 WSL 上執行。
 
 ```sh
-git clone --depth 1 --branch v2.0.35 https://github.com/bendlang/bend.git .tools/bend
+git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools/bend
 ```
 
 ## 範例
@@ -47,7 +49,7 @@ def main() -> List<&2,F32>:
   feature = F.conv2d(image,weights,bias,1,1,Act.relu())
   # 2x2 視窗：4x4 -> 2x2
   pooled  = F.max_pool2d(feature,2)
-  # 讀出數值；上面任何一步失敗就回傳 []
+  # 讀出數值。上面任何一步失敗就回傳 []
   F.to_list_or(pooled,[])
 ```
 
@@ -58,7 +60,7 @@ node scripts/bend_launcher.mjs examples/array_basics.bend -o out/array_basics
 ./out/array_basics
 ```
 
-其他：[小型網路](examples/small_network.bend)、[YOLOv5n](examples/yolov5/README.zh-TW.md)。
+其他：[小型網路](examples/small_network.bend)、[儲存與載入](examples/save_and_load.bend)、[YOLOv5n](examples/yolov5/README.zh-TW.md)。
 
 ## 證明
 
@@ -78,12 +80,12 @@ law native_inference_matches_matrix:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/performance_dark.svg">
-  <img alt="YOLOv5n inference 時間：1 與 4 執行緒，Bend-Conv 271.7 與 151.4 毫秒，NumPy 249.9 與 260.0 毫秒，PyTorch 89.8 與 51.8 毫秒" src="docs/performance_light.svg" width="720">
+  <img alt="YOLOv5n inference 時間：1 與 4 執行緒，Stelliferous 0.0.1 為 153.7 與 54.8 毫秒，Stelliferous 0.0.2 為 110 與 43 毫秒，NumPy 126.9 與 113.3 毫秒，PyTorch 49.3 與 14.8 毫秒" src="docs/performance_light.svg" width="720">
 </picture>
 
 \* 只含模型計算，不包含影像載入、前處理與 NMS。
 
-在 GitHub 提供的 runner（AMD EPYC 7763，4 個虛擬 CPU）上量測。量測方式與樣本見[效能](docs/performance.zh-TW.md)。
+在 Google Cloud 的 `c4d-standard-8` 虛擬機（AMD EPYC 9B45，8 個虛擬 CPU）上量測。量測方式與樣本見[效能](docs/performance.zh-TW.md)。
 
 ## 文件
 

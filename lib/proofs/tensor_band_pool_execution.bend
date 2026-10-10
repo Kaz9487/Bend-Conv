@@ -232,14 +232,14 @@ def model_ready(~Element: Data,~operation: Element -> Element -> Element,+pool: 
     Sweeps.model(~Element,~operation,U32.to_nat((channels * height * out_width : U32)),Access.SweepContext{Access.pool_columns(pool),pad},input,middle),output,evidence)
 
 def pooled_ready(~Element: Data,~operation: Element -> Element -> Element,+pool: Access.Pool,+pad: Element,+origin: U32,+channels: U32,
-  +input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,evidence: Buffer.Ready<Element,output>) ->
+  +input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,evidence: Buffer.Sized<Element,output>) ->
   Buffer.ContentReady<Element,Buffer.contents(~Element,BandPool.pooled(~Element,~operation,pool,pad,origin,channels,Buffer.pack(~Element,input),Buffer.pack(~Element,middle),Buffer.pack(~Element,output)))>:
   %Equal.sym(Buffer.Content<Element>,Buffer.contents(~Element,BandPool.pooled(~Element,~operation,pool,pad,origin,channels,Buffer.pack(~Element,input),Buffer.pack(~Element,middle),Buffer.pack(~Element,output))),pooled_model(~Element,~operation,pool,pad,origin,channels,Buffer.content(~Element,input),Buffer.content(~Element,middle),Buffer.content(~Element,output)),packed_pooled(~Element,~operation,pool,pad,origin,channels,input,middle,output)) : Buffer.ContentReady<Element,_>
   model_ready(~Element,~operation,pool,pad,origin,channels,Buffer.content(~Element,input),Buffer.content(~Element,middle),Buffer.content(~Element,output),Buffer.content_ready(~Element,output,evidence))
 
-def fresh_ready(~Element: Data,+fill: Element,+count: U32,evidence: Depth.Ready<count>) ->
+def fresh_ready(~Element: Data,+fill: Element,+count: U32,evidence: Depth.Sized<count>) ->
   Buffer.ContentReady<Element,Buffer.Content{Tree.fresh(Element,Tensors.depth_for(count),fill),U32.to_nat(count)}>:
-  Depth.Ready{depth_ok,room} = evidence
+  Depth.Sized{depth_ok,room} = evidence
   Buffer.content_ready(~Element,Buffer.fresh(~Element,Tensors.depth_for(count),fill,U32.to_nat(count)),Buffer.fresh_ready(~Element,Tensors.depth_for(count),fill,U32.to_nat(count),depth_ok,room))
 
 # Connect the actual windowed pool's fresh destination to content readiness.
@@ -251,7 +251,7 @@ def window_count(geometry: BandWindow.Geometry,window: BandWindow.RowWindow) -> 
 
 def modeled_ready(~Element: Data,~operation: Element -> Element -> Element,+geometry: BandWindow.Geometry,+pad: Element,+fill: Element,+first: U32,+rows: U32,+window: BandWindow.RowWindow,
   +core: Buffer.Content<Element>,+above: Buffer.Content<Element>,+below: Buffer.Content<Element>,
-  evidence: Depth.Ready<window_count(geometry,window)>) ->
+  evidence: Depth.Sized<window_count(geometry,window)>) ->
   Model.ContentReady(~Element,refinement_window_model(~Element,~operation,geometry,pad,fill,first,rows,window,core,above,below)):
   match geometry window:
     case BandWindow.Geometry{Bands.Geometry{batch,+channels,+height,+width},+kernel,+stride,+padding,+output_height,+output_width}
@@ -263,7 +263,7 @@ def modeled_ready(~Element: Data,~operation: Element -> Element -> Element,+geom
       model_ready(~Element,~operation,Access.Pool{window_rows,width,kernel,stride,padding,output_rows,output_width},pad,((output_first - first / height * output_height) * stride + first / height * height - window_first : U32),channels,TensorBandWindow.assembly_content(~Element,BandWindow.input_geometry(geometry),fill,window,BandWindow.Rows{first,rows},above_range,below_range,core,above,below),Buffer.Content{Tree.fresh(Element,Tensors.depth_for(middle_count),fill),U32.to_nat(middle_count)},Buffer.Content{Tree.fresh(Element,Tensors.depth_for(count),fill),U32.to_nat(count)},fresh_ready(~Element,fill,count,evidence))
 
 def windowed_ready(~Element: Data,~operation: Element -> Element -> Element,+geometry: BandWindow.Geometry,+pad: Element,+fill: Element,+first: U32,+rows: U32,+window: BandWindow.RowWindow,
-  +core: Buffer.Model<Element>,+above: Buffer.Model<Element>,+below: Buffer.Model<Element>,evidence: Depth.Ready<window_count(geometry,window)>) ->
+  +core: Buffer.Model<Element>,+above: Buffer.Model<Element>,+below: Buffer.Model<Element>,evidence: Depth.Sized<window_count(geometry,window)>) ->
   Model.ContentReady(~Element,Model.contents(~Element,BandPool.windowed(~Element,~operation,geometry,pad,fill,first,rows,window,Buffer.pack(~Element,core),Buffer.pack(~Element,above),Buffer.pack(~Element,below)))):
   %Equal.sym(Model.Content<Element>,Model.contents(~Element,BandPool.windowed(~Element,~operation,geometry,pad,fill,first,rows,window,Buffer.pack(~Element,core),Buffer.pack(~Element,above),Buffer.pack(~Element,below))),refinement_window_model(~Element,~operation,geometry,pad,fill,first,rows,window,Buffer.content(~Element,core),Buffer.content(~Element,above),Buffer.content(~Element,below)),refinement_windowed(~Element,~operation,geometry,pad,fill,first,rows,window,core,above,below)) : Model.ContentReady(~Element,_)
   modeled_ready(~Element,~operation,geometry,pad,fill,first,rows,window,Buffer.content(~Element,core),Buffer.content(~Element,above),Buffer.content(~Element,below),evidence)
@@ -319,7 +319,7 @@ def from_window(+geometry: BandWindow.Geometry,+window: BandWindow.RowWindow,+li
   domain: BandGather.Domain<allocation_guards_output_geometry(geometry),limits,Machine.capacity(limits)>,
   positive_batch: {Nat.is_lt(0n,U32.to_nat(images(geometry))) == True{} : Bool},
   rows_inside: {Nat.is_le(U32.to_nat(TensorBandWindow.output_rows(window)),U32.to_nat(TensorBandWindow.output_height(geometry))) == True{} : Bool}) ->
-  Depth.Ready<window_count(geometry,window)>:
+  Depth.Sized<window_count(geometry,window)>:
   match geometry window:
     case BandWindow.Geometry{Bands.Geometry{+images,+channels,height,width},kernel,stride,padding,+output_height,+output_width}
       BandWindow.RowWindow{BandWindow.Rows{out_first,+out_rows},above,below,held}:
@@ -328,7 +328,7 @@ def from_window(+geometry: BandWindow.Geometry,+window: BandWindow.RowWindow,+li
 
 def active(+geometry: BandWindow.Geometry,+first: U32,+rows: U32,+limits: Machine.Limits,
   domain: BandGather.Domain<allocation_guards_output_geometry(geometry),limits,Machine.capacity(limits)>,positive_batch: {Nat.is_lt(0n,U32.to_nat(images(geometry))) == True{} : Bool}) ->
-  Depth.Ready<window_count(geometry,BandWindow.window(geometry,first,rows))>:
+  Depth.Sized<window_count(geometry,BandWindow.window(geometry,first,rows))>:
   from_window(geometry,BandWindow.window(geometry,first,rows),limits,domain,positive_batch,TensorBandWindow.bounded(geometry,first,rows))
 
 # The actual window apply tree for pooling. Scheduling changes neither the
@@ -600,7 +600,7 @@ def WindowFacts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
   +window: BandWindow.RowWindow,+core: Buffer.Content<Element>,+above: Buffer.Content<Element>,+below: Buffer.Content<Element>,+limits: Machine.Limits) -> Data:
   BandWindow.RowWindow{BandWindow.Rows{+output_first,+output_rows},above_range,below_range,BandWindow.Rows{+window_first,+window_rows}} = window
   +input = assembled_input(~Element,geometry,fill,first,rows,window,core,above,below)
-  Shape.Both<Depth.Ready<middle_count(geometry,window)>,Shape.Both<Depth.Ready<window_count(geometry,window)>,
+  Shape.Both<Depth.Sized<middle_count(geometry,window)>,Shape.Both<Depth.Sized<window_count(geometry,window)>,
     Shape.Both<{U32.to_nat(middle_count(geometry,window)) == middle_cells(geometry,window) : Nat},
       Shape.Both<{U32.to_nat(window_count(geometry,window)) == window_cells(geometry,window) : Nat},
         Shape.Both<BandValues.Values(~Element,~Logical,~original,logical,BandWindow.input_geometry(geometry),Model.RowBand{input,window_first,window_rows}),
@@ -611,7 +611,7 @@ def WindowFacts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
 # into WindowFacts, keeping allocation and coordinate producer facts explicit.
 def window_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+geometry: BandWindow.Geometry,+pad: Element,+fill: Element,+first: U32,+rows: U32,
   +window: BandWindow.RowWindow,+core: Buffer.Model<Element>,+above: Buffer.Model<Element>,+below: Buffer.Model<Element>,+limits: Machine.Limits,
-  middle_allocation: Depth.Ready<middle_count(geometry,window)>,allocation: Depth.Ready<window_count(geometry,window)>,
+  middle_allocation: Depth.Sized<middle_count(geometry,window)>,allocation: Depth.Sized<window_count(geometry,window)>,
   middle_exact: {U32.to_nat(middle_count(geometry,window)) == middle_cells(geometry,window) : Nat},
   count_exact: {U32.to_nat(window_count(geometry,window)) == window_cells(geometry,window) : Nat},
   range_values: NativeWindowValues(~Element,~Logical,~original,logical,geometry,fill,first,rows,window,core,above,below),
@@ -631,7 +631,7 @@ def window_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 def values_fresh(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+logical: Logical,+pad: Element,+fill: Element,+batch: U32,+channels: U32,+height: U32,+width: U32,
   +kernel: U32,+stride: U32,+padding: U32,+out_height: U32,+out_width: U32,+window_first: U32,+window_rows: U32,+output_first: U32,+output_rows: U32,+origin: U32,
   +input: Buffer.Content<Element>,+limits: Machine.Limits,
-  middle_allocation: Depth.Ready<(channels * window_rows * out_width : U32)>,allocation: Depth.Ready<(channels * output_rows * out_width : U32)>,
+  middle_allocation: Depth.Sized<(channels * window_rows * out_width : U32)>,allocation: Depth.Sized<(channels * output_rows * out_width : U32)>,
   +middle_exact: {U32.to_nat((channels * window_rows * out_width : U32)) == BandValues.cell_count(Bands.Geometry{batch,channels,height,out_width},window_rows) : Nat},
   +count_exact: {U32.to_nat((channels * output_rows * out_width : U32)) == BandValues.cell_count(Bands.Geometry{batch,channels,out_height,out_width},output_rows) : Nat},
   values: BandValues.Values(~Element,~Logical,~original,logical,Bands.Geometry{batch,channels,height,width},Model.RowBand{input,window_first,window_rows}),
@@ -644,8 +644,8 @@ def values_fresh(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
       Buffer.Content{Tree.fresh(Element,Tensors.depth_for((channels * window_rows * out_width : U32)),fill),U32.to_nat((channels * window_rows * out_width : U32))},
       Buffer.Content{Tree.fresh(Element,Tensors.depth_for((channels * output_rows * out_width : U32)),fill),U32.to_nat((channels * output_rows * out_width : U32))}),output_first,output_rows}):
   Buffer.Content{+input_tree,+input_length} = input
-  Depth.Ready{+middle_depth_ok,+middle_room} = middle_allocation
-  Depth.Ready{+depth_ok,+room} = allocation
+  Depth.Sized{+middle_depth_ok,+middle_room} = middle_allocation
+  Depth.Sized{+depth_ok,+room} = allocation
   +middle_count = (channels * window_rows * out_width : U32)
   +count = (channels * output_rows * out_width : U32)
   BandSweeps.pooled_leaf(~Element,~Logical,~original,~operation,logical,pad,batch,channels,height,width,kernel,stride,padding,out_height,out_width,window_first,window_rows,output_first,output_rows,origin,

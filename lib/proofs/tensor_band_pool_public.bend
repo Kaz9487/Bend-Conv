@@ -142,35 +142,35 @@ def invocation(~Element: Data,~operation: Element -> Element -> Element,+name: S
   selection: {OutputDomain.enabled(shape,window_geometry(input,kernel,stride,padding)) == True{} : Bool},
   planes_counted: {Tensors.count_of(planes_shape(shape,window_geometry(input,kernel,stride,padding))) == Some{planes} : Maybe<&2,U32>},
   counted: {Tensors.count_of(OutputDomain.output_shape(shape,window_geometry(input,kernel,stride,padding))) == Some{count} : Maybe<&2,U32>}) ->
-  {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding) ==
+  {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding) ==
     Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{window_geometry(input,kernel,stride,padding),pad,fill,workers},bands),
-      BandPoolExecution.values_output_geometry(window_geometry(input,kernel,stride,padding)),OutputDomain.output_shape(shape,window_geometry(input,kernel,stride,padding)),fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}:
+      BandPoolExecution.values_output_geometry(window_geometry(input,kernel,stride,padding)),OutputDomain.output_shape(shape,window_geometry(input,kernel,stride,padding)),fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}:
   Bands.Geometry{images,channels,height,width} = input
   +geometry = window_geometry(input,kernel,stride,padding)
   +out_shape = OutputDomain.output_shape(shape,geometry)
   %Equal.sym(Access.Pool,Window.geometry(shape,kernel,stride,padding),OutputDomain.pool(geometry),actual_pool(shape,input,kernel,stride,padding,matched)) :
     {Window.band_geometry(~Element,~operation,name,pad,_,input,bands,shape,fill,workers) ==
-      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}
+      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}
   %Equal.sym(Bool,OutputDomain.enabled(shape,geometry),True{},selection) :
     {Window.band_count(~Element,~operation,name,_,Tensors.count_of(planes_shape(shape,geometry)),Tensors.count_of(out_shape),pad,OutputDomain.pool(geometry),input,bands,shape,out_shape,fill,workers) ==
-      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}
+      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}
   %Equal.sym(Maybe<&2,U32>,Tensors.count_of(planes_shape(shape,geometry)),Some{planes},planes_counted) :
     {Window.band_count(~Element,~operation,name,True{},_,Tensors.count_of(out_shape),pad,OutputDomain.pool(geometry),input,bands,shape,out_shape,fill,workers) ==
-      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}
+      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}
   %Equal.sym(Maybe<&2,U32>,Tensors.count_of(out_shape),Some{count},counted) :
     {Window.band_count(~Element,~operation,name,True{},Some{planes},_,pad,OutputDomain.pool(geometry),input,bands,shape,out_shape,fill,workers) ==
-      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}
+      Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},bands),BandPoolExecution.values_output_geometry(geometry),out_shape,fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}
   {==}
 
 def band_counted_machine(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +machine: Scalar.Observation,+logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,+source: Model.Model<Element>,
   +truth: {eligible(shape,input,kernel,stride,padding) == True{} : Bool},
-  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),
   source_values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,Model.pack(~Element,source))),
   planes_output: Global.Counted<planes_shape(shape,window_geometry(input,kernel,stride,padding))>,
   output: Global.Counted<OutputDomain.output_shape(shape,window_geometry(input,kernel,stride,padding))>) ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   Bands.Geometry{images,channels,height,width} = input
   Shape.Both{source_well_formed,Shape.Both{input_counted,+coherent}} = normal
   Global.Counted{+planes,+planes_accepted} = planes_output
@@ -179,8 +179,8 @@ def band_counted_machine(~Element: Data,~Logical: Data,~original: Logical -> U32
   +selection = selected(shape,input,kernel,stride,padding,truth)
   +source_well_formed = {%Model.packed_contents(~Element,source) : BandShape.WellFormed<Element,input,_> source_well_formed : BandShape.WellFormed<Element,input,Model.content(~Element,source)>}
   +source_values = {%Model.packed_contents(~Element,source) : BandValues.Values(~Element,~Logical,~original,logical,input,_) source_values : BandValues.Values(~Element,~Logical,~original,logical,input,Model.content(~Element,source))}
-  %Equal.sym(Tensors.Tensor<Element>,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding),
-    Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},Model.pack(~Element,source)),BandPoolExecution.values_output_geometry(geometry),OutputDomain.output_shape(shape,geometry),fill,Tensors.Ready{},workers},
+  %Equal.sym(Tensors.Tensor<Element>,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding),
+    Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{geometry,pad,fill,workers},Model.pack(~Element,source)),BandPoolExecution.values_output_geometry(geometry),OutputDomain.output_shape(shape,geometry),fill,Tensors.Usable{},workers},
     invocation(~Element,~operation,name,pad,input,shape,fill,workers,kernel,stride,padding,Model.pack(~Element,source),planes,count,coherent,selection,planes_accepted,accepted)) :
     Contract(~Element,~Logical,~original,~operation,logical,geometry,pad,_)
   Shape.Both{
@@ -193,44 +193,44 @@ def band_counted_machine(~Element: Data,~Logical: Data,~original: Logical -> U32
 def band_counted(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,+source: Model.Model<Element>,
   +truth: {eligible(shape,input,kernel,stride,padding) == True{} : Bool},
-  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),
   source_values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,Model.pack(~Element,source))),
   planes_output: Global.Counted<planes_shape(shape,window_geometry(input,kernel,stride,padding))>,
   output: Global.Counted<OutputDomain.output_shape(shape,window_geometry(input,kernel,stride,padding))>) ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   band_counted_machine(~Element,~Logical,~original,~operation,name,Scalar.observe_envelope(),logical,input,shape,pad,fill,workers,kernel,stride,padding,source,truth,normal,source_values,planes_output,output)
 
 def band_modeled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,+source: Model.Model<Element>,
   +truth: {eligible(shape,input,kernel,stride,padding) == True{} : Bool},
-  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),
   source_values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,Model.pack(~Element,source)))) ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   band_counted(~Element,~Logical,~original,~operation,name,logical,input,shape,pad,fill,workers,kernel,stride,padding,source,truth,normal,source_values,planes_counted(shape,input,kernel,stride,padding,truth),output_counted(shape,input,kernel,stride,padding,truth))
 
 def band_observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,-bands: Bands.Bands(~Element),
   +truth: {eligible(shape,input,kernel,stride,padding) == True{} : Bool},observation: Model.Observation<Element,bands>,
-  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),
   source_values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands))) ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   Model.Observation{+source,+source_exact} = observation
   %source_exact : Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding))
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding))
   band_modeled(~Element,~Logical,~original,~operation,name,logical,input,shape,pad,fill,workers,kernel,stride,padding,source,truth,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,source_exact) : Global.Normal(~Element,Tensors.Banded{_,input,shape,fill,Tensors.Ready{},workers}) normal,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,source_exact) : Global.Normal(~Element,Tensors.Banded{_,input,shape,fill,Tensors.Usable{},workers}) normal,
     %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,source_exact) : BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,_)) source_values)
 
 def band_ready(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,bands: Bands.Bands(~Element),
   truth: {eligible(shape,input,kernel,stride,padding) == True{} : Bool},
-  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),
   source_values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands))) ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
-    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+    Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   band_observed(~Element,~Logical,~original,~operation,name,logical,input,shape,pad,fill,workers,kernel,stride,padding,bands,truth,Model.observe(~Element,bands),normal,source_values)
 
 def band_status_ready(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
@@ -242,7 +242,7 @@ def band_status_ready(~Element: Data,~Logical: Data,~original: Logical -> U32 ->
   Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
     Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,status,workers},kernel,stride,padding)):
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       band_ready(~Element,~Logical,~original,~operation,name,logical,input,shape,pad,fill,workers,kernel,stride,padding,bands,truth,normal,source_values)
     case Tensors.Failed{problem}:
       Empty.absurd(Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,
@@ -256,12 +256,12 @@ def rejected_count(~Element: Data,~operation: Element -> Element -> Element,+nam
   +pad: Element,+shape: List<&2,U32>,+out_shape: List<&2,U32>,+fill: Element,+workers: U32,
   rejected: {valid && Views.has_count(planes) && Views.has_count(count) == False{} : Bool}) ->
   {Window.band_count(~Element,~operation,name,valid,planes,count,pad,pool,input,bands,shape,out_shape,fill,workers) ==
-    Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),
+    Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),
       BandPoolWindowValues.pool_kernel(pool),BandPoolWindowValues.pool_stride(pool),BandPoolWindowValues.pool_padding(pool)) : Tensors.Tensor<Element>}:
   match valid planes count pool:
     case True{} Some{planes} Some{count} Access.Pool{height,width,kernel,stride,padding,oh,ow}:
       Empty.absurd({Window.band_count(~Element,~operation,name,True{},Some{planes},Some{count},pad,pool,input,bands,shape,out_shape,fill,workers) ==
-        Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>},
+        Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>},
         WordEncoding.false_true(Equal.sym(Bool,True{},False{},rejected)))
     case False{} planes count Access.Pool{height,width,kernel,stride,padding,oh,ow}: {==}
     case True{} None{} count Access.Pool{height,width,kernel,stride,padding,oh,ow}: {==}
@@ -270,13 +270,13 @@ def rejected_count(~Element: Data,~operation: Element -> Element -> Element,+nam
 def rejected_result(~Element: Data,~operation: Element -> Element -> Element,+name: String,
   +pad: Element,+input: Bands.Geometry,-bands: Bands.Bands(~Element),+shape: List<&2,U32>,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
   +coherent: {Window.band_shape(shape,input) == True{} : Bool},rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool}) ->
-  {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding) ==
-    Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>}:
+  {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding) ==
+    Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>}:
   Bands.Geometry{images,channels,height,width} = input
   +geometry = window_geometry(input,kernel,stride,padding)
   %Equal.sym(Access.Pool,Window.geometry(shape,kernel,stride,padding),OutputDomain.pool(geometry),actual_pool(shape,input,kernel,stride,padding,coherent)) :
     {Window.band_geometry(~Element,~operation,name,pad,_,input,bands,shape,fill,workers) ==
-      Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>}
+      Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>}
   rejected_count(~Element,~operation,name,OutputDomain.enabled(shape,geometry),Tensors.count_of(planes_shape(shape,geometry)),Tensors.count_of(OutputDomain.output_shape(shape,geometry)),OutputDomain.pool(geometry),input,bands,pad,shape,OutputDomain.output_shape(shape,geometry),fill,workers,rejected)
 
 # The rejected selector gathers once and runs the dense pool on the same pool
@@ -285,19 +285,19 @@ def rejected_result(~Element: Data,~operation: Element -> Element -> Element,+na
 # and the dense pool theorem supplies the values.
 def rejected_completed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+source: Model.Model<Element>,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
-  prepared: ReadyDensification.Prepared(~Element,~Logical,~original,logical,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),
-  +result_equal: {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding) == Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>},
+  prepared: ReadyDensification.Prepared(~Element,~Logical,~original,logical,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),
+  +result_equal: {Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding) == Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding) : Tensors.Tensor<Element>},
   +coherent: {Window.band_shape(shape,input) == True{} : Bool},
-  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   Bands.Geometry{images,channels,height,width} = input
   Shape.Both{dense_normal,dense_contract} = prepared
-  %Equal.sym(Tensors.Tensor<Element>,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding),result_equal) :
+  %Equal.sym(Tensors.Tensor<Element>,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding),result_equal) :
     Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,_)
   %actual_pool(shape,input,kernel,stride,padding,coherent) :
-    Shape.Both<Global.Normal(~Element,Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding)),Shape.Both<{Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding)) == True{} : Bool},
-      Dense.TensorValues(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),PoolDense.context(~Element,~Logical,logical,_,pad),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding))>>
-  DenseNormal.from_shaped(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),PoolDense.context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),PoolDense.result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),kernel,stride,padding),
+    Shape.Both<Global.Normal(~Element,Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding)),Shape.Both<{Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding)) == True{} : Bool},
+      Dense.TensorValues(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),PoolDense.context(~Element,~Logical,logical,_,pad),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding))>>
+  DenseNormal.from_shaped(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),PoolDense.context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),PoolDense.result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),kernel,stride,padding),
     PoolDense.dense_shaped(~Element,~Logical,~original,~operation,name,logical,pad,kernel,stride,padding,
       Bands.gather(~Element,input,Model.pack(~Element,source),Tensors.buffer(~Element,fill,Bands.elements(input))),shape,fill,workers,dense_contract,
       %result_equal : {Dense.tensor_ready(~Element,_) == True{} : Bool}
@@ -305,39 +305,39 @@ def rejected_completed(~Element: Data,~Logical: Data,~original: Logical -> U32 -
 
 def rejected_modeled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,+source: Model.Model<Element>,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
-  +normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,Model.pack(~Element,source))),
-  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  +normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,Model.pack(~Element,source))),
+  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{Model.pack(~Element,source),input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   Shape.Both{source_well_formed,Shape.Both{input_counted,+coherent}} = normal
   rejected_completed(~Element,~Logical,~original,~operation,name,logical,input,source,shape,pad,fill,workers,kernel,stride,padding,
     ReadyDensification.prepared_owner(~Element,~Logical,~original,logical,
-      {BandConcatExecution.BandedOwner{source,input,shape,fill,Tensors.Ready{},workers} : BandConcatExecution.TensorOwnerModel<Element>},normal,{==},values),
+      {BandConcatExecution.BandedOwner{source,input,shape,fill,Tensors.Usable{},workers} : BandConcatExecution.TensorOwnerModel<Element>},normal,{==},values),
     rejected_result(~Element,~operation,name,pad,input,Model.pack(~Element,source),shape,fill,workers,kernel,stride,padding,coherent,rejected),coherent,accepted)
 
 def rejected_observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,-bands: Bands.Bands(~Element),+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
-  observation: Model.Observation<Element,bands>,normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),
-  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  observation: Model.Observation<Element,bands>,normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),
+  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   Model.Observation{+source,+equation} = observation
-  %equation : Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding))
+  %equation : Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding))
   rejected_modeled(~Element,~Logical,~original,~operation,name,logical,input,source,shape,pad,fill,workers,kernel,stride,padding,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,equation) : Global.Normal(~Element,Tensors.Banded{_,input,shape,fill,Tensors.Ready{},workers}) normal,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,equation) : Global.Normal(~Element,Tensors.Banded{_,input,shape,fill,Tensors.Usable{},workers}) normal,
     %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,equation) : BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,_)) values,rejected,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,equation) : {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool} accepted)
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,source),bands,equation) : {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{_,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool} accepted)
 
 def rejected_ready(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,bands: Bands.Bands(~Element),+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
-  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),
-  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),
+  rejected: {eligible(shape,input,kernel,stride,padding) == False{} : Bool},accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   rejected_observed(~Element,~Logical,~original,~operation,name,logical,input,bands,shape,pad,fill,workers,kernel,stride,padding,Model.observe(~Element,bands),normal,values,rejected,accepted)
 
 def classified(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   choice: Bool,+logical: Logical,+input: Bands.Geometry,+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
   selection: {eligible(shape,input,kernel,stride,padding) == choice : Bool},bands: Bands.Bands(~Element),
-  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   match choice:
     case False{}: rejected_ready(~Element,~Logical,~original,~operation,name,logical,input,bands,shape,pad,fill,workers,kernel,stride,padding,normal,values,selection,accepted)
     case True{}: band_ready(~Element,~Logical,~original,~operation,name,logical,input,shape,pad,fill,workers,kernel,stride,padding,bands,selection,normal,values)
@@ -348,6 +348,6 @@ def classified(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elemen
 # the logical input at every index.
 def band_result(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+input: Bands.Geometry,bands: Bands.Bands(~Element),+shape: List<&2,U32>,+pad: Element,+fill: Element,+workers: U32,+kernel: U32,+stride: U32,+padding: U32,
-  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
+  normal: Global.Normal(~Element,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Logical,~original,logical,input,Model.contents(~Element,bands)),accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Contract(~Element,~Logical,~original,~operation,logical,window_geometry(input,kernel,stride,padding),pad,Window.pool2d(~Element,~operation,name,pad,Tensors.Banded{bands,input,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
   classified(~Element,~Logical,~original,~operation,name,eligible(shape,input,kernel,stride,padding),logical,input,shape,pad,fill,workers,kernel,stride,padding,{==},bands,normal,values,accepted)

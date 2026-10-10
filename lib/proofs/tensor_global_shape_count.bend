@@ -20,12 +20,12 @@ type Counted<-shape: List<&2,U32>> is Data:
 
 def BandShape(status: Tensors.Status,shape: List<&2,U32>,geometry: Bands.Geometry) -> Data:
   match status:
-    case Tensors.Ready{}: Shape.Both<Counted<shape>,{Window.band_shape(shape,geometry) == True{} : Bool}>
+    case Tensors.Usable{}: Shape.Both<Counted<shape>,{Window.band_shape(shape,geometry) == True{} : Bool}>
     case Tensors.Failed{problem}: Unit
 
 def DenseShape(~Element: Data,status: Tensors.Status,shape: List<&2,U32>,content: Buffer.Content<Element>) -> Data:
   match status:
-    case Tensors.Ready{}: Shape.Both<Counted<shape>,{Buffer.content_length(~Element,content) == ShapeLaws.elements(shape) : Nat}>
+    case Tensors.Usable{}: Shape.Both<Counted<shape>,{Buffer.content_length(~Element,content) == ShapeLaws.elements(shape) : Nat}>
     case Tensors.Failed{problem}: Unit
 
 def Normal(~Element: Data,tensor: Tensors.Tensor<Element>) -> Data:

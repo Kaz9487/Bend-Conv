@@ -233,6 +233,16 @@ def children_copy(+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {Co
       TilePartitionBounds.left_interval_bound(offset,span,Machine.capacity(limits),Support.padded(problem),Limits.capacity_fits(limits),capacity_room,range),
       cover_fits(problem,U32.to_nat(first),U32.to_nat(rows),U32.to_nat(offset),U32.to_nat(span),cover),checked))
 
+# An eight-wide output row is a whole number of blocks of eight positions.
+def blocks_per_row(problem: ConvSpec.Problem) -> Nat:
+  U32.to_nat((U32.from_nat(ConvSpec.out_width(problem)) / 8 : U32))
+
+def width_factor(+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {ScalarConv.supported_with_limits(limits,problem) == True{} : Bool},
+  aligned: {U32.is_zero((U32.from_nat(ConvSpec.out_width(problem)) % 8 : U32)) == True{} : Bool}) ->
+  {Nat.mul(blocks_per_row(problem),8n) == ConvSpec.out_width(problem) : Nat}:
+  Equal.trans(Nat,Nat.mul(blocks_per_row(problem),8n),U32.to_nat(U32.from_nat(ConvSpec.out_width(problem))),ConvSpec.out_width(problem),
+    Radix.divide_eight_exact_multiple(U32.from_nat(ConvSpec.out_width(problem)),aligned),Coordinates.width_exact(limits,problem,Guards.valid(problem,valid),Support.scalar(limits,problem,supported)))
+
 def children_when(copy: Bool,+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {ConvSpec.valid(problem) == True{} : Bool},
   +supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},+offset: U32,+span: U32,
   +tree: Tree.Tree<F32>,+first: U32,+rows: U32,
@@ -241,7 +251,6 @@ def children_when(copy: Bool,+limits: Machine.Limits,+problem: ConvSpec.Problem,
   +room: {Nat.is_le(WindowProblem.count(problem,U32.to_nat(rows)),U32.to_nat(Tree.capacity(F32,tree))) == True{} : Bool},
   +capacity_room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(span)),U32.to_nat(Machine.capacity(limits))) == True{} : Bool},
   +range: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(span)),Support.padded(problem)) == True{} : Bool},
-  +width_blocks: Nat,+width: {Nat.mul(width_blocks,8n) == ConvSpec.out_width(problem) : Nat},
   +channels: U32,+image_width: U32,+channels_exact: {U32.to_nat(channels) == Guards.input_channel_count(problem) : Nat},
   +width_exact: {U32.to_nat(image_width) == Guards.width(problem) : Nat},+band: KernelWindow.Band,
   +checked: {U32.is_zero((U32.from_nat(ConvSpec.out_width(problem)) % 8 : U32)) && KernelWindow.covers(first,rows,U32.from_nat(Guards.height(problem)),
@@ -251,18 +260,18 @@ def children_when(copy: Bool,+limits: Machine.Limits,+problem: ConvSpec.Problem,
   match copy:
     case False{}: kept(limits,problem,offset,span,tree,first,rows,cover,contents,room,capacity_room)
     case True{}:
-      children_copy(limits,problem,valid,supported,offset,span,tree,first,rows,cover,contents,room,capacity_room,range,width_blocks,width,
+      children_copy(limits,problem,valid,supported,offset,span,tree,first,rows,cover,contents,room,capacity_room,range,blocks_per_row(problem),
+        width_factor(limits,problem,valid,Support.scalar_guard(limits,problem,supported),Boolean.left(U32.is_zero((U32.from_nat(ConvSpec.out_width(problem)) % 8 : U32)),KernelWindow.covers(first,rows,U32.from_nat(Guards.height(problem)),U32.from_nat(Guards.kernel(problem)),U32.from_nat(Guards.stride(problem)),U32.from_nat(Guards.pad(problem)),U32.from_nat(ConvSpec.out_width(problem)),offset,TilePartitionBounds.half(span),band),checked)),
         channels,image_width,channels_exact,width_exact,band,
         Boolean.right(U32.is_zero((U32.from_nat(ConvSpec.out_width(problem)) % 8 : U32)),KernelWindow.covers(first,rows,U32.from_nat(Guards.height(problem)),
           U32.from_nat(Guards.kernel(problem)),U32.from_nat(Guards.stride(problem)),U32.from_nat(Guards.pad(problem)),U32.from_nat(ConvSpec.out_width(problem)),
           offset,TilePartitionBounds.half(span),band),checked))
 
-# Aligned rows: both windows of a split cover their halves and hold their bands.
+# Both windows of a split cover their halves and hold their bands.
 def children(+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {ConvSpec.valid(problem) == True{} : Bool},
   +supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},+offset: U32,+span: U32,
   +capacity_room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(span)),U32.to_nat(Machine.capacity(limits))) == True{} : Bool},
   +range: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(span)),Support.padded(problem)) == True{} : Bool},
-  +width_blocks: Nat,+width: {Nat.mul(width_blocks,8n) == ConvSpec.out_width(problem) : Nat},
   +window: Execution.InputWindow,+state: State<problem,window,offset,span>) ->
   Children<problem,Execution.split(LeafReadback.work(problem),offset,TilePartitionBounds.half(span),window),offset,span>:
   ConvSpec.Problem{shape,+input,+weights,+bias} = problem
@@ -277,19 +286,9 @@ def children(+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {ConvSpe
     Children<problem,Execution.split(LeafReadback.work(problem),offset,TilePartitionBounds.half(span),_),offset,span>
   children_when(U32.is_zero((U32.from_nat(out_width) % 8 : U32)) && KernelWindow.covers(first,rows,U32.from_nat(height),U32.from_nat(kernel),U32.from_nat(stride),
       U32.from_nat(padding),U32.from_nat(out_width),offset,half,band),
-    limits,problem,valid,supported,offset,span,tree,first,rows,cover,contents,room,capacity_room,range,width_blocks,width,
+    limits,problem,valid,supported,offset,span,tree,first,rows,cover,contents,room,capacity_room,range,
     (Coordinates.native_inner(problem) / (U32.from_nat(kernel) * U32.from_nat(kernel)) : U32),U32.from_nat(image_width),
     channels_word(limits,problem,valid,supported),SupportedCoordinateBounds.width_exact(limits,problem,support),band,{==})
-
-# An eight-wide output row is a whole number of blocks of eight positions.
-def blocks_per_row(problem: ConvSpec.Problem) -> Nat:
-  U32.to_nat((U32.from_nat(ConvSpec.out_width(problem)) / 8 : U32))
-
-def width_factor(+limits: Machine.Limits,+problem: ConvSpec.Problem,+valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {ScalarConv.supported_with_limits(limits,problem) == True{} : Bool},
-  aligned: {U32.is_zero((U32.from_nat(ConvSpec.out_width(problem)) % 8 : U32)) == True{} : Bool}) ->
-  {Nat.mul(blocks_per_row(problem),8n) == ConvSpec.out_width(problem) : Nat}:
-  Equal.trans(Nat,Nat.mul(blocks_per_row(problem),8n),U32.to_nat(U32.from_nat(ConvSpec.out_width(problem))),ConvSpec.out_width(problem),
-    Radix.divide_eight_exact_multiple(U32.from_nat(ConvSpec.out_width(problem)),aligned),Coordinates.width_exact(limits,problem,Guards.valid(problem,valid),Support.scalar(limits,problem,supported)))
 
 # Over aligned rows every node's window covers its span and holds its band.
 def partition_aligned(+limits: Machine.Limits,+problem: ConvSpec.Problem,+storage_contract: Inputs.Contract<problem>,
@@ -314,14 +313,11 @@ def partition_aligned(+limits: Machine.Limits,+problem: ConvSpec.Problem,+storag
       +bias = Inputs.bias_tree(problem,storage_contract)
       +half = TilePartitionBounds.half(span)
       +pair = Execution.split(work,offset,half,window)
-      +kids = children(limits,problem,valid,supported,offset,span,capacity_room,range,width_blocks,width,window,state)
+      +kids = children(limits,problem,valid,supported,offset,span,capacity_room,range,window,state)
       +bounded = Order.transitive(U32.to_nat(span),padded,U32.to_nat(capacity),span_bound,
         Padded.padded_bound(limits,problem,Guards.valid(problem,valid),Support.fast(limits,problem,supported)))
       +left_bound = Order.transitive(U32.to_nat(half),U32.to_nat(span),padded,TilePartitionBounds.half_le(span,capacity,fits,bounded),span_bound)
-      +right_bound = {%Equal.sym(Nat,U32.to_nat((span - half : U32)),Nat.sub(U32.to_nat(span),U32.to_nat(half)),TilePartitionBounds.remainder_exact(span,capacity,fits,bounded)) :
-          {Nat.is_le(_,padded) == True{} : Bool}
-        Order.transitive(Nat.sub(U32.to_nat(span),U32.to_nat(half)),U32.to_nat(span),padded,Order.sub_le(U32.to_nat(span),U32.to_nat(half)),span_bound) :
-        {Nat.is_le(U32.to_nat((span - half : U32)),padded) == True{} : Bool}}
+      +right_bound = Order.transitive(U32.to_nat((span - half : U32)),U32.to_nat(span),padded,TilePartitionBounds.remainder_le(span,capacity,fits,bounded),span_bound)
       +left_window = PartitionLaws.first(~Execution.InputWindow,pair)
       +right_window = PartitionLaws.second(~Execution.InputWindow,pair)
       %Equal.sym(GatherModel.ConvResult(),Execution.partition(rest,work,offset,half,left_window,reordered,bias),

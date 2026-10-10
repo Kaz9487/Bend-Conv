@@ -1,7 +1,8 @@
-"""Replay actual public band planner choices on a generated model's metadata.
+"""Report executed handwritten plans or replay generated-model metadata.
 
-The Bend diagnostic calls the real planners. Python connects tensor layouts in
-graph order and records estimates; it neither selects plans nor times kernels.
+Handwritten mode observes executed convolution plans in generated C and checks
+its prediction against an uninstrumented run. Graph mode replays layout metadata
+through the Bend planners. Neither mode selects plans or times kernels.
 """
 
 import argparse
@@ -10,7 +11,9 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -139,12 +142,132 @@ def generate_entry(graph):
     return '\n'.join(source) + '\n', descriptions
 
 
+# The handwritten model reports the plans it actually executes. Instrumentation
+# observes named dispatch arguments without changing their ownership or planners.
+PLAN_HEADER = r'''
+static char plan_name[256];
+static unsigned plan_index;
+static void plan_label(Env e, Term name) {
+  unsigned n=0;
+  while(term_aux(name)==CID_SCON && n+1<sizeof(plan_name)) {
+    u64 p=term_peek(e.mem,name);
+    plan_name[n++]=(char)e.mem[p]; name=e.mem[p+1];
+  }
+  plan_name[n]=0;
+}
+static void plan_tree(Env e, Term tree, unsigned depth, unsigned *leaves, unsigned *maximum) {
+  u64 p=term_peek(e.mem,tree);
+  if(term_aux(tree)==CID_______LIB_TRAVERSAL_PARTITION_LEAF) {
+    ++*leaves; if(depth>*maximum)*maximum=depth;
+  } else {
+    plan_tree(e,e.mem[p],depth+1,leaves,maximum);
+    plan_tree(e,e.mem[p+1],depth+1,leaves,maximum);
+  }
+}
+static void plan_emit(const char *route, unsigned depth, unsigned leaves, unsigned parallel,
+                      unsigned ci,unsigned co,unsigned h,unsigned w,unsigned k,unsigned s,unsigned p) {
+  fprintf(stderr,"PLAN {\"convolution\":%u,\"name\":\"%s\",\"route\":\"%s\","
+    "\"depth\":%u,\"leaves\":%u,\"parallel\":%s,\"dimensions\":[%u,%u,%u,%u,%u,%u,%u]}\n",
+    plan_index++,plan_name,route,depth,leaves,parallel?"true":"false",ci,co,h,w,k,s,p);
+}
+'''
+
+
+def instrument_handwritten(source):
+    def dispatch(match):
+        symbol = match['symbol'].removeprefix('FID_').lstrip('_')
+        # Bind argument names from this build, not native function IDs or lines.
+        arguments = {}
+        for variable, name in re.findall(r'\b((_\w+)_\d+) = r\d+;', match[0]):
+            arguments.setdefault(name[1:], []).append(variable)
+        extra = ''
+        if symbol in ('CONV', 'LOGITS'):
+            extra = f'plan_label(e,{arguments["name"][0]});'
+        elif re.fullmatch(r'LIB_TENSOR_CONVOLUTION_BAND_OUTPUT_\d+', symbol):
+            g = arguments['geometry']
+            extra = ('unsigned plan_leaves=0,plan_depth=0;'
+                     f'plan_tree(e,{arguments["input"][0]},0,&plan_leaves,&plan_depth);'
+                     'plan_emit("bands",plan_depth,plan_leaves,'
+                     + arguments['parallel'][0] + ','
+                     + ','.join(f'(unsigned){value}' for value in g[2:9]) + ');')
+        elif re.fullmatch(r'LIB_KERNEL_PIPELINE_RUN_PACKED_\d+', symbol):
+            w = arguments['work']
+            extra = (f'unsigned plan_depth={arguments["depth"][0]},plan_limit=0;'
+                     f'for(unsigned n=({w[7]}+7)/8;n>1;n>>=1)++plan_limit;'
+                     'if(plan_depth>plan_limit)plan_depth=plan_limit;'
+                     'plan_emit("dense",plan_depth,1u<<plan_depth,plan_depth>0,'
+                     f'{w[8]}/({w[3]}*{w[3]}),'
+                     + ','.join(w[:6]) + ');')
+        return match[0] + ('\n    ' + extra if extra else '')
+
+    marker = source.index('static Term work_loop(')
+    source = source[:marker] + PLAN_HEADER + '\n' + source[marker:]
+    return re.sub(r'WL_CASE\((?P<symbol>FID_\w+)\)\s*\{[\s\S]*?\bWL_OPEN', dispatch, source)
+
+
+def handwritten_plans(args):
+    output = args.output.resolve()
+    directory = output.parent / output.stem
+    directory.mkdir(parents=True, exist_ok=True)
+    generated = args.model_c.resolve() if args.model_c else directory / 'yolov5n.c'
+    if not args.model_c:
+        subprocess.run([sys.executable, str(ROOT / 'scripts/toolchain_rules/lint.py'),
+                        'examples/yolov5/yolov5n.bend'], cwd=ROOT, check=True)
+        subprocess.run(['node', str(ROOT / 'scripts/bend_launcher.mjs'),
+                        'examples/yolov5/yolov5n.bend', '-o', str(generated)], cwd=ROOT, check=True)
+    observed_c = directory / 'observed.c'
+    observed_c.write_text(instrument_handwritten(generated.read_text()))
+    compiler = os.environ.get('CC') or shutil.which('clang-19') or shutil.which('clang')
+    flags = ['-O3', '-march=native', '-ffp-contract=off', '-std=c11']
+    runs = []
+    for label, source in [('plain', generated), ('observed', observed_c)]:
+        binary = directory / label
+        subprocess.run([compiler, *flags, str(source), '-lpthread', '-lm', '-o', str(binary)],
+                       cwd=ROOT, check=True)
+    for threads in args.threads:
+        for label in ('plain', 'observed'):
+            folder = directory / f'{label}_{threads}t'
+            folder.mkdir(exist_ok=True)
+            env = dict(os.environ)
+            env.pop('YOLO_LAYERS', None)
+            env.update(YOLO_SIZE=str(args.size), YOLO_INPUT=str(args.input.resolve()),
+                       YOLO_OUTPUT=str(folder), YOLO_EXTRA='0')
+            result = subprocess.run([str(directory / label), '--threads', str(threads), '--gpu', 'off'],
+                                    cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+            (folder / 'stdout.log').write_text(result.stdout)
+            (folder / 'stderr.log').write_text(result.stderr)
+        before = (directory / f'plain_{threads}t/pred.npy').read_bytes()
+        after = (directory / f'observed_{threads}t/pred.npy').read_bytes()
+        if before != after:
+            raise ValueError(f'Instrumented prediction differs at {threads} threads')
+        rows = [json.loads(line.removeprefix('PLAN ')) for line in result.stderr.splitlines()
+                if line.startswith('PLAN ')]
+        runs.append(dict(threads=threads, convolutions=rows, prediction_bitwise=True))
+    output.write_text(json.dumps(dict(model='examples/yolov5/yolov5n.bend', size=args.size,
+        compiler_flags=flags, runs=runs,
+        scope='Executed handwritten convolution plans; depth is the effective dense split or '
+              'maximum band tree depth, leaves counts actual bands or dense partitions. '
+              'Parallel is the scheduling choice, not measured CPU occupancy. '
+              'Dimensions are ci, co, h, w, k, stride, padding. No timing estimates.'), indent=2) + '\n')
+    print(output)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('graph', type=Path, help='Current generated model JSON; thread count selects the replay')
+    parser.add_argument('graph', nargs='?', type=Path, help='Current generated model JSON; thread count selects the replay')
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--operations', type=Path, help='Optional matching profile_operations results.json')
+    parser.add_argument('--handwritten', action='store_true', help='Observe the handwritten YOLO convolution plans')
+    parser.add_argument('--model-c', type=Path, help='Preserved handwritten C; otherwise build the current checkout')
+    parser.add_argument('--size', type=int, default=640)
+    parser.add_argument('--input', type=Path, default=ROOT / 'out/results/bus_640/input.bin')
+    parser.add_argument('--threads', type=int, nargs='+', default=[1, 2, 4, 8])
     args = parser.parse_args()
+    if args.handwritten:
+        handwritten_plans(args)
+        return
+    if args.graph is None:
+        parser.error('Supply a graph or --handwritten')
     graph_path = args.graph.resolve()
     graph = json.loads(graph_path.read_text())
     generated = graph_path.with_suffix('.c')
@@ -160,10 +283,12 @@ def main():
     source = directory / f'{output.stem}.bend'
     source.write_text(entry)
     diagnostic_c = source.with_suffix('.c')
+    subprocess.run([sys.executable, str(ROOT / 'scripts/toolchain_rules/lint.py'), str(source)],
+                   cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'scripts/bend_launcher.mjs'), str(source), '-o', str(diagnostic_c)], check=True)
     executable = source.with_suffix('')
     flags = ['-O3', '-ffp-contract=off', '-std=c11']
-    subprocess.run([os.environ.get('CC', 'clang'), *flags, str(diagnostic_c), '-lpthread', '-lm', '-o', str(executable)], check=True)
+    subprocess.run([os.environ.get('CC') or shutil.which('clang-19') or shutil.which('clang'), *flags, str(diagnostic_c), '-lpthread', '-lm', '-o', str(executable)], check=True)
     observed = subprocess.run([str(executable), '--threads', '1', '--gpu', 'off'], cwd=ROOT,
                               check=True, capture_output=True, text=True)
     records = [json.loads(line) for line in observed.stdout.splitlines()]

@@ -7,7 +7,7 @@
 | 層 | 負責的內容 | 主要檔案 |
 |---|---|---|
 | 公開 F32 API | 程式呼叫的函式 | [tensor_f32.bend](../lib/tensor_f32.bend)、[math_activation.bend](../lib/math_activation.bend) |
-| 通用張量 | 形狀、狀態、worker 數；dense 與 band 儲存；廣播、layout、視窗 | [tensor.bend](../lib/tensor.bend)、[tensor_layout.bend](../lib/tensor_layout.bend)、[tensor_window.bend](../lib/tensor_window.bend)、[tensor_convolution.bend](../lib/tensor_convolution.bend)、`tensor_band*.bend` |
+| 通用張量 | 形狀、狀態、worker 數；dense 與 band 儲存；廣播、layout、視窗、FP32 檔案、具名權重 | [tensor.bend](../lib/tensor.bend)、[tensor_layout.bend](../lib/tensor_layout.bend)、[tensor_window.bend](../lib/tensor_window.bend)、[tensor_convolution.bend](../lib/tensor_convolution.bend)、[tensor_file.bend](../lib/tensor_file.bend)、[tensor_model.bend](../lib/tensor_model.bend)、`tensor_band*.bend` |
 | 檢查過的運算 | 在 view 上的 `copy`、`combine`、`apply`、`reduce`、`scatter`、`sweep`，附 guard | [tensor_operations.bend](../lib/tensor_operations.bend)、[tensor_view.bend](../lib/tensor_view.bend)、[tensor_cursor.bend](../lib/tensor_cursor.bend)、[tensor_access.bend](../lib/tensor_access.bend) |
 | 卷積 kernel | 權重重排、packing、4x8 GEMM、gather、規劃 | `kernel_*.bend` |
 | 儲存與走訪 | 帶憑證的自有 buffer；其他部分共用的迴圈 | `storage_*.bend`、`traversal_*.bend` |

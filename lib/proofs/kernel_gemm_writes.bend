@@ -18,7 +18,7 @@ def row_writes(valid: Bool,+index: U32,+position: U32,+columns: U32,+accumulator
   List<&2,Writes.Assignment<F32>>:
   match valid:
     case False{}: []
-    case True{}: KernelOutputLaws.assignments((index * columns + position : U32),Tree.read(F32,bias,index),accumulator)
+    case True{}: KernelOutputLaws.tail_assignments(U32.min(8,(columns - position : U32)),(index * columns + position : U32),Tree.read(F32,bias,index),accumulator)
 
 # Rows are appended in store order: row r writes after rows 0..r-1.
 def context_writes(context: Gemm.Context,+accumulators: Rows.Rows<Tile.Tile8>,+bias: Tree.Tree<F32>) ->
@@ -283,10 +283,27 @@ def all_writes(count: Nat,+first: U32,+layout: Gemm.Layout,+input: Tree.Tree<Til
       List.append(&2,Writes.Assignment<F32>,job_writes(Gemm.job(layout,first),input,weights,bias),
         all_writes(rest,(first + 1 : U32),layout,input,weights,bias))
 
-def fold_output(+count: Nat,+first: U32,+layout: Gemm.Layout,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,
+# Source owners and the evaluated output are observed together so one induction
+# supplies both the reusable-buffer invariant and the ordered write list.
+type Visible is Data:
+  Visible{input: Tree.Tree<Tile.Tile8>,weights: Tree.Tree<Tile.Tile8>,bias: Tree.Tree<F32>,output: Tree.Tree<F32>}
+
+def visible(buffers: GemmLaws.Buffers) -> Visible:
+  GemmLaws.Buffers{input,weights,bias,output} = buffers
+  Visible{input,weights,bias,Writes.evaluate(F32,output)}
+
+def visible_output(state: Visible) -> Tree.Tree<F32>:
+  Visible{input,weights,bias,output} = state
+  output
+
+def visible_result(+buffers: GemmLaws.Buffers) -> {visible_output(visible(buffers)) == GemmLaws.result(buffers) : Tree.Tree<F32>}:
+  GemmLaws.Buffers{input,weights,bias,output} = buffers
+  {==}
+
+def fold_visible(+count: Nat,+first: U32,+layout: Gemm.Layout,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,
   +bias: Tree.Tree<F32>,+program: Writes.Program<F32>) ->
-  {GemmLaws.result(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,count,first,layout,GemmLaws.Buffers{input,weights,bias,program})) ==
-    Writes.pure(F32,all_writes(count,first,layout,input,weights,bias),Writes.evaluate(F32,program)) : Tree.Tree<F32>}:
+  {visible(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,count,first,layout,GemmLaws.Buffers{input,weights,bias,program})) ==
+    Visible{input,weights,bias,Writes.pure(F32,all_writes(count,first,layout,input,weights,bias),Writes.evaluate(F32,program))} : Visible}:
   match count:
     case 0n: {==}
     case 1n+ +rest:
@@ -296,21 +313,36 @@ def fold_output(+count: Nat,+first: U32,+layout: Gemm.Layout,+input: Tree.Tree<T
       +later = all_writes(rest,(first + 1 : U32),layout,input,weights,bias)
       %Equal.sym(GemmLaws.Buffers,GemmLaws.execute(job,GemmLaws.Buffers{input,weights,bias,program}),GemmLaws.Buffers{input,weights,bias,next},
         executed(job,input,weights,bias,program)) :
-        {GemmLaws.result(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,_)) ==
-          Writes.pure(F32,List.append(&2,Writes.Assignment<F32>,here,later),Writes.evaluate(F32,program)) : Tree.Tree<F32>}
+        {visible(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,_)) ==
+          Visible{input,weights,bias,Writes.pure(F32,List.append(&2,Writes.Assignment<F32>,here,later),Writes.evaluate(F32,program))} : Visible}
       %Equal.sym(Tree.Tree<F32>,Writes.pure(F32,List.append(&2,Writes.Assignment<F32>,here,later),Writes.evaluate(F32,program)),
         Writes.pure(F32,later,Writes.pure(F32,here,Writes.evaluate(F32,program))),Writes.concatenated_writes(F32,here,later,Writes.evaluate(F32,program))) :
-        {GemmLaws.result(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,GemmLaws.Buffers{input,weights,bias,next})) == _ : Tree.Tree<F32>}
+        {visible(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,GemmLaws.Buffers{input,weights,bias,next})) == Visible{input,weights,bias,_} : Visible}
       %executed_output(job,input,weights,bias,program) :
-        {GemmLaws.result(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,GemmLaws.Buffers{input,weights,bias,next})) ==
-          Writes.pure(F32,later,_) : Tree.Tree<F32>}
-      fold_output(rest,(first + 1 : U32),layout,input,weights,bias,next)
+        {visible(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,rest,(first + 1 : U32),layout,GemmLaws.Buffers{input,weights,bias,next})) ==
+          Visible{input,weights,bias,Writes.pure(F32,later,_)} : Visible}
+      fold_visible(rest,(first + 1 : U32),layout,input,weights,bias,next)
+
+
+def fold_output(+count: Nat,+first: U32,+layout: Gemm.Layout,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,
+  +bias: Tree.Tree<F32>,+program: Writes.Program<F32>) ->
+  {GemmLaws.result(Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,count,first,layout,GemmLaws.Buffers{input,weights,bias,program})) ==
+    Writes.pure(F32,all_writes(count,first,layout,input,weights,bias),Writes.evaluate(F32,program)) : Tree.Tree<F32>}:
+  +state = Traversal.indexed_fold(~GemmLaws.Buffers,~Gemm.Layout,~GemmLaws.step,count,first,layout,GemmLaws.Buffers{input,weights,bias,program})
+  %visible_result(state) : {_ == Writes.pure(F32,all_writes(count,first,layout,input,weights,bias),Writes.evaluate(F32,program)) : Tree.Tree<F32>}
+  Equal.cong(Visible,Tree.Tree<F32>,state => visible_output(state),visible(state),
+    Visible{input,weights,bias,Writes.pure(F32,all_writes(count,first,layout,input,weights,bias),Writes.evaluate(F32,program))},
+    fold_visible(count,first,layout,input,weights,bias,program))
 
 def job_count(+rows: U32,+columns: U32) -> Nat:
   U32.to_nat(Gemm.job_count(rows,columns))
 
-def run_writes(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,
-  +output: Tree.Tree<F32>,+columns: U32,+inner: U32) ->
-  {GemmLaws.run(rows,input,weights,bias,output,columns,inner) ==
-    Writes.pure(F32,all_writes(job_count(rows,columns),0,Gemm.Layout{rows,columns,inner},input,weights,bias),output) : Tree.Tree<F32>}:
-  fold_output(job_count(rows,columns),0,Gemm.Layout{rows,columns,inner},input,weights,bias,Writes.Initial{output})
+def run_at_writes(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,
+  +output: Tree.Tree<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32) ->
+  {GemmLaws.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns) ==
+    Writes.pure(F32,all_writes(job_count(rows,columns),0,Gemm.Layout{rows,columns,inner,start,output_columns},input,weights,bias),output) : Tree.Tree<F32>}:
+  fold_output(job_count(rows,columns),0,Gemm.Layout{rows,columns,inner,start,output_columns},input,weights,bias,Writes.Initial{output})
+
+def run_writes(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,+output: Tree.Tree<F32>,+columns: U32,+inner: U32) ->
+  {GemmLaws.run(rows,input,weights,bias,output,columns,inner) == Writes.pure(F32,all_writes(job_count(rows,columns),0,Gemm.Layout{rows,columns,inner,0,columns},input,weights,bias),output) : Tree.Tree<F32>}:
+  run_at_writes(rows,input,weights,bias,output,columns,inner,0,columns)

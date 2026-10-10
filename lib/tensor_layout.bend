@@ -26,10 +26,10 @@ def copied(~Element: Data,name: String,+source_shape: List<&2,U32>,+target_shape
   result: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensors.Tensor<Element> & Tensors.Tensor<Element>:
   match result:
     case Operations.Accepted{(input,output)}:
-      (Tensors.Tensor{output,target_shape,fill,Tensors.Ready{},workers},Tensors.Tensor{input,source_shape,fill,Tensors.Ready{},workers})
+      (Tensors.Tensor{output,target_shape,fill,Tensors.Usable{},workers},Tensors.Tensor{input,source_shape,fill,Tensors.Usable{},workers})
     case Operations.Rejected{(input,output)}:
       (Tensors.Tensor{output,target_shape,fill,Tensors.Failed{Tensors.Problem{name,Tensors.InvalidArgument{source_shape}}},workers},
-        Tensors.Tensor{input,source_shape,fill,Tensors.Ready{},workers})
+        Tensors.Tensor{input,source_shape,fill,Tensors.Usable{},workers})
 
 def gather_views(~Element: Data,name: String,source_view: Maybe<&2,Views.View>,target_view: Maybe<&2,Views.View>,count: Maybe<&2,U32>,
   input: Storage.Buffer<Element>,+source_shape: List<&2,U32>,+target_shape: List<&2,U32>,+fill: Element,+workers: U32) ->
@@ -38,7 +38,7 @@ def gather_views(~Element: Data,name: String,source_view: Maybe<&2,Views.View>,t
     case Some{source_view} Some{target_view} Some{count}:
       copied(~Element,name,source_shape,target_shape,fill,workers,Operations.copy(~Element,input,source_view,Tensors.buffer(~Element,fill,count),target_view))
     case source_view target_view count:
-      (Tensors.failed(~Element,name,Tensors.InvalidArgument{source_shape},target_shape,fill,workers),Tensors.Tensor{input,source_shape,fill,Tensors.Ready{},workers})
+      (Tensors.failed(~Element,name,Tensors.InvalidArgument{source_shape},target_shape,fill,workers),Tensors.Tensor{input,source_shape,fill,Tensors.Usable{},workers})
 
 # Copy the elements selected by source_view, in its row-major order, into a
 # new tensor whose storage is laid out as view_shape and labelled target_shape.
@@ -46,7 +46,7 @@ def gather_status(~Element: Data,name: String,status: Tensors.Status,source_view
   +target_shape: List<&2,U32>,input: Storage.Buffer<Element>,+source_shape: List<&2,U32>,+fill: Element,+workers: U32) ->
   Tensors.Tensor<Element> & Tensors.Tensor<Element>:
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       gather_views(~Element,name,source_view,Tensors.view_of(view_shape),Tensors.count_of(view_shape),input,source_shape,target_shape,fill,workers)
     case Tensors.Failed{+problem}:
       (Tensors.Tensor{Tensors.buffer(~Element,fill,0),target_shape,fill,Tensors.Failed{problem},workers},
@@ -64,10 +64,10 @@ def swapped(~Element: Data,pair: Tensors.Tensor<Element> & Tensors.Tensor<Elemen
 def copy_bands(~Element: Data,status: Tensors.Status,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: Element,+workers: U32) ->
   Tensors.Tensor<Element> & Tensors.Tensor<Element>:
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       Storage.bind_pair(~Bands.Bands(~Element),~Bands.Bands(~Element),~(Tensors.Tensor<Element> & Tensors.Tensor<Element>),
         Bands.copy(~Element,bands),left => right =>
-          (Tensors.Banded{left,geometry,shape,fill,Tensors.Ready{},workers},Tensors.Banded{right,geometry,shape,fill,Tensors.Ready{},workers}))
+          (Tensors.Banded{left,geometry,shape,fill,Tensors.Usable{},workers},Tensors.Banded{right,geometry,shape,fill,Tensors.Usable{},workers}))
     case Tensors.Failed{+problem}:
       (Tensors.Banded{bands,geometry,shape,fill,Tensors.Failed{problem},workers},
         Tensors.Tensor{Tensors.buffer(~Element,fill,0),shape,fill,Tensors.Failed{problem},workers})
@@ -116,13 +116,13 @@ def same_count(left: Maybe<&2,U32>,right: Maybe<&2,U32>) -> Bool:
 def relabel_ready(~Element: Data,accepted: Bool,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+target: List<&2,U32>,fill: Element,
   workers: U32) -> Tensors.Tensor<Element>:
   match accepted:
-    case True{}: Tensors.Tensor{storage,target,fill,Tensors.Ready{},workers}
+    case True{}: Tensors.Tensor{storage,target,fill,Tensors.Usable{},workers}
     case False{}: Tensors.Tensor{storage,shape,fill,Tensors.Failed{Tensors.Problem{"reshape",Tensors.ShapeMismatch{shape,target}}},workers}
 
 def relabel(~Element: Data,accepted: Bool,current: Tensors.Status,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+target: List<&2,U32>,fill: Element,
   workers: U32) -> Tensors.Tensor<Element>:
   match current:
-    case Tensors.Ready{}: relabel_ready(~Element,accepted,storage,shape,target,fill,workers)
+    case Tensors.Usable{}: relabel_ready(~Element,accepted,storage,shape,target,fill,workers)
     case Tensors.Failed{problem}: Tensors.Tensor{storage,shape,fill,Tensors.Failed{problem},workers}
 
 # Same elements in the same row-major order under new extents.
@@ -176,21 +176,21 @@ def upsample_leaf(~Element: Data,context: Upsample<Element>,first: U32,rows: U32
   +first = (first * scale : U32)
   +rows = (rows * scale : U32)
   Tensors.with_dense(~Element,~Bands.Bands(~Element),
-    result_of(~Element,upsample_view(~Element,repeated(Tensors.view_of(shape),scale),Tensors.Ready{},input,shape,scale,fill,1)),
+    result_of(~Element,upsample_view(~Element,repeated(Tensors.view_of(shape),scale),Tensors.Usable{},input,shape,scale,fill,1)),
     output => shape => fill => status => workers => Partition.Leaf{output,first,rows,Unit{}})
 
 def upsample_supported(~Element: Data,valid: Bool,bands: Bands.Bands(~Element),geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,
   +fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   match valid geometry:
     case False{} geometry:
-      Tensors.with_dense(~Element,~Tensors.Tensor<Element>,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers},
+      Tensors.with_dense(~Element,~Tensors.Tensor<Element>,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers},
         storage => shape => fill => status => workers =>
           +shape = shape
           result_of(~Element,upsample_view(~Element,repeated(Tensors.view_of(shape),scale),status,storage,shape,scale,fill,workers)))
     case True{} Bands.Geometry{+batch,+channels,+height,+width}:
       Tensors.Banded{BandSchedule.transform(~Element,~Upsample<Element>,~upsample_leaf(~Element),Upsample{Bands.Geometry{batch,channels,height,width},scale,fill},
           Bands.Geometry{batch,channels,height,width},workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),bands),
-        Bands.Geometry{batch,channels,(height * scale : U32),(width * scale : U32)},scaled_extents(shape,scale),fill,Tensors.Ready{},workers}
+        Bands.Geometry{batch,channels,(height * scale : U32),(width * scale : U32)},scaled_extents(shape,scale),fill,Tensors.Usable{},workers}
 
 def upsample_bands(~Element: Data,status: Tensors.Status,bands: Bands.Bands(~Element),geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,
   +fill: Element,workers: U32) -> Tensors.Tensor<Element>:
@@ -200,7 +200,7 @@ def upsample_bands(~Element: Data,status: Tensors.Status,bands: Bands.Bands(~Ele
         storage => shape => fill => status => workers =>
           +shape = shape
           result_of(~Element,upsample_view(~Element,repeated(Tensors.view_of(shape),scale),status,storage,shape,scale,fill,workers)))
-    case Tensors.Ready{} Bands.Geometry{batch,channels,+height,+width}:
+    case Tensors.Usable{} Bands.Geometry{batch,channels,+height,+width}:
       upsample_supported(~Element,Bool.not(U32.is_zero(scale)) && Views.has_count(Shapes.checked_multiply(height,scale)) &&
         Views.has_count(Shapes.checked_multiply(width,scale)) && Views.has_count(Tensors.count_of(scaled_extents(shape,scale))) &&
         Bool.not(Shapes.has_zero(scaled_extents(shape,scale))),
@@ -229,10 +229,10 @@ def extent_at(extents: List<&2,U32>,axis: Nat) -> U32:
 def settled(~Element: Data,name: String,valid: Bool,part: Storage.Buffer<Element>,target: Storage.Buffer<Element>,+target_shape: List<&2,U32>,+part_shape: List<&2,U32>,
   target_fill: Element,part_fill: Element,+workers: U32) -> Tensors.Tensor<Element> & Tensors.Tensor<Element>:
   match valid:
-    case True{}: (Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},workers},Tensors.Tensor{part,part_shape,part_fill,Tensors.Ready{},workers})
+    case True{}: (Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},workers},Tensors.Tensor{part,part_shape,part_fill,Tensors.Usable{},workers})
     case False{}:
       (Tensors.Tensor{target,target_shape,target_fill,Tensors.Failed{Tensors.Problem{name,Tensors.ShapeMismatch{target_shape,part_shape}}},workers},
-        Tensors.Tensor{part,part_shape,part_fill,Tensors.Ready{},workers})
+        Tensors.Tensor{part,part_shape,part_fill,Tensors.Usable{},workers})
 
 def placed(~Element: Data,name: String,+target_shape: List<&2,U32>,+part_shape: List<&2,U32>,target_fill: Element,part_fill: Element,+workers: U32,
   result: (Storage.Buffer<Element> & Storage.Buffer<Element>) & Bool) -> Tensors.Tensor<Element> & Tensors.Tensor<Element>:
@@ -260,9 +260,9 @@ def place_status(~Element: Data,name: String,target_status: Tensors.Status,part_
   target: Storage.Buffer<Element>,+target_shape: List<&2,U32>,+target_fill: Element,
   part: Storage.Buffer<Element>,+part_shape: List<&2,U32>,+part_fill: Element,+workers: U32) -> Tensors.Tensor<Element> & Tensors.Tensor<Element>:
   match target_status part_status:
-    case Tensors.Ready{} Tensors.Ready{}:
+    case Tensors.Usable{} Tensors.Usable{}:
       place(~Element,name,Shapes.has_zero(part_shape),slice,Tensors.view_of(part_shape),target,target_shape,target_fill,part,part_shape,part_fill,workers)
-    case Tensors.Ready{} Tensors.Failed{+problem}:
+    case Tensors.Usable{} Tensors.Failed{+problem}:
       (Tensors.Tensor{target,target_shape,target_fill,Tensors.Failed{problem},workers},Tensors.Tensor{part,part_shape,part_fill,Tensors.Failed{problem},workers})
     case Tensors.Failed{problem} part_status:
       (Tensors.Tensor{target,target_shape,target_fill,Tensors.Failed{problem},workers},Tensors.Tensor{part,part_shape,part_fill,part_status,workers})
@@ -361,8 +361,8 @@ def join_compatible(~Element: Data,+shape: List<&2,U32>,+axis: U32,+fill: Elemen
 def join_status(~Element: Data,status: Tensors.Status,valid: Bool,+first: List<&2,U32>,+shape: List<&2,U32>,+axis: U32,+fill: Element,+workers: U32,
   parts: Tensors.Parts<Element>) -> Tensors.Tensor<Element>:
   match status valid:
-    case Tensors.Ready{} True{}: join_compatible(~Element,shape,axis,fill,workers,BandConcat.discover_compatible(~Element,parts))
-    case Tensors.Ready{} False{}: Tensors.failed(~Element,"concat",Tensors.InvalidArgument{first},first,fill,workers)
+    case Tensors.Usable{} True{}: join_compatible(~Element,shape,axis,fill,workers,BandConcat.discover_compatible(~Element,parts))
+    case Tensors.Usable{} False{}: Tensors.failed(~Element,"concat",Tensors.InvalidArgument{first},first,fill,workers)
     case Tensors.Failed{problem} other: Tensors.Tensor{Tensors.buffer(~Element,fill,0),first,fill,Tensors.Failed{problem},workers}
 
 def joined(~Element: Data,+first: List<&2,U32>,+axis: U32,+fill: Element,surveyed: Tensors.Parts<Element> & Survey) -> Tensors.Tensor<Element>:
@@ -385,7 +385,7 @@ def lead(~Element: Data,parts: Tensors.Parts<Element>) -> Tensors.Parts<Element>
 
 def concat_first(~Element: Data,+axis: U32,parts: Tensors.Parts<Element>,+shape: List<&2,U32>,+fill: Element) -> Tensors.Tensor<Element>:
   joined(~Element,shape,axis,fill,
-    survey(~Element,parts,shape,U32.to_nat(axis),Survey{Nat.is_lt(U32.to_nat(axis),List.length(&2,U32,shape)),0,Tensors.Ready{},1}))
+    survey(~Element,parts,shape,U32.to_nat(axis),Survey{Nat.is_lt(U32.to_nat(axis),List.length(&2,U32,shape)),0,Tensors.Usable{},1}))
 
 def concat_led(~Element: Data,+axis: U32,led: Tensors.Parts<Element> & (List<&2,U32> & Element)) -> Tensors.Tensor<Element>:
   (parts,first) = led
@@ -400,7 +400,7 @@ def concat(~Element: Data,parts: Tensors.Parts<Element>,+axis: U32) -> Tensors.T
 def broadcast_status(~Element: Data,status: Tensors.Status,view: Maybe<&2,Views.View>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,
   +target: List<&2,U32>,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   match status view:
-    case Tensors.Ready{} None{}: Tensors.failed(~Element,"broadcast_to",Tensors.ShapeMismatch{shape,target},target,fill,workers)
+    case Tensors.Usable{} None{}: Tensors.failed(~Element,"broadcast_to",Tensors.ShapeMismatch{shape,target},target,fill,workers)
     case status view: result_of(~Element,gather_status(~Element,"broadcast_to",status,view,target,target,storage,shape,fill,workers))
 
 # The tensor repeated to the extents target under NumPy broadcasting.
@@ -437,7 +437,7 @@ def fold_slices(~Element: Data,~operation: Element -> Element -> Element,remaini
 def folded_valid(~Element: Data,name: String,valid: Bool,output: Storage.Buffer<Element>,shape: List<&2,U32>,result_shape: List<&2,U32>,fill: Element,
   workers: U32) -> Tensors.Tensor<Element>:
   match valid:
-    case True{}: Tensors.Tensor{output,result_shape,fill,Tensors.Ready{},workers}
+    case True{}: Tensors.Tensor{output,result_shape,fill,Tensors.Usable{},workers}
     case False{}: Tensors.Tensor{output,result_shape,fill,Tensors.Failed{Tensors.Problem{name,Tensors.InvalidArgument{shape}}},workers}
 
 def folded(~Element: Data,name: String,shape: List<&2,U32>,result_shape: List<&2,U32>,fill: Element,workers: U32,
@@ -459,10 +459,10 @@ def reduce_axis_count(~Element: Data,~operation: Element -> Element -> Element,n
 def reduce_axis_status(~Element: Data,~operation: Element -> Element -> Element,name: String,status: Tensors.Status,valid: Bool,+axis: U32,
   input: Storage.Buffer<Element>,+shape: List<&2,U32>,+initial: Element,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   match status valid:
-    case Tensors.Ready{} True{}:
+    case Tensors.Usable{} True{}:
       reduce_axis_count(~Element,~operation,name,Tensors.count_of(with_extent(shape,U32.to_nat(axis),1)),axis,input,shape,with_extent(shape,U32.to_nat(axis),1),
         initial,fill,workers)
-    case Tensors.Ready{} False{}: Tensors.failed(~Element,name,Tensors.InvalidArgument{shape},shape,fill,workers)
+    case Tensors.Usable{} False{}: Tensors.failed(~Element,name,Tensors.InvalidArgument{shape},shape,fill,workers)
     case Tensors.Failed{problem} valid: Tensors.Tensor{input,shape,fill,Tensors.Failed{problem},workers}
 
 # The result has the extents of the tensor without axis.
@@ -486,7 +486,7 @@ def border_name(~Element: Data,border: Border<Element>) -> String:
 
 def blank(~Element: Data,count: Maybe<&2,U32>,+shape: List<&2,U32>,+value: Element,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   match count:
-    case Some{count}: Tensors.Tensor{Tensors.buffer(~Element,value,count),shape,fill,Tensors.Ready{},workers}
+    case Some{count}: Tensors.Tensor{Tensors.buffer(~Element,value,count),shape,fill,Tensors.Usable{},workers}
     case None{}: Tensors.failed(~Element,"pad",Tensors.InvalidShape{shape},shape,fill,workers)
 
 # The elements at one end of axis, repeated count times: (strip, tensor).
@@ -552,8 +552,8 @@ def padded_count(shape: Maybe<&2,List<&2,U32>>) -> Maybe<&2,U32>:
 def pad_valid(~Element: Data,+border: Border<Element>,status: Tensors.Status,valid: Bool,tensor: Tensors.Tensor<Element>,shape: List<&2,U32>,
   before: List<&2,U32>,after: List<&2,U32>,padded: Maybe<&2,List<&2,U32>>) -> Tensors.Tensor<Element>:
   match status valid:
-    case Tensors.Ready{} True{}: pad_border(~Element,border,tensor,before,after,padded)
-    case Tensors.Ready{} False{}: Tensors.with_status(~Element,Tensors.Failed{Tensors.Problem{border_name(~Element,border),Tensors.InvalidArgument{shape}}},tensor)
+    case Tensors.Usable{} True{}: pad_border(~Element,border,tensor,before,after,padded)
+    case Tensors.Usable{} False{}: Tensors.with_status(~Element,Tensors.Failed{Tensors.Problem{border_name(~Element,border),Tensors.InvalidArgument{shape}}},tensor)
     case Tensors.Failed{problem} valid: tensor
 
 # before[i] elements are added in front of axis i and after[i] behind it. Both

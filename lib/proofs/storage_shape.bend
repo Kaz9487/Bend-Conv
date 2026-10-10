@@ -90,3 +90,16 @@ def unique_depth(-Element: Data,tree: Tree.Tree<Element>,left_depth: Nat,right_d
       Both{left_balanced,left_other} = left
       Both{right_balanced,right_other} = right
       Equal.cong(Nat,Nat,depth => 1n+depth,left_depth,right_depth,unique_depth(Element,left_tree,left_depth,right_depth,left_balanced,right_balanced))
+
+# Balanced trees at the same depth expose the same native capacity.
+def same_capacity(-Element: Data,+depth: Nat,+left: Tree.Tree<Element>,+right: Tree.Tree<Element>,
+  left_balanced: Balanced(Element,depth,left),right_balanced: Balanced(Element,depth,right)) ->
+  {Tree.capacity(Element,left) == Tree.capacity(Element,right) : U32}:
+  Equal.trans(U32,Tree.capacity(Element,left),U32.shln(1,depth),Tree.capacity(Element,right),capacity(Element,depth,left,left_balanced),
+    Equal.sym(U32,Tree.capacity(Element,right),U32.shln(1,depth),capacity(Element,depth,right,right_balanced)))
+
+def transfer_room(-Element: Data,+depth: Nat,+left: Tree.Tree<Element>,+right: Tree.Tree<Element>,+count: Nat,
+  left_balanced: Balanced(Element,depth,left),right_balanced: Balanced(Element,depth,right),room: {Nat.is_le(count,U32.to_nat(Tree.capacity(Element,left))) == True{} : Bool}) ->
+  {Nat.is_le(count,U32.to_nat(Tree.capacity(Element,right))) == True{} : Bool}:
+  %same_capacity(Element,depth,left,right,left_balanced,right_balanced) : {Nat.is_le(count,U32.to_nat(_)) == True{} : Bool}
+  room

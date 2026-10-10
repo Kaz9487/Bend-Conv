@@ -2,6 +2,8 @@
 import Base
 import ./u32_comparison.bend as Comparison
 import ./nat_extrema.bend as Extrema
+import ./bounded_u32_arithmetic.bend as Arithmetic
+
 
 def selected(choice: Bool,+left: U32,+right: U32) ->
   {U32.to_nat(Bool.pick(U32,choice,left,right)) == Bool.pick(Nat,choice,U32.to_nat(left),U32.to_nat(right)) : Nat}:
@@ -45,3 +47,12 @@ def pick_maximum(left: U32,right: U32) -> {Bool.pick(U32,U32.is_lt(left,right),r
   U32{left_word} = left
   U32{right_word} = right
   {==}
+
+def minimum_when_ordered(+left: U32,+right: U32,ordered: {Nat.is_le(U32.to_nat(left),U32.to_nat(right)) == True{} : Bool}) -> {U32.min(left,right) == left : U32}:
+  Equal.trans(U32,U32.min(left,right),U32.from_nat(U32.to_nat(left)),left,
+    Equal.trans(U32,U32.min(left,right),U32.from_nat(U32.to_nat(U32.min(left,right))),U32.from_nat(U32.to_nat(left)),
+      Equal.sym(U32,U32.from_nat(U32.to_nat(U32.min(left,right))),U32.min(left,right),Arithmetic.native_roundtrip(U32.min(left,right))),
+      Equal.cong(Nat,U32,U32.from_nat,U32.to_nat(U32.min(left,right)),U32.to_nat(left),
+        Equal.trans(Nat,U32.to_nat(U32.min(left,right)),Nat.min(U32.to_nat(left),U32.to_nat(right)),U32.to_nat(left),
+          minimum(left,right),Extrema.minimum_when_ordered(U32.to_nat(left),U32.to_nat(right),ordered)))),
+    Arithmetic.native_roundtrip(left))

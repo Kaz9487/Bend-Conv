@@ -65,7 +65,7 @@ def finished_accepted(~Element: Data,input: Storage.Buffer<Element>,outcome: Ope
 # The second sweep reads the planes the first one wrote.
 def rows_modeled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Sized<Element,output>,
   +cells: {Sweeps.output_cells(Access.pool_rows(pool,0),U32.to_nat(channels)) == Buffer.length(~Element,output) : Nat},
   +length_exact: {Buffer.length(~Element,output) == ShapeLaws.elements(out_shape) : Nat},
   facts: GatherValues.Facts(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),Sweeps.Swept{logical,Access.pool_columns(pool),pad},middle_shape,CopyValues.right_content(~Element,OperationsLaws.observe_pair_outcome(~Element,Operations.Accepted{(Buffer.pack(~Element,input),Buffer.pack(~Element,middle))}))),
@@ -92,7 +92,7 @@ def rows_modeled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 def rows_observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,-input: Storage.Buffer<Element>,-middle: Storage.Buffer<Element>,
   input_observation: Buffer.Observation<Element,input>,middle_observation: Buffer.Observation<Element,middle>,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Sized<Element,output>,
   +cells: {Sweeps.output_cells(Access.pool_rows(pool,0),U32.to_nat(channels)) == Buffer.length(~Element,output) : Nat},
   +length_exact: {Buffer.length(~Element,output) == ShapeLaws.elements(out_shape) : Nat},
   facts: GatherValues.Facts(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),Sweeps.Swept{logical,Access.pool_columns(pool),pad},middle_shape,CopyValues.right_content(~Element,OperationsLaws.observe_pair_outcome(~Element,Operations.Accepted{(input,middle)}))),
@@ -112,7 +112,7 @@ def rows_observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
 
 def rowed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,first: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+ready: Buffer.Sized<Element,output>,
   +cells: {Sweeps.output_cells(Access.pool_rows(pool,0),U32.to_nat(channels)) == Buffer.length(~Element,output) : Nat},
   +length_exact: {Buffer.length(~Element,output) == ShapeLaws.elements(out_shape) : Nat},
   facts: {GatherValues.accepted_owners(~Element,OperationsLaws.observe_pair_outcome(~Element,first)) == True{} : Bool} -> GatherValues.Facts(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),Sweeps.Swept{logical,Access.pool_columns(pool),pad},middle_shape,CopyValues.right_content(~Element,OperationsLaws.observe_pair_outcome(~Element,first))),
@@ -126,7 +126,7 @@ def rowed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~op
 
 def swept_lines(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+lines: U32,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+middle_ready: Buffer.Ready<Element,middle>,+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+middle_ready: Buffer.Sized<Element,middle>,+ready: Buffer.Sized<Element,output>,
   +values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +middle_cells: {swept_cells(pool,channels) == Buffer.length(~Element,middle) : Nat},
   +middle_exact: {Buffer.length(~Element,middle) == ShapeLaws.elements(middle_shape) : Nat},
@@ -152,7 +152,7 @@ def swept_lines(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
 
 def lined(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,lines: Maybe<&2,U32>,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+middle_ready: Buffer.Ready<Element,middle>,+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+middle_ready: Buffer.Sized<Element,middle>,+ready: Buffer.Sized<Element,output>,
   +values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +middle_cells: {swept_cells(pool,channels) == Buffer.length(~Element,middle) : Nat},
   +middle_exact: {Buffer.length(~Element,middle) == ShapeLaws.elements(middle_shape) : Nat},
@@ -172,7 +172,7 @@ def lined(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~op
 # its shape and holds the pooled value of the logical input at every index.
 def pooled_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+input: Buffer.Model<Element>,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,+middle_shape: List<&2,U32>,+out_shape: List<&2,U32>,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+middle_ready: Buffer.Ready<Element,middle>,+ready: Buffer.Ready<Element,output>,
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+middle_ready: Buffer.Sized<Element,middle>,+ready: Buffer.Sized<Element,output>,
   +values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +middle_cells: {swept_cells(pool,channels) == Buffer.length(~Element,middle) : Nat},
   +middle_exact: {Buffer.length(~Element,middle) == ShapeLaws.elements(middle_shape) : Nat},
@@ -221,7 +221,7 @@ def allocated(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+count: U32,+input: Buffer.Model<Element>,+shape: List<&2,U32>,+out_shape: List<&2,U32>,+fill: Element,+workers: U32,+limits: Machine.Limits,+middle: U32,
   middle_observation: Buffer.Observation<Element,Tensors.buffer(~Element,fill,middle)>,observation: Buffer.Observation<Element,Tensors.buffer(~Element,fill,count)>,
   middle_evidence: Count.Count<ShapeLaws.elements(Window.middle_shape(shape,pool)),middle>,evidence: Count.Count<ShapeLaws.elements(out_shape),count>,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +middle_cells: {swept_cells(pool,channels) == ShapeLaws.elements(Window.middle_shape(shape,pool)) : Nat},
   +cells: {pooled_cells(pool,channels) == ShapeLaws.elements(out_shape) : Nat},
   accepted: {Dense.tensor_ready(~Element,Window.pooled(~Element,name,shape,out_shape,fill,workers,Operations.pool(~Element,~operation,pad,Buffer.pack(~Element,input),pool,channels,Tensors.buffer(~Element,fill,middle),Tensors.buffer(~Element,fill,count)))) == True{} : Bool}) ->
@@ -260,7 +260,7 @@ def allocated(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element
 
 def middled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,middle: Maybe<&2,U32>,
   +logical: Logical,+pad: Element,+pool: Access.Pool,+channels: U32,+count: U32,+input: Buffer.Model<Element>,+shape: List<&2,U32>,+out_shape: List<&2,U32>,+fill: Element,+workers: U32,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +middle_cells: {swept_cells(pool,channels) == ShapeLaws.elements(Window.middle_shape(shape,pool)) : Nat},
   +cells: {pooled_cells(pool,channels) == ShapeLaws.elements(out_shape) : Nat},
   +count_exact: {Tensors.count_of(out_shape) == Some{count} : Maybe<&2,U32>},
@@ -315,7 +315,7 @@ def planes_cells(+shape: List<&2,U32>,+out_height: U32,+out_width: U32,+planes: 
 def counts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,planes: Maybe<&2,U32>,count: Maybe<&2,U32>,
   +logical: Logical,+pad: Element,+height: U32,+width: U32,+kernel: U32,+stride: U32,+padding: U32,+out_height: U32,+out_width: U32,
   +input: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,+limits: Machine.Limits,
-  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +actual: {limits == Default.limits() : Machine.Limits},+input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +planes_exact: {Window.planes(shape) == planes : Maybe<&2,U32>},
   +count_exact: {Tensors.count_of(output_shape(shape,out_height,out_width)) == count : Maybe<&2,U32>},
   accepted: {Dense.tensor_ready(~Element,Window.pool_counts(~Element,~operation,name,pad,planes,count,Access.Pool{height,width,kernel,stride,padding,out_height,out_width},Buffer.pack(~Element,input),shape,output_shape(shape,out_height,out_width),fill,workers)) == True{} : Bool}) ->
@@ -335,9 +335,9 @@ def result_shape(+shape: List<&2,U32>,+kernel: U32,+stride: U32,+padding: U32) -
 
 def modeled(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+pad: Element,+kernel: U32,+stride: U32,+padding: U32,+input: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  +input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
-  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},kernel,stride,padding)>:
+  +input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},kernel,stride,padding)>:
   +rank = List.length(&2,U32,shape)
   +height = Layout.extent_at(shape,Nat.sub(rank,2n))
   +width = Layout.extent_at(shape,Nat.sub(rank,1n))
@@ -357,7 +357,7 @@ def shaped(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~o
   accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,tensor,kernel,stride,padding)) == True{} : Bool}) ->
   GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,tensor,kernel,stride,padding)>:
   GatherValues.Shaped{+model,+fill,+workers,+equation,Shape.Both{Dense.WellFormed{length_exact,content_ready},source_values}} = evidence
-  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Ready{},workers},equation) : GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,_,kernel,stride,padding)>
+  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Usable{},workers},equation) : GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,_,kernel,stride,padding)>
   modeled(~Element,~Logical,~original,~operation,name,logical,pad,kernel,stride,padding,model,shape,fill,workers,Buffer.ready_content(~Element,model,content_ready),source_values,
     %equation : {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,_,kernel,stride,padding)) == True{} : Bool}
     accepted)
@@ -365,18 +365,18 @@ def shaped(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~o
 # The pool of a Ready dense tensor with a contract, as a shaped result.
 def dense_shaped(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+pad: Element,+kernel: U32,+stride: U32,+padding: U32,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)>:
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  GatherValues.Shaped<Element,Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)>:
   Shape.Both{Shape.Both{well_formed,source_ready},source_values} = contract
-  shaped(~Element,~Logical,~original,~operation,name,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},logical,pad,kernel,stride,padding,shape,
+  shaped(~Element,~Logical,~original,~operation,name,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},logical,pad,kernel,stride,padding,shape,
     GatherValues.shaped_observed(~Element,~Logical,~original,storage,logical,shape,fill,workers,Buffer.observe(~Element,storage),Shape.Both{well_formed,source_values}),
     accepted)
 
 def dense(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+name: String,
   +logical: Logical,+pad: Element,+kernel: U32,+stride: U32,+padding: U32,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)) == True{} : Bool}) ->
-  Dense.Contract(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},kernel,stride,padding)):
-  GatherValues.shaped_contract(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},kernel,stride,padding),
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)) == True{} : Bool}) ->
+  Dense.Contract(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},kernel,stride,padding)):
+  GatherValues.shaped_contract(~Element,~Sweeps.Swept<Element,Sweeps.Swept<Element,Logical>>,~Sweeps.value(~Element,~Sweeps.Swept<Element,Logical>,~Sweeps.value(~Element,~Logical,~original,~operation),~operation),context(~Element,~Logical,logical,Window.geometry(shape,kernel,stride,padding),pad),result_shape(shape,kernel,stride,padding),Window.pool2d(~Element,~operation,name,pad,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},kernel,stride,padding),
     dense_shaped(~Element,~Logical,~original,~operation,name,logical,pad,kernel,stride,padding,storage,shape,fill,workers,contract,accepted))

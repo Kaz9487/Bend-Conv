@@ -12,7 +12,7 @@ Term test_end(Env e, Term *f, IoWork *w) {
   return term_pak(CID(Unit), 0);
 }
 static void __attribute__((constructor)) test_register(void) {
-  io_eff(CID(Test.header), test_header, 0);
-  io_eff(CID(Test.value), test_value, 0);
-  io_eff(CID(Test.end), test_end, 0);
+  io_eff(CID(Test.header), test_header);
+  io_eff(CID(Test.value), test_value);
+  io_eff(CID(Test.end), test_end);
 }

@@ -8,8 +8,8 @@ import ./tensor_allocation_depth.bend as Depth
 
 def from_footprint(~Element: Data,+fill: Element,+count: U32,+model: Buffer.Model<Element>,
   +exact: {KernelPipelineBufferShape.footprint(~Element,Buffer.pack(~Element,model)) == KernelPipelineBufferShape.footprint(~Element,Tensors.buffer(~Element,fill,count)) : KernelPipelineBufferShape.Footprint},
-  ready: Depth.Ready<count>) -> Buffer.ContentReady<Element,Buffer.content(~Element,model)>:
-  Depth.Ready{depth_ok,room} = ready
+  ready: Depth.Sized<count>) -> Buffer.ContentReady<Element,Buffer.content(~Element,model)>:
+  Depth.Sized{depth_ok,room} = ready
   +allocated = {KernelPipelineBufferShape.Footprint{Tensors.depth_for(count),U32.to_nat(count)} : KernelPipelineBufferShape.Footprint}
   +footprint_exact = Equal.trans(KernelPipelineBufferShape.Footprint,KernelPipelineBufferShape.footprint(~Element,Buffer.pack(~Element,model)),KernelPipelineBufferShape.footprint(~Element,Tensors.buffer(~Element,fill,count)),allocated,
     exact,KernelPipelineBufferShape.allocated(~Element,fill,count))

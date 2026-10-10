@@ -1,5 +1,7 @@
 # The dense pipeline partition: split, footprint, finish and refinement.
 import Base
+import ../../lib/proofs/kernel_pipeline_activation.bend as ActivationProofs
+import ./blocked_pipeline_projection.bend as Blocked
 import ../../lib/kernel_pipeline.bend as Pipeline
 import ../../lib/proofs/storage_buffer_model.bend as Buffer
 import ../../lib/storage_buffer.bend as Storage
@@ -13,13 +15,10 @@ import ../../lib/kernel_window.bend as KernelWindow
 import ../../lib/proofs/storage_allocation_refinement.bend as AllocationLaws
 import ../../lib/storage_clone.bend as Clone
 import ../../lib/kernel_gemm_buffer.bend as GemmBuffer
-import ../../lib/kernel_spatial_packing.bend as Packing
-import ../../lib/kernel_packing_buffer.bend as PackingBuffer
 import ../../lib/proofs/storage_clone_refinement.bend as Cloned
 import ../../lib/storage_allocation.bend as Allocation
 import ../../lib/kernel_gather.bend as Gather
 import ../../lib/kernel_gather_buffer.bend as GatherBuffer
-import ../../lib/kernel_gemm.bend as Gemm
 import ../../lib/kernel_weights.bend as Weights
 import ../../lib/proofs/boolean_logic.bend as Boolean
 import ../../lib/proofs/kernel_pipeline_buffer_shape.bend as KernelPipelineBufferShape
@@ -40,83 +39,47 @@ import ../../lib/traversal_array.bend as Traversal
 # convolution leaf. Activation uses the same established pass over the leaf's
 # values; no ordered MAC implementation is unfolded by these proof terms.
 def storage_matches(~Element: Data,+model: Buffer.Model<Element>) ->
-  {LeafExecution.storage(~Element,Buffer.pack(~Element,model)) == Tree.pack(Element,Buffer.tree(~Element,model)) : Array<Element>}:
+  {ActivationProofs.storage(~Element,Buffer.pack(~Element,model)) == Tree.pack(Element,Buffer.tree(~Element,model)) : Array<Element>}:
   Buffer.Model{tree,length,certificate} = model
   {==}
 
 def project_window(window: Pipeline.InputWindow) -> ArrayPipeline.InputWindow:
   Pipeline.InputWindow{buffer,first,rows} = window
-  ArrayPipeline.InputWindow{LeafExecution.storage(~F32,buffer),first,rows}
+  ArrayPipeline.InputWindow{ActivationProofs.storage(~F32,buffer),first,rows}
 
 def project_outputs(outputs: Pipeline.Outputs()) -> Partition.Tree<&1,Array<F32>,U32>:
   match outputs:
-    case Partition.Leaf{buffer,offset,span,rows}: Partition.Leaf{LeafExecution.storage(~F32,buffer),offset,span,rows}
+    case Partition.Leaf{buffer,offset,span,rows}: Partition.Leaf{ActivationProofs.storage(~F32,buffer),offset,span,rows}
     case Partition.Fork{left,right}: Partition.Fork{project_outputs(left),project_outputs(right)}
 
-def activate_outputs(~custom: F32 -> F32,+activation: Activations.Activation,outputs: Partition.Tree<&1,Array<F32>,U32>) -> Partition.Tree<&1,Array<F32>,U32>:
-  match outputs:
-    case Partition.Leaf{array,offset,+span,+rows}: Partition.Leaf{LeafExecution.activation_array(~custom,activation,(rows * span : U32),array),offset,span,rows}
-    case Partition.Fork{left,right}: Partition.Fork{activate_outputs(~custom,activation,left),activate_outputs(~custom,activation,right)}
-
 def array_leaf(~custom: F32 -> F32,task: Pipeline.Task,offset: U32,span: U32,input: ArrayPipeline.InputWindow,weights: Array<Tile.Tile8>,bias: Array<F32>) -> Partition.Tree<&1,Array<F32>,U32>:
-  Pipeline.Task{work,activation} = task
-  activate_outputs(~custom,activation,ArrayPipeline.leaf(work,offset,span,input,weights,bias))
-
-def packed_allocation(+call: Packing.Call,-input: Array<F32>,+count: U32) ->
-  {LeafExecution.packed_array(call,input,count) == LeafExecution.second(Packing.run(call,input,Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)))) : Array<Tile.Tile8>}:
-  %AllocationLaws.array_same(Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)) :
-    {LeafExecution.second(Packing.run(call,input,_)) == LeafExecution.second(Packing.run(call,input,Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)))) : Array<Tile.Tile8>}
-  {==}
-
-def computed_allocation(~custom: F32 -> F32,+activation: Activations.Activation,+rows: U32,+span: U32,+inner: U32,
-  -tiles: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>) ->
-  {LeafExecution.computed_array(~custom,activation,rows,span,inner,tiles,weights,bias) ==
-    LeafExecution.activation_array(~custom,activation,(rows * span : U32),Gemm.run(rows,tiles,weights,bias,ArrayPipeline.allocated(rows,span),span,inner)) : Array<F32>}:
-  %AllocationLaws.array_same(F32,Tensors.depth_for((rows * span : U32)),0.0) :
-    {LeafExecution.activation_array(~custom,activation,(rows * span : U32),Gemm.run(rows,tiles,weights,bias,_,span,inner)) ==
-      LeafExecution.activation_array(~custom,activation,(rows * span : U32),Gemm.run(rows,tiles,weights,bias,ArrayPipeline.allocated(rows,span),span,inner)) : Array<F32>}
-  {==}
-
-# ArrayPipeline.computed destructs an affine packing pair. Its projections alone do
-# not expose that match, so introduce the real pair as a formal parameter.
-def computed_pair(~custom: F32 -> F32,+activation: Activations.Activation,+rows: U32,+span: U32,+inner: U32,
-  -weights: Array<Tile.Tile8>,-bias: Array<F32>,packed: Array<F32> & Array<Tile.Tile8>) ->
-  {LeafExecution.computed_array(~custom,activation,rows,span,inner,LeafExecution.second(packed),weights,bias) ==
-    LeafExecution.activation_array(~custom,activation,(rows * span : U32),ArrayPipeline.computed(rows,span,inner,weights,bias,packed)) : Array<F32>}:
-  (input,tiles) = packed
-  computed_allocation(~custom,activation,rows,span,inner,tiles,weights,bias)
+  Pipeline.Task{Pipeline.Work{+rows,height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner},activation} = task
+  ArrayPipeline.InputWindow{input,+first,+window_rows} = input
+  +offset = offset
+  +span = span
+  +count = U32.min(span,(positions - offset : U32))
+  Partition.Leaf{Blocked.run(~custom,activation,Pipeline.Work{rows,window_rows,width,kernel,stride,padding,output_width,count,inner},
+    KernelWindow.start(offset,stride,output_width,first),input,weights,bias),offset,count,rows}
 
 def leaf_projection(~custom: F32 -> F32,+activation: Activations.Activation,+work: Pipeline.Work,+offset: U32,+span: U32,+window_first: U32,+window_rows: U32,
   +input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
   {project_outputs(Pipeline.leaf(~custom,Pipeline.Task{work,activation},offset,span,Pipeline.InputWindow{Buffer.pack(~F32,input),window_first,window_rows},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
-    array_leaf(~custom,Pipeline.Task{work,activation},offset,span,ArrayPipeline.InputWindow{LeafExecution.storage(~F32,Buffer.pack(~F32,input)),window_first,window_rows},LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}:
-  Pipeline.Work{+rows,h,+width,+kernel,+stride,+padding,+output_width,positions,+inner} = work
-  +count = (span / 8 * inner : U32)
-  +call = {Packing.Call{U32.to_nat(count),KernelWindow.start(offset,stride,output_width,window_first),window_rows,width,kernel,stride,padding,output_width,inner} : Packing.Call}
-  %Equal.sym(Array<F32>,LeafExecution.storage(~F32,Pipeline.computed(~custom,activation,rows,span,inner,Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias),
-      PackingBuffer.run(call,Buffer.pack(~F32,input),Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),count)))),
-    LeafExecution.computed_array(~custom,activation,rows,span,inner,LeafExecution.packed_array(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),count),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))),
-    LeafExecution.computed(~custom,activation,rows,span,inner,call,count,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) :
-    {Partition.Leaf{_,offset,span,rows} == array_leaf(~custom,Pipeline.Task{Pipeline.Work{rows,h,width,kernel,stride,padding,output_width,positions,inner},activation},offset,span,
-      ArrayPipeline.InputWindow{LeafExecution.storage(~F32,Buffer.pack(~F32,input)),window_first,window_rows},LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}
-  %Equal.sym(Array<Tile.Tile8>,LeafExecution.packed_array(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),count),
-    LeafExecution.second(Packing.run(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)))),packed_allocation(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),count)) :
-    {Partition.Leaf{LeafExecution.computed_array(~custom,activation,rows,span,inner,_,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))),offset,span,rows} ==
-      array_leaf(~custom,Pipeline.Task{Pipeline.Work{rows,h,width,kernel,stride,padding,output_width,positions,inner},activation},offset,span,
-        ArrayPipeline.InputWindow{LeafExecution.storage(~F32,Buffer.pack(~F32,input)),window_first,window_rows},LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}
-  Equal.cong(Array<F32>,Partition.Tree<&1,Array<F32>,U32>,array => Partition.Leaf{array,offset,span,rows},
-    LeafExecution.computed_array(~custom,activation,rows,span,inner,LeafExecution.second(Packing.run(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)))),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))),
-    LeafExecution.activation_array(~custom,activation,(rows * span : U32),ArrayPipeline.computed(rows,span,inner,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias)),
-      Packing.run(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0))))),
-    computed_pair(~custom,activation,rows,span,inner,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias)),
-      Packing.run(call,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),Allocation.array(~Tile.Tile8,Tensors.depth_for(count),Tile.filled(0.0)))))
+    array_leaf(~custom,Pipeline.Task{work,activation},offset,span,ArrayPipeline.InputWindow{ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),window_first,window_rows},ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}:
+  Pipeline.Work{+rows,height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner} = work
+  +count = U32.min(span,(positions - offset : U32))
+  +local = {Pipeline.Work{rows,window_rows,width,kernel,stride,padding,output_width,count,inner} : Pipeline.Work}
+  +start = KernelWindow.start(offset,stride,output_width,window_first)
+  Equal.cong(Array<F32>,Partition.Tree<&1,Array<F32>,U32>,array => Partition.Leaf{array,offset,count,rows},
+    ActivationProofs.storage(~F32,Pipeline.blocked(~custom,activation,local,start,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))),
+    Blocked.run(~custom,activation,local,start,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))),
+    Blocked.run_projection(~custom,activation,local,start,input,weights,bias))
 
 # The certified dense split has the same affine owners and copies as the
 # established Array split. Certificates are erased through the actual returned
 # owner pairs; no replacement certificate or caller bounds are assumed.
 def project_buffers(~Element: Data,owners: Storage.Buffer<Element> & Storage.Buffer<Element>) -> Array<Element> & Array<Element>:
   (left,right) = owners
-  (LeafExecution.storage(~Element,left),LeafExecution.storage(~Element,right))
+  (ActivationProofs.storage(~Element,left),ActivationProofs.storage(~Element,right))
 
 def project_windows(windows: Pipeline.InputWindow & Pipeline.InputWindow) -> ArrayPipeline.InputWindow & ArrayPipeline.InputWindow:
   (left,right) = windows
@@ -129,7 +92,7 @@ def clone_buffers(~Element: Data,+length: Nat,owners: Array<Element> & Array<Ele
   {==}
 
 def clone_projection(~Element: Data,input: Storage.Buffer<Element>) ->
-  {project_buffers(~Element,Clone.clone(~Element,input)) == Array.clone(Element,LeafExecution.storage(~Element,input)) : Array<Element> & Array<Element>}:
+  {project_buffers(~Element,Clone.clone(~Element,input)) == Array.clone(Element,ActivationProofs.storage(~Element,input)) : Array<Element> & Array<Element>}:
   Storage.Buffer{input,+length,Certificate.Certificate{+depth,+equation}} = input
   clone_buffers(~Element,length,Array.clone(Element,input),CertificateClone.clone(~Element,input,
     Certificate.Certificate{depth,equation},Certificate.Certificate{depth,equation},Certificate.Certificate{depth,equation}))
@@ -143,7 +106,7 @@ def operation_buffers(~Element: Data,+input_length: Nat,+output_length: Nat,owne
 
 def copy_projection(+count: U32,+source: U32,+destination: U32,input: Storage.Buffer<F32>,output: Storage.Buffer<F32>) ->
   {project_buffers(~F32,Copy.range(~F32,count,source,destination,input,output)) ==
-    Traversal.copy(~F32,U32.to_nat(count),source,destination,LeafExecution.storage(~F32,input),LeafExecution.storage(~F32,output)) : Array<F32> & Array<F32>}:
+    Traversal.copy(~F32,U32.to_nat(count),source,destination,ActivationProofs.storage(~F32,input),ActivationProofs.storage(~F32,output)) : Array<F32> & Array<F32>}:
   match input output:
     case Storage.Buffer{input,+input_length,+input_certificate} Storage.Buffer{output,+output_length,+output_certificate}:
       +view = {Views.View{[Views.Axis{count,1}],source} : Views.View}
@@ -188,39 +151,39 @@ def cloned_projection(+first: U32,+rows: U32,owners: Storage.Buffer<F32> & Stora
   {==}
 
 def allocated_projection(+count: U32) ->
-  {LeafExecution.storage(~F32,Tensors.buffer(~F32,0.0,count)) == Allocation.array(~F32,Tensors.depth_for(count),0.0) : Array<F32>}:
-  %Equal.sym(Storage.Buffer<F32>,Tensors.buffer(~F32,0.0,count),Storage.allocate(~F32,Tensors.depth_for(count),0.0,U32.to_nat(count)),LeafExecution.allocated(~F32,0.0,count)) :
-    {LeafExecution.storage(~F32,_) == Allocation.array(~F32,Tensors.depth_for(count),0.0) : Array<F32>}
+  {ActivationProofs.storage(~F32,Tensors.buffer(~F32,0.0,count)) == Allocation.array(~F32,Tensors.depth_for(count),0.0) : Array<F32>}:
+  %Equal.sym(Storage.Buffer<F32>,Tensors.buffer(~F32,0.0,count),Storage.allocate(~F32,Tensors.depth_for(count),0.0,U32.to_nat(count)),ActivationProofs.allocated(~F32,0.0,count)) :
+    {ActivationProofs.storage(~F32,_) == Allocation.array(~F32,Tensors.depth_for(count),0.0) : Array<F32>}
   Equal.sym(Array<F32>,Allocation.array(~F32,Tensors.depth_for(count),0.0),Array.new(F32,Tensors.depth_for(count),0.0),AllocationLaws.array_same(F32,Tensors.depth_for(count),0.0))
 
 def copied_projection(+channels: U32,+width: U32,+first: U32,+rows: U32,+band: KernelWindow.Band,+input: Buffer.Model<F32>) ->
   {project_windows(Pipeline.copied(channels,width,first,rows,band,Buffer.pack(~F32,input))) ==
-    ArrayPipeline.copied(channels,width,first,rows,band,LeafExecution.storage(~F32,Buffer.pack(~F32,input))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
+    ArrayPipeline.copied(channels,width,first,rows,band,ActivationProofs.storage(~F32,Buffer.pack(~F32,input))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
   KernelWindow.Band{+left_first,+left_rows} = band
   +count = (channels * left_rows * width : U32)
   %allocated_projection(count) :
     {project_windows(Pipeline.copied(channels,width,first,rows,KernelWindow.Band{left_first,left_rows},Buffer.pack(~F32,input))) ==
       ArrayPipeline.windows(first,rows,left_first,left_rows,KernelWindow.copy_planes(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
-        ((left_first - first) * width : U32),(left_rows * width : U32),(LeafExecution.storage(~F32,Buffer.pack(~F32,input)),_))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}
+        ((left_first - first) * width : U32),(left_rows * width : U32),(ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),_))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}
   Equal.trans(ArrayPipeline.InputWindow & ArrayPipeline.InputWindow,
     project_windows(Pipeline.copied(channels,width,first,rows,KernelWindow.Band{left_first,left_rows},Buffer.pack(~F32,input))),
     ArrayPipeline.windows(first,rows,left_first,left_rows,project_buffers(~F32,Pipeline.copy_rows(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
       ((left_first - first) * width : U32),(left_rows * width : U32),(Buffer.pack(~F32,input),Tensors.buffer(~F32,0.0,count))))),
     ArrayPipeline.windows(first,rows,left_first,left_rows,KernelWindow.copy_planes(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
-      ((left_first - first) * width : U32),(left_rows * width : U32),(LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~F32,Tensors.buffer(~F32,0.0,count))))),
+      ((left_first - first) * width : U32),(left_rows * width : U32),(ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~F32,Tensors.buffer(~F32,0.0,count))))),
     windows_projection(first,rows,left_first,left_rows,Pipeline.copy_rows(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
       ((left_first - first) * width : U32),(left_rows * width : U32),(Buffer.pack(~F32,input),Tensors.buffer(~F32,0.0,count)))),
     Equal.cong(Array<F32> & Array<F32>,ArrayPipeline.InputWindow & ArrayPipeline.InputWindow,owners => ArrayPipeline.windows(first,rows,left_first,left_rows,owners),
       project_buffers(~F32,Pipeline.copy_rows(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
         ((left_first - first) * width : U32),(left_rows * width : U32),(Buffer.pack(~F32,input),Tensors.buffer(~F32,0.0,count)))),
       KernelWindow.copy_planes(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),
-        ((left_first - first) * width : U32),(left_rows * width : U32),(LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~F32,Tensors.buffer(~F32,0.0,count)))),
+        ((left_first - first) * width : U32),(left_rows * width : U32),(ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~F32,Tensors.buffer(~F32,0.0,count)))),
       copy_rows_projection(U32.to_nat(channels),0,(left_rows * width : U32),(rows * width : U32),((left_first - first) * width : U32),(left_rows * width : U32),
         (Buffer.pack(~F32,input),Tensors.buffer(~F32,0.0,count)))))
 
 def split_when_projection(+copy: Bool,+channels: U32,+width: U32,+first: U32,+rows: U32,+band: KernelWindow.Band,+input: Buffer.Model<F32>) ->
   {project_windows(Pipeline.split_when(copy,channels,width,first,rows,band,Buffer.pack(~F32,input))) ==
-    ArrayPipeline.split_when(copy,channels,width,first,rows,band,LeafExecution.storage(~F32,Buffer.pack(~F32,input))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
+    ArrayPipeline.split_when(copy,channels,width,first,rows,band,ActivationProofs.storage(~F32,Buffer.pack(~F32,input))) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
   match copy:
     case False{}:
       %clone_projection(~F32,Buffer.pack(~F32,input)) :
@@ -230,7 +193,7 @@ def split_when_projection(+copy: Bool,+channels: U32,+width: U32,+first: U32,+ro
 
 def split_projection(+work: Pipeline.Work,+offset: U32,+half: U32,+first: U32,+rows: U32,+input: Buffer.Model<F32>) ->
   {project_windows(Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows})) ==
-    ArrayPipeline.split(work,offset,half,ArrayPipeline.InputWindow{LeafExecution.storage(~F32,Buffer.pack(~F32,input)),first,rows}) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
+    ArrayPipeline.split(work,offset,half,ArrayPipeline.InputWindow{ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),first,rows}) : ArrayPipeline.InputWindow & ArrayPipeline.InputWindow}:
   Pipeline.Work{channels_out,+height,+width,+kernel,+stride,+padding,+output_width,positions,+inner} = work
   +band = {KernelWindow.band(first,rows,height,kernel,stride,padding,output_width,offset,half) : KernelWindow.Band}
   split_when_projection(U32.is_zero((output_width % 8 : U32)) && KernelWindow.covers(first,rows,height,kernel,stride,padding,output_width,offset,half,band),
@@ -325,7 +288,7 @@ def array_step(~custom: F32 -> F32,+rest: Nat,+task: Pipeline.Task,+offset: U32,
 def children_projected(~custom: F32 -> F32,
   ~child_projection: @+child_depth: Nat -> @+child_activation: Activations.Activation -> @+child_work: Pipeline.Work -> @+child_offset: U32 -> @+child_span: U32 -> @+window: WindowModel -> @+weights: Buffer.Model<Tile.Tile8> -> @+bias: Buffer.Model<F32> ->
     {project_outputs(Pipeline.partition(~custom,child_depth,Pipeline.Task{child_work,child_activation},child_offset,child_span,pack_window(window),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
-      array_partition(~custom,child_depth,Pipeline.Task{child_work,child_activation},child_offset,child_span,project_window(pack_window(window)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>},
+      array_partition(~custom,child_depth,Pipeline.Task{child_work,child_activation},child_offset,child_span,project_window(pack_window(window)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>},
   +depth: Nat,+activation: Activations.Activation,+work: Pipeline.Work,+offset: U32,+span: U32,
   -inputs: Pipeline.InputWindow & Pipeline.InputWindow,-weights: Storage.Buffer<Tile.Tile8> & Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32> & Storage.Buffer<F32>,
   input_observation: WindowPairObservation<inputs>,weight_observation: Cloned.Observation<Tile.Tile8,weights>,bias_observation: Cloned.Observation<F32,bias>) ->
@@ -346,21 +309,21 @@ def children_projected(~custom: F32 -> F32,
       +half = (span / 16 * 8 : U32)
       %Equal.sym(Partition.Tree<&1,Array<F32>,U32>,
         project_outputs(Pipeline.partition(~custom,depth,task,offset,half,pack_window(left_input),Buffer.pack(~Tile.Tile8,left_weights),Buffer.pack(~F32,left_bias))),
-        array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,left_bias))),
+        array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,left_bias))),
         child_projection(depth,activation,work,offset,half,left_input,left_weights,left_bias)) :
         {Partition.Fork{_,project_outputs(Pipeline.partition(~custom,depth,task,(offset + half : U32),(span - half : U32),pack_window(right_input),Buffer.pack(~Tile.Tile8,right_weights),Buffer.pack(~F32,right_bias)))} ==
-          Partition.Fork{array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,left_bias))),
-            array_partition(~custom,depth,task,(offset + half : U32),(span - half : U32),project_window(pack_window(right_input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,right_weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,right_bias)))} : Partition.Tree<&1,Array<F32>,U32>}
+          Partition.Fork{array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,left_bias))),
+            array_partition(~custom,depth,task,(offset + half : U32),(span - half : U32),project_window(pack_window(right_input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,right_weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,right_bias)))} : Partition.Tree<&1,Array<F32>,U32>}
       Equal.cong(Partition.Tree<&1,Array<F32>,U32>,Partition.Tree<&1,Array<F32>,U32>,right =>
-        Partition.Fork{array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,left_bias))),right},
+        Partition.Fork{array_partition(~custom,depth,task,offset,half,project_window(pack_window(left_input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,left_weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,left_bias))),right},
         project_outputs(Pipeline.partition(~custom,depth,task,(offset + half : U32),(span - half : U32),pack_window(right_input),Buffer.pack(~Tile.Tile8,right_weights),Buffer.pack(~F32,right_bias))),
-        array_partition(~custom,depth,task,(offset + half : U32),(span - half : U32),project_window(pack_window(right_input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,right_weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,right_bias))),
+        array_partition(~custom,depth,task,(offset + half : U32),(span - half : U32),project_window(pack_window(right_input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,right_weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,right_bias))),
         child_projection(depth,activation,work,(offset + half : U32),(span - half : U32),right_input,right_weights,right_bias))
 
 def partition_projection(~custom: F32 -> F32,+depth: Nat,+activation: Activations.Activation,+work: Pipeline.Work,+offset: U32,+span: U32,
   +window: WindowModel,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
   {project_outputs(Pipeline.partition(~custom,depth,Pipeline.Task{work,activation},offset,span,pack_window(window),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
-    array_partition(~custom,depth,Pipeline.Task{work,activation},offset,span,project_window(pack_window(window)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}:
+    array_partition(~custom,depth,Pipeline.Task{work,activation},offset,span,project_window(pack_window(window)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}:
   match depth window:
     case 0n WindowModel{+input,+first,+rows}: leaf_projection(~custom,activation,work,offset,span,first,rows,input,weights,bias)
     case 1n+ +rest WindowModel{+input,+first,+rows}:
@@ -371,19 +334,19 @@ def partition_projection(~custom: F32 -> F32,+depth: Nat,+activation: Activation
         native_children(~custom,rest,task,offset,span,Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),Clone.clone(~F32,Buffer.pack(~F32,bias))),
         native_step(~custom,rest,task,offset,span,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) :
         {project_outputs(_) ==
-          array_partition(~custom,1n+rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}
+          array_partition(~custom,1n+rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Partition.Tree<&1,Array<F32>,U32>}
       %Equal.sym(Partition.Tree<&1,Array<F32>,U32>,
-        array_partition(~custom,1n+rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))),
+        array_partition(~custom,1n+rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))),
         array_children(~custom,rest,task,offset,span,array_split(task,offset,half,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows})),
-          Array.clone(Tile.Tile8,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights))),Array.clone(F32,LeafExecution.storage(~F32,Buffer.pack(~F32,bias)))),
-        array_step(~custom,rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias)))) :
+          Array.clone(Tile.Tile8,ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights))),Array.clone(F32,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias)))),
+        array_step(~custom,rest,task,offset,span,project_window(Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias)))) :
         {project_outputs(native_children(~custom,rest,task,offset,span,Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),Clone.clone(~F32,Buffer.pack(~F32,bias)))) == _ : Partition.Tree<&1,Array<F32>,U32>}
       %split_projection(work,offset,half,first,rows,input) :
         {project_outputs(native_children(~custom,rest,task,offset,span,Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),Clone.clone(~F32,Buffer.pack(~F32,bias)))) ==
-          array_children(~custom,rest,task,offset,span,_,Array.clone(Tile.Tile8,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights))),Array.clone(F32,LeafExecution.storage(~F32,Buffer.pack(~F32,bias)))) : Partition.Tree<&1,Array<F32>,U32>}
+          array_children(~custom,rest,task,offset,span,_,Array.clone(Tile.Tile8,ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights))),Array.clone(F32,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias)))) : Partition.Tree<&1,Array<F32>,U32>}
       %clone_projection(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)) :
         {project_outputs(native_children(~custom,rest,task,offset,span,Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),Clone.clone(~F32,Buffer.pack(~F32,bias)))) ==
-          array_children(~custom,rest,task,offset,span,project_windows(Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows})),_,Array.clone(F32,LeafExecution.storage(~F32,Buffer.pack(~F32,bias)))) : Partition.Tree<&1,Array<F32>,U32>}
+          array_children(~custom,rest,task,offset,span,project_windows(Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows})),_,Array.clone(F32,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias)))) : Partition.Tree<&1,Array<F32>,U32>}
       %clone_projection(~F32,Buffer.pack(~F32,bias)) :
         {project_outputs(native_children(~custom,rest,task,offset,span,Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows}),Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),Clone.clone(~F32,Buffer.pack(~F32,bias)))) ==
           array_children(~custom,rest,task,offset,span,project_windows(Pipeline.split(work,offset,half,Pipeline.InputWindow{Buffer.pack(~F32,input),first,rows})),project_buffers(~Tile.Tile8,Clone.clone(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights))),_) : Partition.Tree<&1,Array<F32>,U32>}
@@ -430,26 +393,26 @@ def array_gather(partitions: Partition.Tree<&1,Array<F32>,U32>,output: Array<F32
   Partition.gather(~Array<F32>,~(rows => offset => positions => span => input => output => Gather.gather_block(rows,offset,positions,span,input,output)),partitions,output,positions)
 
 def gather_leaf_projection(+rows: U32,+offset: U32,+positions: U32,+span: U32,input: Storage.Buffer<F32>,output: Storage.Buffer<F32>) ->
-  {LeafExecution.storage(~F32,GatherBuffer.run(rows,offset,positions,span,input,output)) ==
-    Gather.gather_block(rows,offset,positions,span,LeafExecution.storage(~F32,input),LeafExecution.storage(~F32,output)) : Array<F32>}:
+  {ActivationProofs.storage(~F32,GatherBuffer.run(rows,offset,positions,span,input,output)) ==
+    Gather.gather_block(rows,offset,positions,span,ActivationProofs.storage(~F32,input),ActivationProofs.storage(~F32,output)) : Array<F32>}:
   match input output:
     case Storage.Buffer{input,input_length,input_certificate} Storage.Buffer{output,output_length,output_certificate}: {==}
 
 def gather_projected(+partitions: ModelOutputs(),+positions: U32,-output: Storage.Buffer<F32>,observation: Buffer.Observation<F32,output>) ->
-  {LeafExecution.storage(~F32,Pipeline.gather(pack_outputs(partitions),output,positions)) ==
-    array_gather(project_outputs(pack_outputs(partitions)),LeafExecution.storage(~F32,output),positions) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.gather(pack_outputs(partitions),output,positions)) ==
+    array_gather(project_outputs(pack_outputs(partitions)),ActivationProofs.storage(~F32,output),positions) : Array<F32>}:
   match partitions observation:
     case Partition.Leaf{+input,+offset,+span,+rows} Buffer.Observation{+output_model,equation}:
       %equation :
-        {LeafExecution.storage(~F32,GatherBuffer.run(rows,offset,positions,span,Buffer.pack(~F32,input),_)) ==
-          Gather.gather_block(rows,offset,positions,span,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~F32,_)) : Array<F32>}
+        {ActivationProofs.storage(~F32,GatherBuffer.run(rows,offset,positions,span,Buffer.pack(~F32,input),_)) ==
+          Gather.gather_block(rows,offset,positions,span,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~F32,_)) : Array<F32>}
       gather_leaf_projection(rows,offset,positions,span,Buffer.pack(~F32,input),Buffer.pack(~F32,output_model))
     case Partition.Fork{+left,+right} Buffer.Observation{+output_model,equation}:
       %equation :
-        {LeafExecution.storage(~F32,Pipeline.gather(pack_outputs(right),Pipeline.gather(pack_outputs(left),_,positions),positions)) ==
-          array_gather(project_outputs(pack_outputs(right)),array_gather(project_outputs(pack_outputs(left)),LeafExecution.storage(~F32,_),positions),positions) : Array<F32>}
+        {ActivationProofs.storage(~F32,Pipeline.gather(pack_outputs(right),Pipeline.gather(pack_outputs(left),_,positions),positions)) ==
+          array_gather(project_outputs(pack_outputs(right)),array_gather(project_outputs(pack_outputs(left)),ActivationProofs.storage(~F32,_),positions),positions) : Array<F32>}
       %gather_projected(left,positions,Buffer.pack(~F32,output_model),Buffer.observe(~F32,Buffer.pack(~F32,output_model))) :
-        {LeafExecution.storage(~F32,Pipeline.gather(pack_outputs(right),Pipeline.gather(pack_outputs(left),Buffer.pack(~F32,output_model),positions),positions)) ==
+        {ActivationProofs.storage(~F32,Pipeline.gather(pack_outputs(right),Pipeline.gather(pack_outputs(left),Buffer.pack(~F32,output_model),positions),positions)) ==
           array_gather(project_outputs(pack_outputs(right)),_,positions) : Array<F32>}
       gather_projected(right,positions,Pipeline.gather(pack_outputs(left),Buffer.pack(~F32,output_model),positions),
         Buffer.observe(~F32,Pipeline.gather(pack_outputs(left),Buffer.pack(~F32,output_model),positions)))
@@ -464,64 +427,84 @@ def finish_leaf_allocation(+identity: Bool,-input: Array<F32>,+rows: U32,+offset
       {==}
 
 def finish_model(+partitions: ModelOutputs(),+rows: U32,+positions: U32) ->
-  {LeafExecution.storage(~F32,Pipeline.finish(pack_outputs(partitions),rows,positions)) == ArrayPipeline.finish(project_outputs(pack_outputs(partitions)),rows,positions) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.finish(pack_outputs(partitions),rows,positions)) == ArrayPipeline.finish(project_outputs(pack_outputs(partitions)),rows,positions) : Array<F32>}:
   match partitions:
     case Partition.Leaf{+input,+offset,+span,+channels}:
       +identity = U32.is_zero(offset) && U32.is_eq(span,positions)
-      Equal.trans(Array<F32>,LeafExecution.storage(~F32,Pipeline.finish_leaf(identity,Buffer.pack(~F32,input),channels,offset,span,positions)),
-        LeafExecution.finish_array(identity,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions),
-        ArrayPipeline.finish_leaf(identity,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions),
+      Equal.trans(Array<F32>,ActivationProofs.storage(~F32,Pipeline.finish_leaf(identity,Buffer.pack(~F32,input),channels,offset,span,positions)),
+        LeafExecution.finish_array(identity,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions),
+        ArrayPipeline.finish_leaf(identity,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions),
         LeafExecution.execution_finished(identity,Buffer.pack(~F32,input),channels,offset,span,positions),
-        finish_leaf_allocation(identity,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions))
+        finish_leaf_allocation(identity,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),channels,offset,span,positions))
     case Partition.Fork{+left,+right}:
       +count = (rows * positions : U32)
       %allocated_projection(count) :
-        {LeafExecution.storage(~F32,Pipeline.gather(pack_outputs(Partition.Fork{left,right}),Tensors.buffer(~F32,0.0,count),positions)) ==
+        {ActivationProofs.storage(~F32,Pipeline.gather(pack_outputs(Partition.Fork{left,right}),Tensors.buffer(~F32,0.0,count),positions)) ==
           array_gather(project_outputs(pack_outputs(Partition.Fork{left,right})),_,positions) : Array<F32>}
       gather_projected(Partition.Fork{left,right},positions,Tensors.buffer(~F32,0.0,count),Buffer.observe(~F32,Tensors.buffer(~F32,0.0,count)))
 
 def pipeline_finish_observed(-partitions: Pipeline.Outputs(),observation: OutputObservation<partitions>,+rows: U32,+positions: U32) ->
-  {LeafExecution.storage(~F32,Pipeline.finish(partitions,rows,positions)) == ArrayPipeline.finish(project_outputs(partitions),rows,positions) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.finish(partitions,rows,positions)) == ArrayPipeline.finish(project_outputs(partitions),rows,positions) : Array<F32>}:
   OutputObservation{+model,equation} = observation
-  %equation : {LeafExecution.storage(~F32,Pipeline.finish(_,rows,positions)) == ArrayPipeline.finish(project_outputs(_),rows,positions) : Array<F32>}
+  %equation : {ActivationProofs.storage(~F32,Pipeline.finish(_,rows,positions)) == ArrayPipeline.finish(project_outputs(_),rows,positions) : Array<F32>}
   finish_model(model,rows,positions)
 
 def finish_projection(partitions: Pipeline.Outputs(),+rows: U32,+positions: U32) ->
-  {LeafExecution.storage(~F32,Pipeline.finish(partitions,rows,positions)) == ArrayPipeline.finish(project_outputs(partitions),rows,positions) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.finish(partitions,rows,positions)) == ArrayPipeline.finish(project_outputs(partitions),rows,positions) : Array<F32>}:
   pipeline_finish_observed(partitions,observe_outputs(partitions),rows,positions)
 
-def array_run_packed(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,input: Array<F32>,weights: Array<Tile.Tile8>,bias: Array<F32>) -> Array<F32>:
+def array_run_partitioned(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,input: Array<F32>,weights: Array<Tile.Tile8>,bias: Array<F32>) -> Array<F32>:
   Pipeline.Work{+rows,+height,width,kernel,stride,padding,output_width,+positions,inner} = work
   +padded = ((positions + 7) / 8 * 8 : U32)
   +limit = (U32.from_nat(Tensors.significant_bits(32n,(padded / 8 : U32),0n,U32.is_zero((padded / 8 : U32)))) - 1 : U32)
   ArrayPipeline.finish(array_partition(~custom,U32.to_nat(U32.min(depth,limit)),Pipeline.Task{Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner},activation},0,padded,ArrayPipeline.InputWindow{input,0,height},weights,bias),rows,positions)
 
-def run_packed_projection(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
-  {LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
-    array_run_packed(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
+def run_partitioned_projection(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {ActivationProofs.storage(~F32,Pipeline.run_partitioned(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
+    array_run_partitioned(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
   Pipeline.Work{+rows,+height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner} = work
   +work = {Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner} : Pipeline.Work}
   +padded = ((positions + 7) / 8 * 8 : U32)
   +limit = (U32.from_nat(Tensors.significant_bits(32n,(padded / 8 : U32),0n,U32.is_zero((padded / 8 : U32)))) - 1 : U32)
   +actual_depth = U32.to_nat(U32.min(depth,limit))
   %partition_projection(~custom,actual_depth,activation,work,0,padded,WindowModel{input,0,height},weights,bias) :
-    {LeafExecution.storage(~F32,Pipeline.finish(Pipeline.partition(~custom,actual_depth,Pipeline.Task{work,activation},0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias)),rows,positions)) ==
+    {ActivationProofs.storage(~F32,Pipeline.finish(Pipeline.partition(~custom,actual_depth,Pipeline.Task{work,activation},0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias)),rows,positions)) ==
       ArrayPipeline.finish(_,rows,positions) : Array<F32>}
   finish_projection(Pipeline.partition(~custom,actual_depth,Pipeline.Task{work,activation},0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias)),rows,positions)
 
+def array_run_selected(~custom: F32 -> F32,blocked_leaf: Bool,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,input: Array<F32>,weights: Array<Tile.Tile8>,bias: Array<F32>) -> Array<F32>:
+  match blocked_leaf:
+    case True{}: Blocked.run(~custom,activation,work,0,input,weights,bias)
+    case False{}: array_run_partitioned(~custom,activation,depth,work,input,weights,bias)
+
+def array_run_packed(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,input: Array<F32>,weights: Array<Tile.Tile8>,bias: Array<F32>) -> Array<F32>:
+  array_run_selected(~custom,U32.is_zero(depth),activation,depth,work,input,weights,bias)
+
+def run_selected_projection(~custom: F32 -> F32,+blocked_leaf: Bool,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {ActivationProofs.storage(~F32,Pipeline.run_selected(~custom,blocked_leaf,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
+    array_run_selected(~custom,blocked_leaf,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
+  match blocked_leaf:
+    case True{}: Blocked.run_projection(~custom,activation,work,0,input,weights,bias)
+    case False{}: run_partitioned_projection(~custom,activation,depth,work,input,weights,bias)
+
+def run_packed_projection(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) ==
+    array_run_packed(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
+  run_selected_projection(~custom,U32.is_zero(depth),activation,depth,work,input,weights,bias)
+
 def reordered_projection(+rows: U32,+inner: U32,weights: Storage.Buffer<F32>) ->
-  {LeafExecution.storage(~Tile.Tile8,GemmBuffer.reorder(rows,inner,weights)) == Weights.run(rows,inner,LeafExecution.storage(~F32,weights)) : Array<Tile.Tile8>}:
+  {ActivationProofs.storage(~Tile.Tile8,GemmBuffer.reorder(rows,inner,weights)) == Weights.run(rows,inner,ActivationProofs.storage(~F32,weights)) : Array<Tile.Tile8>}:
   Storage.Buffer{weights,length,certificate} = weights
   {==}
 
 def finish_reordered_run(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   -weights: Storage.Buffer<Tile.Tile8>,observation: Buffer.Observation<Tile.Tile8,weights>) ->
-  {LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),weights,Buffer.pack(~F32,bias))) ==
-    array_run_packed(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~Tile.Tile8,weights),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),weights,Buffer.pack(~F32,bias))) ==
+    array_run_packed(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,weights),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
   Buffer.Observation{+model,equation} = observation
   %equation :
-    {LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),_,Buffer.pack(~F32,bias))) ==
-      array_run_packed(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~Tile.Tile8,_),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}
+    {ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),_,Buffer.pack(~F32,bias))) ==
+      array_run_packed(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,_),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}
   run_packed_projection(~custom,activation,depth,work,input,model,bias)
 
 def array_run(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,input: Array<F32>,weights: Array<F32>,bias: Array<F32>) -> Array<F32>:
@@ -529,13 +512,13 @@ def array_run(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U3
   array_run_packed(~custom,activation,depth,Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner},input,Weights.run(rows,inner,weights),bias)
 
 def run_projection(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>) ->
-  {LeafExecution.storage(~F32,Pipeline.run(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias))) ==
-    array_run(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~F32,Buffer.pack(~F32,weights)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
+  {ActivationProofs.storage(~F32,Pipeline.run(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias))) ==
+    array_run(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~F32,Buffer.pack(~F32,weights)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}:
   Pipeline.Work{+rows,+height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner} = work
   +work = {Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner} : Pipeline.Work}
   %reordered_projection(rows,inner,Buffer.pack(~F32,weights)) :
-    {LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias))) ==
-      array_run_packed(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),_,LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}
+    {ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias))) ==
+      array_run_packed(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),_,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) : Array<F32>}
   finish_reordered_run(~custom,activation,depth,work,input,bias,GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.observe(~Tile.Tile8,GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights))))
 
 # Actual dense owners keep their allocation footprint through the partition and
@@ -562,13 +545,11 @@ def leaf_models(~custom: F32 -> F32,+activation: Activations.Activation,+work: P
   input: Pipeline.InputWindow,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
   LeafFootprints(work_rows(work),Pipeline.leaf(~custom,Pipeline.Task{work,activation},offset,span,input,Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))):
   match work input:
-    case Pipeline.Work{+rows,height,+width,+kernel,+stride,+padding,+output_width,positions,+inner} Pipeline.InputWindow{input,+first,+window_rows}:
-      +count = (span / 8 * inner : U32)
-      +call = {Packing.Call{U32.to_nat(count),KernelWindow.start(offset,stride,output_width,first),window_rows,width,kernel,stride,padding,output_width,inner} : Packing.Call}
-      Shape.Both{{==},Equal.trans(KernelPipelineBufferShape.Footprint,
-        KernelPipelineBufferShape.footprint(~F32,Pipeline.computed(~custom,activation,rows,span,inner,Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias),PackingBuffer.run(call,input,Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),count)))),
-        KernelPipelineBufferShape.footprint(~F32,Tensors.buffer(~F32,0.0,(rows * span : U32))),allocated_footprint((rows * span : U32)),
-        KernelPipelineBufferShape.computed_owners(~custom,activation,rows,span,inner,weights,bias,PackingBuffer.run(call,input,Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),count))),KernelPipelineBufferShape.allocated(~F32,0.0,(rows * span : U32)))}
+    case Pipeline.Work{+rows,height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner} Pipeline.InputWindow{input,+first,+window_rows}:
+      +count = U32.min(span,(positions - offset : U32))
+      Shape.Both{{==},KernelPipelineBufferShape.blocked_owned(~custom,activation,
+        Pipeline.Work{rows,window_rows,width,kernel,stride,padding,output_width,count,inner},
+        KernelWindow.start(offset,stride,output_width,first),input,weights,bias)}
 
 def leaf_observed(~custom: F32 -> F32,+activation: Activations.Activation,+work: Pipeline.Work,+offset: U32,+span: U32,
   input: Pipeline.InputWindow,-weights: Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32>,
@@ -662,8 +643,8 @@ def footprint_finish_observed(+rows: U32,+positions: U32,-partitions: Pipeline.O
     %Equal.sym(Pipeline.Outputs(),pack_outputs(model),partitions,equation) : LeafFootprints(rows,_)
     facts)
 
-def run_packed_footprint(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
-  {KernelPipelineBufferShape.footprint(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) == allocated_footprint(output_size(work)) : KernelPipelineBufferShape.Footprint}:
+def run_partitioned_footprint(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {KernelPipelineBufferShape.footprint(~F32,Pipeline.run_partitioned(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) == allocated_footprint(output_size(work)) : KernelPipelineBufferShape.Footprint}:
   Pipeline.Work{+rows,+height,+width,+kernel,+stride,+padding,+output_width,+positions,+inner} = work
   +work = {Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner} : Pipeline.Work}
   +padded = ((positions + 7) / 8 * 8 : U32)
@@ -672,6 +653,18 @@ def run_packed_footprint(~custom: F32 -> F32,+activation: Activations.Activation
   footprint_finish_observed(rows,positions,Pipeline.partition(~custom,actual_depth,Pipeline.Task{work,activation},0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias)),
     observe_outputs(Pipeline.partition(~custom,actual_depth,Pipeline.Task{work,activation},0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))),
     partition_footprints(~custom,actual_depth,activation,work,0,padded,Pipeline.InputWindow{Buffer.pack(~F32,input),0,height},Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias)))
+
+def run_selected_footprint(~custom: F32 -> F32,+blocked_leaf: Bool,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {KernelPipelineBufferShape.footprint(~F32,Pipeline.run_selected(~custom,blocked_leaf,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) == allocated_footprint(output_size(work)) : KernelPipelineBufferShape.Footprint}:
+  match blocked_leaf:
+    case True{}:
+      Pipeline.Work{+rows,h,w,k,s,p,ow,+positions,inner} = work
+      KernelPipelineBufferShape.run_footprint(~custom,activation,work,0,input,weights,bias)
+    case False{}: run_partitioned_footprint(~custom,activation,depth,work,input,weights,bias)
+
+def run_packed_footprint(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+weights: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>) ->
+  {KernelPipelineBufferShape.footprint(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,weights),Buffer.pack(~F32,bias))) == allocated_footprint(output_size(work)) : KernelPipelineBufferShape.Footprint}:
+  run_selected_footprint(~custom,U32.is_zero(depth),activation,depth,work,input,weights,bias)
 
 def footprint_reordered_run(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   -weights: Storage.Buffer<Tile.Tile8>,observation: Buffer.Observation<Tile.Tile8,weights>) ->

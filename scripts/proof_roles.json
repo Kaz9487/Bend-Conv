@@ -1,4 +1,7 @@
 {
+  "lib/proofs/tensor_comparison_values.bend": "implementation-connected",
+  "lib/proofs/tensor_function_values.bend": "implementation-connected",
+  "lib/proofs/tensor_lanes_refinement.bend": "implementation-connected",
   "lib/proofs/tensor_band_concat_semantics.bend": "implementation-connected",
   "lib/proofs/tensor_band_pool_execution.bend": "implementation-connected",
   "lib/proofs/tensor_band_pool_output_domain.bend": "geometry-and-guard",
@@ -216,6 +219,7 @@
   "lib/proofs/indexed_output_readback.bend": "reusable-foundation",
   "convolution/proofs/output_readback.bend": "implementation-connected",
   "convolution/proofs/direct_kernel_refinement.bend": "implementation-connected",
+  "lib/proofs/tensor_file_bits.bend": "reusable-foundation",
   "lib/proofs/tensor_operations_refinement.bend": "reusable-foundation",
   "lib/proofs/tensor_view_metadata_refinement.bend": "reusable-foundation",
   "lib/proofs/checked_word_refinement.bend": "reusable-foundation",
@@ -340,5 +344,17 @@
   "lib/proofs/tensor_count_completion.bend": "geometry-and-guard",
   "convolution/proofs/band_dense_pipeline.bend": "implementation-connected",
   "convolution/proofs/band_dense_pipeline_content.bend": "implementation-connected",
-  "convolution/proofs/band_dense_batch.bend": "implementation-connected"
+  "convolution/proofs/band_dense_batch.bend": "implementation-connected",
+  "lib/proofs/traversal_cells_refinement.bend": "reusable-foundation",
+  "lib/proofs/traversal_batch_refinement.bend": "reusable-foundation",
+  "lib/proofs/traversal_lanes_refinement.bend": "implementation-connected",
+  "lib/proofs/traversal_lanes_witness.bend": "implementation-connected",
+  "lib/proofs/traversal_lanes_certificate.bend": "implementation-connected",
+  "convolution/proofs/blocked_pipeline_projection.bend": "implementation-connected",
+  "convolution/proofs/blocked_pipeline_model.bend": "implementation-connected",
+  "convolution/proofs/gemm_output_relocation.bend": "implementation-connected",
+  "convolution/proofs/blocked_convolution_readback.bend": "implementation-connected",
+  "convolution/proofs/blocked_pipeline_bounds.bend": "geometry-and-guard",
+  "convolution/proofs/blocked_pipeline_initial.bend": "implementation-connected",
+  "lib/proofs/kernel_pipeline_activation.bend": "implementation-connected"
 }

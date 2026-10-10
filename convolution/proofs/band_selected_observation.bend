@@ -38,14 +38,14 @@ def consume(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,
   window_exact: {BandWindow.input_geometry(window) == PipelineExecution.input_geometry(~Logical,frame) : Bands.Geometry},
   observation: Observation.ReplanObservation<Model.layout(~F32,source),work,window,workers,configuration,PipelineExecution.convolution_limits(~Logical,frame),PipelineExecution.convolution_capacity(~Logical,frame)>) ->
   PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),BandPlanning.replan(Model.layout(~F32,source),work,window,workers,configuration),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
+    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),BandPlanning.replan(Model.layout(~F32,source),work,window,workers,configuration),Model.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
   Observation.ReplanObservation{+selection,exact,facts} = observation
   +selected_facts = {
     %window_exact : KernelBandPlanningRefinement.SelectedFacts(_,PipelineExecution.convolution_limits(~Logical,frame),PipelineExecution.convolution_capacity(~Logical,frame),selection)
     facts : KernelBandPlanningRefinement.SelectedFacts(PipelineExecution.input_geometry(~Logical,frame),PipelineExecution.convolution_limits(~Logical,frame),PipelineExecution.convolution_capacity(~Logical,frame),selection)}
   %exact : PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),_,Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers))
+    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),_,Model.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers))
   PublicFrame.selected(~custom,~Logical,~original,frame,selection,
-    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),selection,Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
+    TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),selection,Model.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
     TensorExecution.selected(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,selection,shape,values,weight_exact,bias_exact,selected_facts))
 

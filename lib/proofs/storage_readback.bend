@@ -6,6 +6,7 @@ import ./storage_shape.bend as Shape
 import ./storage_address_bounds.bend as Address
 import ./word_power_of_two.bend as Power
 import ./nat_order.bend as Order
+import ./nat_to_u32_bounds.bend as Bounds
 
 def capacity_node(~Element: Data,+left: Tree.Tree<Element>,+right: Tree.Tree<Element>,+half: U32,+index: U32,+value: Element,choice: Bool,
   left_capacity: {Tree.capacity(Element,Tree.store(Element,left,half,index,value)) == Tree.capacity(Element,left) : U32}) ->
@@ -91,7 +92,7 @@ def other_node(~Element: Data,+left: Tree.Tree<Element>,+right: Tree.Tree<Elemen
       right_case(write_choice)(read_choice)
 
 def fetch_preserved(~Element: Data,+depth: Nat,tree: Tree.Tree<Element>,+index: U32,+query: U32,+value: Element,
-  balanced: Shape.Balanced(Element,depth,tree),+limit: {Nat.is_le(depth,30n) == True{} : Bool},
+  balanced: Shape.Balanced(Element,depth,tree),+limit: {Nat.is_le(depth,31n) == True{} : Bool},
   +index_inside: {U32.is_lt(index,Address.capacity(depth)) == True{} : Bool},+query_inside: {U32.is_lt(query,Address.capacity(depth)) == True{} : Bool},
   +different: {U32.is_eq(index,query) == False{} : Bool}) ->
   {Tree.fetch(Element,Tree.store(Element,tree,Address.capacity(depth),index,value),Address.capacity(depth),query) == Tree.fetch(Element,tree,Address.capacity(depth),query) : Element}:
@@ -103,20 +104,20 @@ def fetch_preserved(~Element: Data,+depth: Nat,tree: Tree.Tree<Element>,+index: 
     case 1n+rest Tree.Leaf{old}: match balanced:
     case 1n+ +rest Tree.Node{+left,+right}:
       Shape.Both{+left_balanced,+right_balanced} = balanced
-      +half_equal = Power.native_half_power(rest,Order.lt_succ(rest,30n,Address.child_limit(rest,limit)))
+      +half_equal = Power.native_half_power(rest,Bounds.predecessor_strict(rest,31n,limit))
       other_node(~Element,left,right,Address.capacity(1n+rest),index,query,value,U32.is_lt(index,U32.shr(Address.capacity(1n+rest))),U32.is_lt(query,U32.shr(Address.capacity(1n+rest))),{==},{==},
         in_left => query_left =>
           %Equal.sym(U32,U32.shr(Address.capacity(1n+rest)),Address.capacity(rest),half_equal) :
             {Tree.fetch(Element,Tree.store(Element,left,_,index,value),_,query) == Tree.fetch(Element,left,_,query) : Element}
-          fetch_preserved(~Element,rest,left,index,query,value,left_balanced,Address.child_limit(rest,limit),
+          fetch_preserved(~Element,rest,left,index,query,value,left_balanced,Address.child_limit_full(rest,limit),
             %half_equal : {U32.is_lt(index,_) == True{} : Bool} in_left,
             %half_equal : {U32.is_lt(query,_) == True{} : Bool} query_left,different),
         in_right => query_right =>
           %Equal.sym(U32,U32.shr(Address.capacity(1n+rest)),Address.capacity(rest),half_equal) :
             {Tree.fetch(Element,Tree.store(Element,right,_,(index - _ : U32),value),_,(query - _ : U32)) == Tree.fetch(Element,right,_,(query - _ : U32)) : Element}
-          fetch_preserved(~Element,rest,right,(index - Address.capacity(rest) : U32),(query - Address.capacity(rest) : U32),value,right_balanced,Address.child_limit(rest,limit),
-            Address.right_stays_in_child(rest,index,limit,index_inside,%half_equal : {U32.is_lt(index,_) == False{} : Bool} in_right),
-            Address.right_stays_in_child(rest,query,limit,query_inside,%half_equal : {U32.is_lt(query,_) == False{} : Bool} query_right),Address.subtract_distinct(index,query,Address.capacity(rest),different)))
+          fetch_preserved(~Element,rest,right,(index - Address.capacity(rest) : U32),(query - Address.capacity(rest) : U32),value,right_balanced,Address.child_limit_full(rest,limit),
+            Address.right_stays_in_child_full(rest,index,limit,index_inside,%half_equal : {U32.is_lt(index,_) == False{} : Bool} in_right),
+            Address.right_stays_in_child_full(rest,query,limit,query_inside,%half_equal : {U32.is_lt(query,_) == False{} : Bool} query_right),Address.subtract_distinct(index,query,Address.capacity(rest),different)))
 
 def no_wrap(~Element: Data,+depth: Nat,+tree: Tree.Tree<Element>,+index: U32,+balanced: Shape.Balanced(Element,depth,tree),
   inside: {U32.is_lt(index,Tree.capacity(Element,tree)) == True{} : Bool}) ->
@@ -127,8 +128,8 @@ def no_wrap(~Element: Data,+depth: Nat,+tree: Tree.Tree<Element>,+index: U32,+ba
     %Shape.capacity(Element,depth,tree,balanced) : {U32.is_lt(index,_) == True{} : Bool}
     inside)
 
-def read_preserved(~Element: Data,+depth: Nat,+tree: Tree.Tree<Element>,+index: U32,+query: U32,+value: Element,
-  +balanced: Shape.Balanced(Element,depth,tree),+limit: {Nat.is_le(depth,30n) == True{} : Bool},
+def read_preserved_full(~Element: Data,+depth: Nat,+tree: Tree.Tree<Element>,+index: U32,+query: U32,+value: Element,
+  +balanced: Shape.Balanced(Element,depth,tree),+limit: {Nat.is_le(depth,31n) == True{} : Bool},
   +index_inside: {U32.is_lt(index,Tree.capacity(Element,tree)) == True{} : Bool},+query_inside: {U32.is_lt(query,Tree.capacity(Element,tree)) == True{} : Bool},
   different: {U32.is_eq(index,query) == False{} : Bool}) ->
   {Tree.read(Element,Tree.write(Element,tree,index,value),query) == Tree.read(Element,tree,query) : Element}:
@@ -163,3 +164,10 @@ def fetch_fresh(~Element: Data,depth: Nat,+value: Element,+size: U32,+index: U32
 
 def read_fresh(~Element: Data,+depth: Nat,+value: Element,+index: U32) -> {Tree.read(Element,Tree.fresh(Element,depth,value),index) == value : Element}:
   fetch_fresh(~Element,depth,value,Tree.capacity(Element,Tree.fresh(Element,depth,value)),U32.and(index,U32.sub(Tree.capacity(Element,Tree.fresh(Element,depth,value)),1)))
+
+def read_preserved(~Element: Data,+depth: Nat,+tree: Tree.Tree<Element>,+index: U32,+query: U32,+value: Element,
+  +balanced: Shape.Balanced(Element,depth,tree),+limit: {Nat.is_le(depth,30n) == True{} : Bool},
+  +index_inside: {U32.is_lt(index,Tree.capacity(Element,tree)) == True{} : Bool},+query_inside: {U32.is_lt(query,Tree.capacity(Element,tree)) == True{} : Bool},
+  different: {U32.is_eq(index,query) == False{} : Bool}) ->
+  {Tree.read(Element,Tree.write(Element,tree,index,value),query) == Tree.read(Element,tree,query) : Element}:
+  read_preserved_full(~Element,depth,tree,index,query,value,balanced,Order.successor(depth,30n,limit),index_inside,query_inside,different)

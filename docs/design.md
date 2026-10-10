@@ -7,7 +7,7 @@
 | Layer | What it owns | Main files |
 |---|---|---|
 | Public F32 API | The functions a program calls | [tensor_f32.bend](../lib/tensor_f32.bend), [math_activation.bend](../lib/math_activation.bend) |
-| Generic tensor | Shape, status, worker count; dense and band storage; broadcasting, layout, windows | [tensor.bend](../lib/tensor.bend), [tensor_layout.bend](../lib/tensor_layout.bend), [tensor_window.bend](../lib/tensor_window.bend), [tensor_convolution.bend](../lib/tensor_convolution.bend), `tensor_band*.bend` |
+| Generic tensor | Shape, status, worker count; dense and band storage; broadcasting, layout, windows, FP32 files, named weights | [tensor.bend](../lib/tensor.bend), [tensor_layout.bend](../lib/tensor_layout.bend), [tensor_window.bend](../lib/tensor_window.bend), [tensor_convolution.bend](../lib/tensor_convolution.bend), [tensor_file.bend](../lib/tensor_file.bend), [tensor_model.bend](../lib/tensor_model.bend), `tensor_band*.bend` |
 | Checked operations | `copy`, `combine`, `apply`, `reduce`, `scatter`, `sweep` over views, with guards | [tensor_operations.bend](../lib/tensor_operations.bend), [tensor_view.bend](../lib/tensor_view.bend), [tensor_cursor.bend](../lib/tensor_cursor.bend), [tensor_access.bend](../lib/tensor_access.bend) |
 | Convolution kernel | Weight reorder, packing, 4x8 GEMM, gather, planning | `kernel_*.bend` |
 | Storage and traversal | Owned buffers with certificates; the loops everything else uses | `storage_*.bend`, `traversal_*.bend` |

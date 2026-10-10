@@ -137,7 +137,7 @@ def count_refinement_exact(+geometry: Bands.Geometry,+rows: U32,+length: Nat,cou
   count_refinement_exact
 
 def count_refinement_selected(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,empty_width: Bool,
-  classified: {U32.is_zero(count_refinement_width(geometry)) == empty_width : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>) ->
+  classified: {U32.is_zero(count_refinement_width(geometry)) == empty_width : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>) ->
   BandShape.Count<geometry,rows,Buffer.length(~Element,input)>:
   Bands.Geometry{+images,+channels,+height,+count_refinement_width} = geometry
   Buffer.Model{+tree,+length,+certificate} = input
@@ -152,7 +152,7 @@ def count_refinement_selected(~Element: Data,+geometry: Bands.Geometry,+first: U
     case False{}:
       BandShape.count(~Element,Bands.Geometry{images,channels,height,count_refinement_width},first,rows,Buffer.Model{tree,length,certificate},ContiguousBounds.extent_positive(count_refinement_width,classified),metadata,ready)
 
-def counted(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>) ->
+def counted(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>) ->
   BandShape.Count<geometry,rows,Buffer.length(~Element,input)>:
   count_refinement_selected(~Element,geometry,first,rows,input,U32.is_zero(count_refinement_width(geometry)),{==},metadata,ready)
 

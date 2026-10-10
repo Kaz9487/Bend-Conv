@@ -2,12 +2,24 @@
 # Context may contain a vector index of any width, or any other read-only data.
 import Base
 import ./storage_tree_model.bend as Tree
+import ./storage_shape.bend as Shape
 
 def map(~Element: Data,~Result: Data,~Context: Data,~observe: Context -> Element -> Result,
   +context: Context,tree: Tree.Tree<Element>) -> Tree.Tree<Result>:
   match tree:
     case Tree.Leaf{value}: Tree.Leaf{observe(context,value)}
     case Tree.Node{left,right}: Tree.Node{map(~Element,~Result,~Context,~observe,context,left),map(~Element,~Result,~Context,~observe,context,right)}
+
+def map_preserves_balance(~Element: Data,~Result: Data,~Context: Data,~observe: Context -> Element -> Result,
+  +context: Context,+depth: Nat,+tree: Tree.Tree<Element>,balanced: Shape.Balanced(Element,depth,tree)) -> Shape.Balanced(Result,depth,map(~Element,~Result,~Context,~observe,context,tree)):
+  match depth tree:
+    case 0n Tree.Leaf{value}: Unit{}
+    case 0n Tree.Node{left,right}: balanced
+    case 1n+rest Tree.Leaf{value}: balanced
+    case 1n+ +rest Tree.Node{+left,+right}:
+      Shape.Both{left_balanced,right_balanced} = balanced
+      Shape.Both{map_preserves_balance(~Element,~Result,~Context,~observe,context,rest,left,left_balanced),
+        map_preserves_balance(~Element,~Result,~Context,~observe,context,rest,right,right_balanced)}
 
 def map_fresh(~Element: Data,~Result: Data,~Context: Data,~observe: Context -> Element -> Result,
   +context: Context,+depth: Nat,+value: Element) ->

@@ -77,10 +77,7 @@ def integration(options):
 
 def api(options):
     linux_python('benchmarks/checks/public_api_cases.py', failure='The public API cases did not pass')
-
-
-def model_stem(case, threads):
-    return case if threads == 1 else f'{case}_cpu_{threads}t'
+    linux_python('benchmarks/checks/tensor_file_cases.py', failure='The tensor file cases did not pass')
 
 
 def reference(case):
@@ -93,9 +90,8 @@ def reference(case):
 def model(options):
     case, threads = options.case, options.threads
     reference(case)
-    python('examples/yolov5/generate_yolo_graph.py', '--case', case, '--threads', threads, failure='The model graph could not be generated')
-    stem = model_stem(case, threads)
-    bend(f'out/models/{stem}.bend', f'out/models/{stem}.c')
+    (ROOT / 'out/models').mkdir(parents=True, exist_ok=True)
+    bend('examples/yolov5/yolov5n.bend', 'out/models/yolov5n.c')
     linux('sh', 'examples/yolov5/build_run.sh', case, threads, failure='The native model did not build or run')
     python('examples/yolov5/compare_results.py', case, '--threads', threads, failure='The numerical comparison did not pass')
     report = 'comparison_native.json' if threads == 1 else f'comparison_native_{threads}t.json'
@@ -110,15 +106,12 @@ def benchmark(options):
 
 def backends(options):
     # The validation also compares every backend with the example's own native output.
-    if not (ROOT / 'out/results/bus_640/native/pred.bin').is_file():
+    if not (ROOT / 'out/results/bus_640/native/pred.npy').is_file():
         model(argparse.Namespace(case='bus_640', threads=1))
     python('benchmarks/backends/generate_graph.py', failure='The graph could not be exported')
-    for threads in [1, 4]:
-        python('examples/yolov5/generate_yolo_graph.py', '--case', 'bus_640', '--threads', threads, failure='The model graph could not be generated')
-        stem = model_stem('bus_640', threads)
-        bend(f'out/models/{stem}.bend', f'out/models/{stem}.c')
+    bend('examples/yolov5/yolov5n.bend', 'out/models/yolov5n.c')
     if options.cuda:
-        python('examples/yolov5/generate_yolo_graph.py', '--case', 'bus_640', '--target', 'cuda', failure='The CUDA graph could not be generated')
+        python('benchmarks/model/generate_yolo_graph.py', '--case', 'bus_640', '--target', 'cuda', failure='The CUDA graph could not be generated')
         run(['node', 'scripts/bend_launcher.mjs', 'out/models/bus_640_cuda.bend', '-o', 'out/backends/bend_cuda.c'], 'Bend could not compile the CUDA model')
         linux('sh', 'benchmarks/backends/run_cpu.sh', failure='The CPU comparison did not pass')
         linux('sh', 'benchmarks/backends/run_cuda.sh', failure='The CUDA comparison did not pass')
@@ -140,7 +133,7 @@ ACTIONS = {
     'api': (api, 'programs against the public API, compared bit for bit with NumPy'),
     'model': (model, 'YOLOv5n: generate, compile, run and compare with the reference'),
     'benchmark': (benchmark, 'time single convolution shapes'),
-    'backends': (backends, 'time the YOLOv5n forward on NumPy, Bend-Conv and PyTorch'),
+    'backends': (backends, 'time the YOLOv5n forward on NumPy, Stelliferous and PyTorch'),
     'summary': (summary, 'list which recorded results passed, without rerunning them'),
 }
 

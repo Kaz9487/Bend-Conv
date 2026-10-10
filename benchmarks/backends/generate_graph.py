@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'examples/yolov5'))
+sys.path.insert(0, str(ROOT / 'benchmarks/model'))
 from yolo_graph import build_graph
 
 

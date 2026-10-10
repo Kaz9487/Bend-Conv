@@ -15,6 +15,7 @@ import ./kernel_window.bend as KernelWindow
 import ./traversal_array.bend as Traversal
 import ./math_activation.bend as Activations
 import ./proofs/traversal_certificate.bend as TraversalCertificate
+import ./tensor_operations.bend as Operations
 
 type Work is Data:
   Work{rows: U32,height: U32,width: U32,kernel: U32,stride: U32,padding: U32,output_width: U32,positions: U32,inner: U32}
@@ -40,31 +41,26 @@ def leaky_relu_value(slope: F32,value: F32) -> F32:
 def unit_mapped(~operation: F32 -> F32,+count: U32,buffer: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   mapped(~Unit,~activated_value(~operation),count,Unit{},buffer)
 
+def unit_lanes(~operation: F32 -> F32,+count: U32,buffer: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  Operations.lanes(~Unit,~activated_value(~operation),U32.to_nat(count),0,Unit{},buffer)
+
 # One tight pass over each finished leaf while it is still in cache; applying
 # the activation inside the store measured about twice as slow. The built-in
 # is chosen once per leaf, so each pass is specialized; the identity skips it.
+# Sigmoid, SiLU, tanh and GELU pass their values through tiles.
 def activated(~custom: F32 -> F32,activation: Activations.Activation,+count: U32,buffer: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   match activation:
     case Activations.Identity{}: buffer
     case Activations.ReLU{}: unit_mapped(~Activations.relu_value,count,buffer)
     case Activations.ReLU6{}: unit_mapped(~Activations.relu6_value,count,buffer)
     case Activations.LeakyReLU{slope}: mapped(~F32,~leaky_relu_value,count,slope,buffer)
-    case Activations.Sigmoid{}: unit_mapped(~Activations.sigmoid_value,count,buffer)
-    case Activations.SiLU{}: unit_mapped(~Activations.silu_value,count,buffer)
-    case Activations.Tanh{}: unit_mapped(~Activations.tanh_value,count,buffer)
+    case Activations.Sigmoid{}: unit_lanes(~Activations.sigmoid_value,count,buffer)
+    case Activations.SiLU{}: unit_lanes(~Activations.silu_value,count,buffer)
+    case Activations.Tanh{}: unit_lanes(~Activations.tanh_value,count,buffer)
     case Activations.HardSigmoid{}: unit_mapped(~Activations.hard_sigmoid_value,count,buffer)
     case Activations.HardSwish{}: unit_mapped(~Activations.hard_swish_value,count,buffer)
-    case Activations.GELUTanh{}: unit_mapped(~Activations.gelu_tanh_value,count,buffer)
+    case Activations.GELUTanh{}: unit_lanes(~Activations.gelu_tanh_value,count,buffer)
     case Activations.Custom{operations}: unit_mapped(~custom,count,buffer)
-
-def compute_tiles(~custom: F32 -> F32,activation: Activations.Activation,+rows: U32,+span: U32,inner: U32,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,
-  tiles: Storage.Buffer<Tile.Tile8>) -> Storage.Buffer<F32>:
-  activated(~custom,activation,(rows * span : U32),GemmBuffer.run(rows,tiles,weights,bias,Tensors.buffer(~F32,0.0,(rows * span : U32)),span,inner))
-
-def computed(~custom: F32 -> F32,activation: Activations.Activation,rows: U32,span: U32,inner: U32,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,
-  packed: Storage.Buffer<F32> & Storage.Buffer<Tile.Tile8>) -> Storage.Buffer<F32>:
-  (input,tiles) = packed
-  compute_tiles(~custom,activation,rows,span,inner,weights,bias,tiles)
 
 # Rows [first, first + rows) of every channel of the image, stored contiguously.
 type InputWindow is Type:
@@ -113,14 +109,61 @@ def split_task(task: Task,offset: U32,half: U32,window: InputWindow) -> InputWin
   Task{work,activation} = task
   split(work,offset,half,window)
 
+# One tile is 32 bytes; 8192 tiles are 256 KB.
+def block_tiles() -> U32:
+  8192
+
+def block_positions(inner: U32) -> U32:
+  (8 * U32.max(1,(block_tiles() / inner : U32)) : U32)
+
+type BlockState is Type:
+  BlockState{input: Storage.Buffer<F32>,tiles: Storage.Buffer<Tile.Tile8>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,output: Storage.Buffer<F32>}
+
+def block_kept(input: Storage.Buffer<F32>,kept: GemmBuffer.Kept) -> BlockState:
+  GemmBuffer.Kept{tiles,weights,bias,output} = kept
+  BlockState{input,tiles,weights,bias,output}
+
+def block_packed(+rows: U32,+positions: U32,inner: U32,+start: U32,+span: U32,
+  weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,output: Storage.Buffer<F32>,packed: Storage.Buffer<F32> & Storage.Buffer<Tile.Tile8>) -> BlockState:
+  (input,tiles) = packed
+  block_kept(input,
+    GemmBuffer.run_keeping(rows,tiles,weights,bias,output,span,inner,start,positions))
+
+# Packing addresses the input window; output positions are local to the leaf.
+# Each block overwrites tiles from zero and writes directly into the leaf output.
+def block_step(work: Work,pack_start: U32,output_start: U32,+span: U32,state: BlockState) -> BlockState:
+  Work{rows,h,w,k,s,p,ow,positions,+inner} = work
+  BlockState{input,tiles,weights,bias,output} = state
+  block_packed(rows,positions,inner,output_start,span,weights,bias,output,
+    PackingBuffer.run(Packing.Call{U32.to_nat((span / 8 * inner : U32)),pack_start,h,w,k,s,p,ow,inner},input,tiles))
+
+def blocks(remaining: Nat,+work: Work,+pack_start: U32,+output_start: U32,+padded: U32,+span: U32,state: BlockState) -> BlockState:
+  match remaining:
+    case 0n: state
+    case 1n+rest:
+      blocks(rest,work,(pack_start + span : U32),(output_start + span : U32),padded,span,
+        block_step(work,pack_start,output_start,U32.min(span,(padded - output_start : U32)),state))
+
+def blocks_finished(~custom: F32 -> F32,activation: Activations.Activation,count: U32,state: BlockState) -> Storage.Buffer<F32>:
+  BlockState{input,tiles,weights,bias,output} = state
+  activated(~custom,activation,count,output)
+
+# Exactly one reusable tile buffer and one output buffer per leaf.
+# An inner larger than the target still needs one complete eight-position group.
+def blocked(~custom: F32 -> F32,+activation: Activations.Activation,+work: Work,pack_start: U32,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  Work{+rows,h,w,k,s,p,ow,+positions,+inner} = work
+  +padded = KernelWindow.padded(positions)
+  +span = block_positions(inner)
+  blocks_finished(~custom,activation,(rows * positions : U32),
+    blocks(U32.to_nat(((padded + span - 1) / span : U32)),work,pack_start,0,padded,span,
+      BlockState{input,Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),U32.max(block_tiles(),inner)),weights,bias,Tensors.buffer(~F32,0.0,(rows * positions : U32))}))
+
 def leaf(~custom: F32 -> F32,task: Task,offset: U32,span: U32,window: InputWindow,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Outputs():
-  Task{Work{+rows,h,w,k,+s,p,+ow,positions,+inner},activation} = task
+  Task{Work{+rows,h,w,k,+s,p,+ow,+positions,inner},activation} = task
   InputWindow{input,+first,height} = window
   +offset = offset
-  +span = span
-  +count = (span / 8 * inner : U32)
-  Partition.Leaf{computed(~custom,activation,rows,span,inner,weights,bias,
-    PackingBuffer.run(Packing.Call{U32.to_nat(count),KernelWindow.start(offset,s,ow,first),height,w,k,s,p,ow,inner},input,Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),count))),offset,span,rows}
+  +count = U32.min(span,(positions - offset : U32))
+  Partition.Leaf{blocked(~custom,activation,Work{rows,height,w,k,s,p,ow,count,inner},KernelWindow.start(offset,s,ow,first),input,weights,bias),offset,count,rows}
 
 def partition(~custom: F32 -> F32,depth: Nat,task: Task,offset: U32,span: U32,input: InputWindow,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Outputs():
   Partition.run(~InputWindow,~Storage.Buffer<Tile.Tile8>,~Storage.Buffer<F32>,~Storage.Buffer<F32>,~Task,
@@ -145,11 +188,19 @@ def finish(partitions: Outputs(),+rows: U32,+positions: U32) -> Storage.Buffer<F
 def depth_limit(+padded: U32) -> U32:
   (U32.from_nat(Tensors.significant_bits(32n,(padded / 8 : U32),0n,U32.is_zero((padded / 8 : U32)))) - 1 : U32)
 
-def run_packed(~custom: F32 -> F32,activation: Activations.Activation,depth: U32,work: Work,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+def run_partitioned(~custom: F32 -> F32,activation: Activations.Activation,depth: U32,work: Work,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   Work{+rows,+h,w,k,s,p,ow,+positions,+inner} = work
   +padded = KernelWindow.padded(positions)
   +limit = depth_limit(padded)
   finish(partition(~custom,U32.to_nat(U32.min(depth,limit)),Task{Work{rows,h,w,k,s,p,ow,positions,inner},activation},0,padded,InputWindow{input,0,h},weights,bias),rows,positions)
+
+def run_selected(~custom: F32 -> F32,blocked_leaf: Bool,activation: Activations.Activation,depth: U32,work: Work,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  match blocked_leaf:
+    case True{}: blocked(~custom,activation,work,0,input,weights,bias)
+    case False{}: run_partitioned(~custom,activation,depth,work,input,weights,bias)
+
+def run_packed(~custom: F32 -> F32,activation: Activations.Activation,+depth: U32,work: Work,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  run_selected(~custom,U32.is_zero(depth),activation,depth,work,input,weights,bias)
 
 def run(~custom: F32 -> F32,activation: Activations.Activation,depth: U32,+work: Work,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   Work{rows,h,w,k,s,p,ow,positions,inner} = work

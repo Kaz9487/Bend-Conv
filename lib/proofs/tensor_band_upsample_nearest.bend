@@ -455,7 +455,7 @@ def row_stride(+channels: U32,+rows: U32,+width: U32,+count: U32,+exact: {U32.to
 type SourceStrides<-channels: U32,-rows: U32,-width: U32,-count: U32> is Data:
   SourceStrides{nonzero: {U32.is_zero(count) == False{} : Bool},row_exact: {U32.to_nat((width * rows : U32)) == Nat.mul(U32.to_nat(rows),U32.to_nat(width)) : Nat}}
 
-def source_strides(~Element: Data,geometry: Bands.Geometry,+first: U32,+rows: U32,input: Buffer.Model<Element>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+def source_strides(~Element: Data,geometry: Bands.Geometry,+first: U32,+rows: U32,input: Buffer.Model<Element>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +channels_positive: {Nat.is_lt(0n,U32.to_nat(BandUpsampleExecution.producer_channels(geometry))) == True{} : Bool},+rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},+width_positive: {Nat.is_lt(0n,U32.to_nat(BandUpsampleExecution.producer_width(geometry))) == True{} : Bool}) ->
   SourceStrides<BandUpsampleExecution.producer_channels(geometry),rows,BandUpsampleExecution.producer_width(geometry),Bands.local_count(geometry,rows)>:
   Bands.Geometry{+batch,+channels,+height,+width} = geometry
@@ -489,7 +489,7 @@ type LocalSampleIndex<-geometry: Bands.Geometry,-rows: U32,-scale: U32,-index: N
       U32.from_nat(source_index(U32.to_nat(BandUpsampleExecution.producer_channels(geometry)),U32.to_nat(rows),U32.to_nat(scale),U32.to_nat(BandUpsampleExecution.producer_width(geometry)),index,parts)) : U32}}
 
 def repeated_location_parts(~Element: Data,geometry: Bands.Geometry,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,+output_count: U32,+index: Nat,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +inside: {Nat.is_lt(index,U32.to_nat(output_count)) == True{} : Bool},parts: RepeatedParts<U32.to_nat(BandUpsampleExecution.producer_channels(geometry)),U32.to_nat(rows),U32.to_nat(scale),U32.to_nat(BandUpsampleExecution.producer_width(geometry)),index>) -> LocalSampleIndex<geometry,rows,scale,index>:
   Bands.Geometry{+batch,+channels,+height,+width} = geometry
   RepeatedParts{+channel,+row,+row_repeat,+column,+column_repeat,+channel_inside,+row_inside,+row_repeat_inside,+column_inside,+column_repeat_inside,+index_exact} = parts
@@ -518,7 +518,7 @@ def repeated_location_parts(~Element: Data,geometry: Bands.Geometry,+first: U32,
         Equal.cong(Nat,U32,U32.from_nat,decoded(five_axes(U32.to_nat(channels),U32.to_nat(rows),U32.to_nat(scale),U32.to_nat(width)),index),RowMajor.index(channel,U32.to_nat(rows),U32.to_nat(width),row,column),decode_parts)))}
 
 def repeated_location(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,+output_count: U32,+index: Nat,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +scale_positive: {Nat.is_lt(0n,U32.to_nat(scale)) == True{} : Bool},+width_positive: {Nat.is_lt(0n,U32.to_nat(BandUpsampleExecution.producer_width(geometry))) == True{} : Bool},+inside: {Nat.is_lt(index,U32.to_nat(output_count)) == True{} : Bool}) -> LocalSampleIndex<geometry,rows,scale,index>:
   +count_grouped = Equal.trans(Nat,U32.to_nat(output_count),ShapeLaws.elements(BandUpsampleExecution.repeated_shape(geometry,rows,scale)),
     Nat.mul(U32.to_nat(BandUpsampleExecution.producer_channels(geometry)),Nat.mul(Nat.mul(U32.to_nat(rows),U32.to_nat(scale)),Nat.mul(U32.to_nat(BandUpsampleExecution.producer_width(geometry)),U32.to_nat(scale)))),
@@ -729,13 +729,13 @@ def frames_envelopes(+geometry: Bands.Geometry,+scale: U32,+first: U32,+rows: U3
     %RowMajor.multiply_commutative(U32.to_nat(scale),U32.to_nat(BandUpsampleExecution.producer_width(geometry))) : {Nat.is_le(U32.to_nat(scale),_) == True{} : Bool} RowMajor.product_covers(U32.to_nat(scale),U32.to_nat(BandUpsampleExecution.producer_width(geometry)),width_positive),width_room)
   Frames{source_domain,target_domain,source_envelope,target_envelope,source_facts,target_facts,words,height_exact,width_exact,scale_positive,Limits.double_bound(limits,U32.to_nat(scale),scale_room)}
 
-def frames_from_ready(~Element: Data,geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+limits: Machine.Limits,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+def frames_from_ready(~Element: Data,geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+limits: Machine.Limits,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
-  domains: Domains<geometry,scale,limits>,placement: BandUpsampleExecution.Placement<geometry,scale,first,rows>,allocated: Depth.Ready<BandUpsampleExecution.producer_output_count(geometry,rows,scale)>) -> Frames<geometry,scale,first,rows,Buffer.length(~Element,input),BandUpsampleExecution.producer_output_count(geometry,rows,scale),limits>:
+  domains: Domains<geometry,scale,limits>,placement: BandUpsampleExecution.Placement<geometry,scale,first,rows>,allocated: Depth.Sized<BandUpsampleExecution.producer_output_count(geometry,rows,scale)>) -> Frames<geometry,scale,first,rows,Buffer.length(~Element,input),BandUpsampleExecution.producer_output_count(geometry,rows,scale),limits>:
   Bands.Geometry{+batch,+channels,+height,+width} = geometry
   Domains{+source_domain,+target_domain} = domains
   BandUpsampleExecution.Placement{+first_exact,+rows_exact,+target_metadata} = placement
-  Depth.Ready{+depth_ok,+allocation_room} = allocated
+  Depth.Sized{+depth_ok,+allocation_room} = allocated
   +geometry = {Bands.Geometry{batch,channels,height,width} : Bands.Geometry}
   +capacity = Machine.capacity(limits)
   +output_count = BandUpsampleExecution.producer_output_count(geometry,rows,scale)
@@ -754,9 +754,9 @@ def frames_from_ready(~Element: Data,geometry: Bands.Geometry,+shape: List<&2,U3
     BandUpsampleSamples.width_positive_dimensions(geometry,BandUpsampleSamples.enabled_dimensions(geometry,shape,scale,original_shape,truth)),scale_positive,
     geometry_envelope(geometry,limits,source_images,source_domain),geometry_envelope(BandUpsampleExecution.scaled_geometry(geometry,scale),limits,source_images,target_domain))
 
-def frames_observed(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+def frames_observed(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
-  domains: Domains<geometry,scale,Default.limits()>,placement: BandUpsampleExecution.Placement<geometry,scale,first,rows>,allocated: Depth.Ready<BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,observation: UpsampleLimitsObservation) ->
+  domains: Domains<geometry,scale,Default.limits()>,placement: BandUpsampleExecution.Placement<geometry,scale,first,rows>,allocated: Depth.Sized<BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,observation: UpsampleLimitsObservation) ->
   Frames<geometry,scale,first,rows,Buffer.length(~Element,input),BandUpsampleExecution.producer_output_count(geometry,rows,scale),Default.limits()>:
   UpsampleLimitsObservation{+limits,+actual} = observation
   %actual : Frames<geometry,scale,first,rows,Buffer.length(~Element,input),BandUpsampleExecution.producer_output_count(geometry,rows,scale),_>
@@ -764,7 +764,7 @@ def frames_observed(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32
     %Equal.sym(Machine.Limits,limits,Default.limits(),actual) : Domains<geometry,scale,_> domains,placement,allocated)
 
 def enabled_frames(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
   Frames<geometry,scale,first,rows,Buffer.length(~Element,input),BandUpsampleExecution.producer_output_count(geometry,rows,scale),Default.limits()>:
   +dimensions = {BandUpsampleSamples.enabled_dimensions(geometry,shape,scale,original_shape,truth) : BandUpsampleSamples.Dimensions<BandUpsampleExecution.producer_batch(geometry),BandUpsampleExecution.producer_channels(geometry),BandUpsampleExecution.producer_height(geometry),BandUpsampleExecution.producer_width(geometry)>}
@@ -928,7 +928,7 @@ def located_rows_positive(+geometry: Bands.Geometry,+rows: U32,+scale: U32,+inde
   Order.le_lt_trans(0n,row,U32.to_nat(rows),Order.zero_le(row),row_inside)
 
 def enabled_native_index(~Element: Data,geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+index: Nat,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +inside: {Nat.is_lt(index,U32.to_nat(BandUpsampleExecution.producer_output_count(geometry,rows,scale))) == True{} : Bool},+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
   {Bands.global_index(geometry,first,rows,CopyValues.cursor_address(Loop.run(~CursorLaws.Coordinates,~CursorLaws.next,index,CursorLaws.initial(BandUpsampleExecution.repeated_view(geometry,rows,scale,Bands.local_count(geometry,rows)))))) ==
     BandUpsampleExecution.nearest_index(geometry,scale,Bands.global_index(BandUpsampleExecution.scaled_geometry(geometry,scale),(first * scale : U32),(rows * scale : U32),U32.from_nat(index))) : U32}:
@@ -941,7 +941,7 @@ def enabled_native_index(~Element: Data,geometry: Bands.Geometry,+shape: List<&2
     enabled_frames(~Element,geometry,shape,scale,fill,first,rows,input,descriptor,metadata,ready,located_rows_positive(geometry,rows,scale,index,location),original_shape,truth),inside)
 
 def nearest_point_from_source(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+index: Nat,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +inside: {Nat.is_lt(index,U32.to_nat(BandUpsampleExecution.producer_output_count(geometry,rows,scale))) == True{} : Bool},+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
   source: Shape.Both<{U32.is_lt(U32.from_nat(index),Tree.capacity(Element,BandUpsampleExecution.fresh_tree(~Element,fill,BandUpsampleExecution.producer_output_count(geometry,rows,scale)))) == True{} : Bool},
     CopyValues.Point<Element,original(context,Bands.global_index(geometry,first,rows,CopyValues.cursor_address(Loop.run(~CursorLaws.Coordinates,~CursorLaws.next,index,CursorLaws.initial(BandUpsampleExecution.repeated_view(geometry,rows,scale,Bands.local_count(geometry,rows))))))),
@@ -957,7 +957,7 @@ def nearest_point_from_source(~Element: Data,~Context: Data,~original: Context -
     point}
 
 def nearest_point(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+index: Nat,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,+inside: {Nat.is_lt(index,U32.to_nat(BandUpsampleExecution.producer_output_count(geometry,rows,scale))) == True{} : Bool},
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,+inside: {Nat.is_lt(index,U32.to_nat(BandUpsampleExecution.producer_output_count(geometry,rows,scale))) == True{} : Bool},
   +original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},evidence: BandUpsampleSamples.ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>) ->
   Shape.Both<{U32.is_lt(U32.from_nat(index),Tree.capacity(Element,BandUpsampleExecution.fresh_tree(~Element,fill,BandUpsampleExecution.producer_output_count(geometry,rows,scale)))) == True{} : Bool},
     CopyValues.Point<Element,BandUpsampleExecution.value(~Element,~Context,~original,BandUpsampleExecution.Context{context,geometry,scale},Bands.global_index(BandUpsampleExecution.scaled_geometry(geometry,scale),(first * scale : U32),(rows * scale : U32),U32.from_nat(index))),
@@ -980,7 +980,7 @@ def frames_target(+geometry: Bands.Geometry,+scale: U32,+first: U32,+rows: U32,+
 # The copy addresses the leaf with flat positions: the position of the cell
 # names its store and BandGather.indexed_pixel names its pixel.
 def nearest_cell(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
   evidence: BandUpsampleSamples.ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>,
   +channel_inside: {Nat.is_lt(channel,BandValues.channels(BandUpsampleExecution.scaled_geometry(geometry,scale))) == True{} : Bool},+row_inside: {Nat.is_lt(row,U32.to_nat((rows * scale : U32))) == True{} : Bool},
   +column_inside: {Nat.is_lt(column,BandValues.width(BandUpsampleExecution.scaled_geometry(geometry,scale))) == True{} : Bool}) ->
@@ -1016,7 +1016,7 @@ def nearest_cell(~Element: Data,~Context: Data,~original: Context -> U32 -> Elem
 # What an upsampled leaf supplies to every cell of its output.
 type NearestCells<-Element: Data,-Context: Data,-original: Context -> U32 -> Element> is Data:
   NearestCells{context: Context,geometry: Bands.Geometry,shape: List<&2,U32>,scale: U32,fill: Element,first: U32,rows: U32,input: Buffer.Model<Element>,
-    metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
+    metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
     actual: BandUpsampleSamples.ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>}
 
 def nearest_geometry(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,evidence: NearestCells<Element,Context,original>) -> Bands.Geometry:
@@ -1041,7 +1041,7 @@ def nearest_leaf_cell(~Element: Data,~Context: Data,~original: Context -> U32 ->
   nearest_cell(~Element,~Context,~original,context,geometry,shape,scale,fill,first,rows,input,channel,row,column,metadata,ready,original_shape,truth,actual,channel_inside,row_inside,column_inside)
 
 def leaf_values_from_actual(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,+original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool},
   evidence: BandUpsampleSamples.ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>) ->
   BandValues.Values(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},BandUpsampleExecution.scaled_geometry(geometry,scale),
     Model.contents(~Element,Layout.upsample_leaf(~Element,Layout.Upsample{geometry,scale,fill},first,rows,Buffer.pack(~Element,input)))):
@@ -1052,7 +1052,7 @@ def leaf_values_from_actual(~Element: Data,~Context: Data,~original: Context -> 
       NearestCells{context,geometry,shape,scale,fill,first,rows,input,metadata,ready,original_shape,truth,actual}))
 
 def enabled_leaf_values(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,+values: BandValues.Leaf(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,+values: BandValues.Leaf(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
   +original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
   BandValues.Values(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},BandUpsampleExecution.scaled_geometry(geometry,scale),
     Model.contents(~Element,Layout.upsample_leaf(~Element,Layout.Upsample{geometry,scale,fill},first,rows,Buffer.pack(~Element,input)))):
@@ -1146,25 +1146,25 @@ def canonical_enabled(+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32
 
 def enabled_public_equation(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
   +truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
-  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale) ==
+  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale) ==
     Tensors.Banded{BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands)),
-      BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}:
+      BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}:
   Bands.Geometry{images,channels,height,width} = geometry
   %Equal.sym(Bool,BandUpsampleExecution.enabled(geometry,shape,scale),True{},truth) :
     {Layout.upsample_supported(~Element,_,Model.pack(~Element,bands),geometry,shape,scale,fill,workers) ==
       Tensors.Banded{BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands)),
-        BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>}
+        BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>}
   {==}
 
 def enabled_public(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
   +well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,bands)>,+values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands)),
   +coherence: ShapeCoherence<geometry,shape>,+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
-  Shape.Both<BandMap.WellFormed(~Element,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)),
+  Shape.Both<BandMap.WellFormed(~Element,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)),
     BandMap.LogicalValues(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},
-      Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale))>:
-  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale),
+      Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale))>:
+  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale),
     Tensors.Banded{BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands)),
-      BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Ready{},workers},enabled_public_equation(~Element,geometry,shape,scale,fill,workers,bands,truth)) :
+      BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Usable{},workers},enabled_public_equation(~Element,geometry,shape,scale,fill,workers,bands,truth)) :
     Shape.Both<BandMap.WellFormed(~Element,_),BandMap.LogicalValues(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},_)>
   enabled_scheduled(~Element,~Context,~original,context,geometry,BandCount.extents(geometry),scale,fill,workers,bands,well_formed,values,{==},canonical_enabled(geometry,shape,scale,coherence,truth))
 
@@ -1226,7 +1226,7 @@ def logical_values(~Element: Data,~Context: Data,~original: Context -> U32 -> El
       Members.All(Nat,{index => {Buffer.value(~Element,U32.from_nat(index),Buffer.contents(~Element,storage)) == original(context,U32.from_nat(index)) : Element} : Nat -> Data},Ranges.range(ShapeLaws.elements(shape),0n))
 
 def UpsampleResult(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+shape: List<&2,U32>,tensor: Tensors.Tensor<Element>) -> Data:
-  Shape.Both<Global.Normal(~Element,tensor),Shape.Both<{tensor_status(~Element,tensor) == Tensors.Ready{} : Tensors.Status},
+  Shape.Both<Global.Normal(~Element,tensor),Shape.Both<{tensor_status(~Element,tensor) == Tensors.Usable{} : Tensors.Status},
     Shape.Both<{tensor_shape(~Element,tensor) == shape : List<&2,U32>},logical_values(~Element,~Context,~original,context,tensor)>>>
 
 def enabled_result_from_scheduled(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
@@ -1235,11 +1235,11 @@ def enabled_result_from_scheduled(~Element: Data,~Context: Data,~original: Conte
     BandValues.Values(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},BandUpsampleExecution.scaled_geometry(geometry,scale),
       Model.contents(~Element,BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands))))>) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   Bands.Geometry{images,channels,height,width} = geometry
   Shape.Both{well_formed,values} = evidence
-  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale),
-    Tensors.Banded{BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands)),BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Ready{},workers},enabled_public_equation(~Element,geometry,shape,scale,fill,workers,bands,truth)) :
+  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale),
+    Tensors.Banded{BandSchedule.transform(~Element,~Layout.Upsample<Element>,~Layout.upsample_leaf(~Element),Layout.Upsample{geometry,scale,fill},geometry,workers,(U32.to_f32(scale) * U32.to_f32(scale) * 12.0 : F32),Model.pack(~Element,bands)),BandUpsampleExecution.scaled_geometry(geometry,scale),Layout.scaled_extents(shape,scale),fill,Tensors.Usable{},workers},enabled_public_equation(~Element,geometry,shape,scale,fill,workers,bands,truth)) :
     UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),_)
   Shape.Both{Shape.Both{well_formed,Shape.Both{Global.Counted{Checked.value(Tensors.count_of(Layout.scaled_extents(shape,scale))),
     BandUpsampleExecution.found(Tensors.count_of(Layout.scaled_extents(shape,scale)),Boolean.right(Bool.not(U32.is_zero(scale)) && Views.has_count(Shapes.checked_multiply(BandUpsampleExecution.producer_height(geometry),scale)) && Views.has_count(Shapes.checked_multiply(BandUpsampleExecution.producer_width(geometry),scale)),
@@ -1249,7 +1249,7 @@ def enabled_result_from_scheduled(~Element: Data,~Context: Data,~original: Conte
 def enabled_result(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
   +well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,bands)>,+values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands)),+coherence: ShapeCoherence<geometry,shape>,+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   enabled_result_from_scheduled(~Element,~Context,~original,context,geometry,shape,scale,fill,workers,bands,coherence,truth,
     enabled_scheduled(~Element,~Context,~original,context,geometry,BandCount.extents(geometry),scale,fill,workers,bands,well_formed,values,{==},canonical_enabled(geometry,shape,scale,coherence,truth)))
 
@@ -1529,7 +1529,7 @@ def gathered_zero_length(~Element: Data,+geometry: Bands.Geometry,+bands: Model.
 
 def empty_dense_model_result(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+input: Buffer.Model<Element>,
   source: EmptySource<shape,scale>,+input_zero: {Buffer.content_length(~Element,Buffer.contents(~Element,Buffer.pack(~Element,input))) == 0n : Nat},+scaled_empty: {Shapes.has_zero(Layout.scaled_extents(shape,scale)) == True{} : Bool}) ->
-  UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},Buffer.pack(~Element,input),shape,scale,fill,workers))):
+  UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},Buffer.pack(~Element,input),shape,scale,fill,workers))):
   EmptySource{+source_view,+actual,+extents,+offset,+empty} = source
   +view_shape = Views.axis_extents_of(source_view)
   +target = BandUpsampleExecution.canonical_view(view_shape,0)
@@ -1540,8 +1540,8 @@ def empty_dense_model_result(~Element: Data,~Context: Data,~original: Context ->
   +observed = Equal.cong(Operations.Outcome<OperationsLaws.PairOwners(Element)>,Buffer.Content<Element>,CopyValues.right_content(~Element),
     OperationsLaws.observe_pair_outcome(~Element,Operations.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target)),OperationsLaws.copy_denotation(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target),OperationsLaws.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target))
   %Equal.sym(Maybe<&2,Views.View>,Layout.repeated(Tensors.view_of(shape),scale),Some{source_view},actual) :
-    UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Ready{},Buffer.pack(~Element,input),shape,scale,fill,workers)))
-  %Equal.sym(Tensors.Tensor<Element> & Tensors.Tensor<Element>,Layout.upsample_view(~Element,Some{source_view},Tensors.Ready{},Buffer.pack(~Element,input),shape,scale,fill,workers),
+    UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Usable{},Buffer.pack(~Element,input),shape,scale,fill,workers)))
+  %Equal.sym(Tensors.Tensor<Element> & Tensors.Tensor<Element>,Layout.upsample_view(~Element,Some{source_view},Tensors.Usable{},Buffer.pack(~Element,input),shape,scale,fill,workers),
     Layout.copied(~Element,"upsample_nearest",shape,Layout.scaled_extents(shape,scale),fill,workers,Operations.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target)),
     Public.gathered(~Element,"upsample_nearest",source_view,view_shape,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,target,0,workers,BandUpsampleExecution.view(view_shape,0,exact),CountCompletion.count_of(view_shape,0,exact,bounded))) :
     UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,_))
@@ -1557,7 +1557,7 @@ type EmptyCall<-Element: Data,-Context: Data> is Data:
 def empty_result_proposition(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,call: EmptyCall<Element,Context>,-input: Storage.Buffer<Element>) -> Type:
   EmptyCall{context,shape,scale,fill,workers,source,scaled_empty} = call
   @+input_zero: {Buffer.content_length(~Element,Buffer.contents(~Element,input)) == 0n : Nat} ->
-    UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},input,shape,scale,fill,workers)))
+    UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},input,shape,scale,fill,workers)))
 
 def empty_dense_canonical(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,call: EmptyCall<Element,Context>,+input: Buffer.Model<Element>) ->
   empty_result_proposition(~Element,~Context,~original,call,Buffer.pack(~Element,input)):
@@ -1566,7 +1566,7 @@ def empty_dense_canonical(~Element: Data,~Context: Data,~original: Context -> U3
 
 def empty_dense_result(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,input: Storage.Buffer<Element>,
   source: EmptySource<shape,scale>,+input_zero: {Buffer.content_length(~Element,Buffer.contents(~Element,input)) == 0n : Nat},+scaled_empty: {Shapes.has_zero(Layout.scaled_extents(shape,scale)) == True{} : Bool}) ->
-  UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},input,shape,scale,fill,workers))):
+  UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},input,shape,scale,fill,workers))):
   +call = {EmptyCall{context,shape,scale,fill,workers,source,scaled_empty} : EmptyCall<Element,Context>}
   Buffer.lift(~Element,~EmptyCall<Element,Context>,~empty_result_proposition(~Element,~Context,~original),call,input,Buffer.observe(~Element,input),
     model => empty_dense_canonical(~Element,~Context,~original,call,model))(input_zero)
@@ -1581,21 +1581,21 @@ def empty_selector(+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+e
   and_false_right(BandUpsampleExecution.guard(geometry,shape,scale))
 
 def empty_public_equation(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,+empty: {Shapes.has_zero(Layout.scaled_extents(shape,scale)) == True{} : Bool}) ->
-  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale) ==
-    Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)) : Tensors.Tensor<Element>}:
+  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale) ==
+    Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)) : Tensors.Tensor<Element>}:
   Bands.Geometry{images,channels,height,width} = geometry
   %Equal.sym(Bool,BandUpsampleExecution.enabled(geometry,shape,scale),False{},empty_selector(geometry,shape,scale,empty)) :
     {Layout.upsample_supported(~Element,_,Model.pack(~Element,bands),geometry,shape,scale,fill,workers) ==
-      Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)) : Tensors.Tensor<Element>}
+      Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)) : Tensors.Tensor<Element>}
   {==}
 
 def empty_public(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
   +coherence: ShapeCoherence<geometry,shape>,+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool},+empty: {Shapes.has_zero(Layout.scaled_extents(shape,scale)) == True{} : Bool}) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   +source_zero = source_empty(geometry,shape,scale,coherence,truth,empty)
-  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale),
-    Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Ready{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)),empty_public_equation(~Element,geometry,shape,scale,fill,workers,bands,empty)) :
+  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale),
+    Layout.result_of(~Element,Layout.upsample_view(~Element,Layout.repeated(Tensors.view_of(shape),scale),Tensors.Usable{},Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,scale,fill,workers)),empty_public_equation(~Element,geometry,shape,scale,fill,workers,bands,empty)) :
     UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),_)
   empty_dense_result(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},shape,scale,fill,workers,
     Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),empty_source(geometry,shape,scale,coherence,source_zero),
@@ -1605,7 +1605,7 @@ def public_when(~Element: Data,~Context: Data,~original: Context -> U32 -> Eleme
   +classified: {Shapes.has_zero(Layout.scaled_extents(shape,scale)) == empty : Bool},+well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,bands)>,+values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands)),
   +coherence: ShapeCoherence<geometry,shape>,+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   match empty:
     case True{}: empty_public(~Element,~Context,~original,context,geometry,shape,scale,fill,workers,bands,coherence,truth,classified)
     case False{}:
@@ -1619,12 +1619,12 @@ def public(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+c
   +well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,bands)>,+values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands)),
   +coherence: ShapeCoherence<geometry,shape>,+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   public_when(~Element,~Context,~original,context,geometry,shape,scale,fill,workers,bands,Shapes.has_zero(Layout.scaled_extents(shape,scale)),{==},well_formed,values,coherence,truth)
 
 def public_ready(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,+bands: Model.Model<Element>,
   +well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,bands)>,+values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands)),
   +coherent: {Window.band_shape(shape,geometry) == True{} : Bool},+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) ->
   UpsampleResult(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   public(~Element,~Context,~original,context,geometry,shape,scale,fill,workers,bands,well_formed,values,coherence_from_decoded(shape,geometry,BandCount.decoded(shape,geometry,coherent)),truth)

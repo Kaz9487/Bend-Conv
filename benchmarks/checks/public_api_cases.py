@@ -48,6 +48,21 @@ def public_values(expected: List<&2,U32>,result: Result<&2,&2,F.Problem(),List<&
     case Done{values}: same_words(expected,bit_values(values))
     case Fail{problem}: False{}
 
+# Compare rounded FP32 words: at most two steps for finite nonzero values;
+# zero signs and infinities must agree exactly.
+def activation_words(expected: List<&2,U32>,actual: List<&2,U32>) -> Bool:
+  match expected actual:
+    case Nil{} Nil{}: True{}
+    case Con{+x,xs} Con{+y,ys}:
+      Bool.pick(Bool,U32.is_eq(U32.and(x,2147483647),0) || U32.is_ge(U32.and(x,2147483647),2139095040),
+        U32.is_eq(x,y),U32.is_le((U32.max(x,y) - U32.min(x,y) : U32),2)) && activation_words(xs,ys)
+    case expected actual: False{}
+
+def activation_values(expected: List<&2,U32>,result: Result<&2,&2,F.Problem(),List<&2,F32>>) -> Bool:
+  match result:
+    case Done{values}: activation_words(expected,bit_values(values))
+    case Fail{problem}: False{}
+
 def public_observed(+shape: List<&2,U32>,+expected: List<&2,U32>,observed: F.Tensor() & List<&2,U32>) -> Bool:
   (tensor,actual) = observed
   same_words(shape,actual) && public_values(expected,F.to_list(tensor))
@@ -67,6 +82,27 @@ def cleared(result: Result<&1,&1,F.Tensor() & F.Problem(),F.Tensor()>) -> Bool:
   match result:
     case Done{tensor}: False{}
     case Fail{(tensor,problem)}: public_values([0,0],F.to_list(tensor))
+
+# Bounds cover the measured elementary-function error and the ordered
+# FP32 additions/division in the classification flow; NaNs compare by class.
+def close_value(+expected: F32,+actual: F32,+tolerance: F32) -> Bool:
+  F32.is_eq(expected,actual) ||
+    ((Bool.not(F32.is_eq(expected,expected))) && (Bool.not(F32.is_eq(actual,actual)))) ||
+    (F32.is_lt(F32.max(expected,F32.neg(expected)),F32.div(1.0,0.0)) &&
+    F32.is_lt(F32.max(actual,F32.neg(actual)),F32.div(1.0,0.0)) &&
+    F32.is_le(F32.max((actual - expected : F32),(expected - actual : F32)),
+      (tolerance * F32.max(1.0,F32.max(expected,F32.neg(expected))) : F32)))
+
+def close_values(expected: List<&2,F32>,actual: List<&2,F32>,+tolerance: F32) -> Bool:
+  match expected actual:
+    case Nil{} Nil{}: True{}
+    case Con{x,xs} Con{y,ys}: close_value(x,y,tolerance) && close_values(xs,ys,tolerance)
+    case expected actual: False{}
+
+def close_result(expected: List<&2,F32>,tolerance: F32,result: Result<&2,&2,F.Problem(),List<&2,F32>>) -> Bool:
+  match result:
+    case Done{actual}: close_values(expected,actual,tolerance)
+    case Fail{problem}: False{}
 
 def from_bit_list(bits: List<&2,U32>) -> List<&2,F32>:
   match bits:
@@ -119,6 +155,81 @@ def convolution_activation(value: F32) -> F32:
             maximum=ordered_max(left, right), minimum=ordered_min(left, right))
     for operation, expected in results.items():
         public(f'public_{operation}', f'F.{operation}({tensor(left.shape, left.ravel())},{tensor(right.shape, right.ravel())})', expected)
+    # Scalar predicates return exact 0/1 masks, with unordered IEEE behavior.
+    comparison_words = np.array([0, 0x80000000, 1, 0x80000001, 0x007fffff,
+        0x807fffff, 0x00800000, 0x80800000, 0x3f800000, 0xbf800000,
+        0x7f7fffff, 0xff7fffff, 0x7f800000, 0xff800000, 0x7fc12345,
+        0xffc54321, 0x7f812345], dtype=np.uint32)
+    comparison_values = comparison_words.view(np.float32)
+    predicates = dict(less=np.less, less_equal=np.less_equal, greater=np.greater,
+        greater_equal=np.greater_equal, equal=np.equal, not_equal=np.not_equal)
+    with np.errstate(invalid='ignore'):
+        for operation, reference in predicates.items():
+            for label, value in [('zero', np.float32(-0.0)), ('nan', comparison_values[-1]),
+                                 ('finite', np.float32(1.0))]:
+                public(f'public_{operation}_scalar_{label}',
+                    f'F.{operation}_scalar({tensor([17], comparison_values)},from_bits({bits([value])[0]}))',
+                    reference(comparison_values, value).astype(np.float32))
+        for label, low, high in [('finite', np.float32(-1), np.float32(1)),
+                                  ('reverse', np.float32(1), np.float32(-1)),
+                                  ('nan_low', comparison_values[-1], np.float32(1)),
+                                  ('nan_high', np.float32(-1), comparison_values[-2])]:
+            public(f'public_clamp_{label}',
+                f'F.clamp({tensor([17], comparison_values)},from_bits({bits([low])[0]}),from_bits({bits([high])[0]}))',
+                ordered_min(ordered_max(comparison_values, low), high))
+    with np.errstate(invalid='ignore'):
+        for operation, reference in predicates.items():
+            public(f'public_{operation}_binary_special',
+                f'F.{operation}({tensor([17], comparison_values)},{tensor([17], comparison_values[::-1])})',
+                reference(comparison_values, comparison_values[::-1]).astype(np.float32))
+            public(f'public_{operation}_binary_broadcast',
+                f'F.{operation}({tensor([17,1], comparison_values)},{tensor([1,17], comparison_values)})',
+                reference(comparison_values[:,None], comparison_values[None,:]).astype(np.float32))
+            failing(f'public_{operation}_binary_shape', f'F.{operation}(F.zeros([2]),F.zeros([3]))',
+                f'{operation}: shapes [2] and [3] do not match')
+    for label, mask in [('zero', np.float32(0)), ('negative_zero', np.float32(-0.0)),
+                         ('nan', comparison_values[-1]), ('negative', np.float32(-1))]:
+        public(f'public_select_scalar_mask_{label}',
+            f'F.select(F.full([],from_bits({bits([mask])[0]})),{tensor([17], comparison_values)},{tensor([17], comparison_values[::-1])})',
+            np.where(mask != 0, comparison_values.view(np.uint32), comparison_values[::-1].view(np.uint32)).view(np.float32))
+    selection_mask = comparison_values.reshape(17,1)
+    chosen = comparison_values.reshape(1,17)
+    other = comparison_values[::-1].reshape(17,1)
+    public('public_select_broadcast_payloads',
+        f'F.select({tensor([17,1], selection_mask.ravel())},{tensor([1,17], chosen.ravel())},{tensor([17,1], other.ravel())})',
+        np.where(selection_mask != 0, chosen.view(np.uint32), other.view(np.uint32)).view(np.float32))
+    public('public_select_direct_payloads',
+        f'F.select({tensor([17], comparison_values)},{tensor([17], comparison_values)},{tensor([17], comparison_values[::-1])})',
+        np.where(comparison_values != 0, comparison_words, comparison_words[::-1]).view(np.float32))
+    for tail in range(8):
+        count = 8 + tail
+        mask, yes, no = comparison_values[:count], comparison_values[:count], comparison_values[::-1][:count]
+        public(f'public_select_tail_{tail}',
+            f'F.select({tensor([count], mask)},{tensor([count], yes)},{tensor([count], no)})',
+            np.where(mask != 0, yes.view(np.uint32), no.view(np.uint32)).view(np.float32))
+    public('public_select_empty', 'F.select(F.zeros([0]),F.zeros([0]),F.zeros([0]))', np.zeros((0,),dtype=np.float32))
+    public('public_select_rank_zero', 'F.select(F.ones([]),F.full([],2.0),F.zeros([]))', np.float32(2))
+    failing('public_select_values_shape', 'F.select(F.ones([]),F.zeros([2]),F.zeros([3]))',
+        'select: shapes [2] and [3] do not match')
+    failing('public_select_mask_shape', 'F.select(F.ones([3]),F.zeros([2]),F.zeros([2]))',
+        'select: shapes [3] and [2] do not match')
+    for argument in range(3):
+        inputs = ['F.ones([2])'] * 3
+        inputs[argument] = 'F.reshape(F.zeros([2]),[3])'
+        failing(f'public_select_sticky_{argument}', 'F.select(' + ','.join(inputs) + ')',
+            'reshape: shapes [2] and [3] do not match')
+    public('public_compare_empty', 'F.less_scalar(F.zeros([0]),1.0)', np.zeros((0,), dtype=np.float32))
+    public('public_clamp_scalar', 'F.clamp(F.full([],2.0),0.0,1.0)', np.float32(1.0))
+    failing('public_compare_sticky', 'F.less_scalar(F.reshape(F.zeros([2]),[3]),0.0)',
+        'reshape: shapes [2] and [3] do not match')
+    failing('public_clamp_sticky', 'F.clamp(F.reshape(F.zeros([2]),[3]),0.0,1.0)',
+        'reshape: shapes [2] and [3] do not match')
+    # A finite-score filter: clip confidences, then zero scores below threshold.
+    scores = np.array([-0.2, 0.1, 0.5, 0.75, 1.2, 0.0, 0.9, 0.49, 0.51], dtype=np.float32)
+    clipped = np.clip(scores, 0, 1)
+    public('public_flow_confidence_filter',
+        f'F.then(F.copy(F.clamp({tensor([9], scores)},0.0,1.0)),kept => copied => F.select(F.greater_equal_scalar(copied,0.5),kept,F.zeros([9])))',
+        clipped * np.greater_equal(clipped, np.float32(0.5)).astype(np.float32))
     failing('public_shape_mismatch', f'F.add({tensor([2,4], left.ravel())},{tensor([4,2], right.ravel())})',
         'add: shapes [2, 4] and [4, 2] do not match')
     failing('public_failure_propagates', f'F.relu(F.mul({tensor([2,4], left.ravel())},F.reshape(F.zeros([2,3]),[4,2])))',
@@ -174,6 +285,33 @@ def convolution_activation(value: F32) -> F32:
     public('public_reshape', f'F.reshape({tensor(grid.shape, grid.ravel())},[4,6])', grid.reshape(4, 6))
     public('public_copy', f'F.then(F.copy({tensor(grid.shape, grid.ravel())}),kept => copied => F.sub(kept,copied))', np.zeros_like(grid))
     public('public_then_shape', f'F.then_shape(F.shape({tensor(grid.shape, grid.ravel())}),owner => extents => F.add(owner,F.full(extents,0.5)))', grid + np.float32(0.5))
+
+    # MPFR 4.2.2, 256-bit directed bounds rounded directly to binary32.
+    # Negative-tail samples must continue below exp(-88); SiLU scales x before
+    # underflow. Include all eight lane remainders, signed zeros and infinities.
+    tail_input = np.array([-88, -89, -90, -95, -100, -103, -104, -105,
+        -108, -110, -np.finfo(np.float32).max, -np.inf, -0.0, 0.0, 18, np.inf], dtype=np.float32)
+    tail_expected = {
+        'sigmoid': [4320708, 1589500, 584744, 3940, 27, 1, 0, 0, 0, 0, 0, 0, 1056964608, 1056964608, 1065353216, 1065353216],
+        'silu': [2201308636, 2189879672, 2177417610, 2147857946, 2147486303, 2147483784, 2147483699, 2147483667, 2147483649, 2147483648, 2147483648, 2147483648, 2147483648, 0, 1099956224, 2139095040],
+    }
+    for operation, words in tail_expected.items():
+        for tail in range(8):
+            values = np.concatenate([tail_input, tail_input[:tail]])
+            expected = words + words[:tail]
+            case(f'public_{operation}_tail_{tail}',
+                f'activation_values({expected},F.to_list(F.{operation}({tensor(values.shape, values)})))')
+    # Check both sides of the tanh polynomial/exponential switch and tiny return.
+    tanh_input = np.array([-10, -1, -.875, -.75, -.5, -2**-12, -0.0, 0.0,
+        2**-12, .5, .75, .875, 1, 10, -np.inf, np.inf], dtype=np.float32)
+    tanh_expected = [3212836864, 3208837078, 3207869224, 3206715679, 3203177119, 3112173568, 2147483648, 0, 964689920, 1055693471, 1059232031, 1060385576, 1061353430, 1065353216, 3212836864, 1065353216]
+    for tail in range(8):
+        values = np.concatenate([tanh_input, tanh_input[:tail]])
+        expected = tanh_expected + tanh_expected[:tail]
+        case(f'public_tanh_boundary_{tail}',
+            f'activation_values({expected},F.to_list(F.tanh({tensor(values.shape, values)})))')
+    public('public_silu_negative_infinity', f'F.silu({tensor([], [-np.inf])})', np.float32(-0.0))
+    public('public_silu_negative_max', f'F.silu({tensor([], [-np.finfo(np.float32).max])})', np.float32(-0.0))
 
     # Broadcasting follows NumPy: the result reuses the left storage when only
     # the right operand is stretched, and is new storage otherwise.
@@ -287,7 +425,7 @@ def convolution_activation(value: F32) -> F32:
         weights = ((np.arange(np.prod(weight_shape), dtype=np.float32) % 13) - np.float32(6)) / np.float32(11)
         weights = weights.reshape(weight_shape)
         bias = np.arange(rows, dtype=np.float32) / np.float32(19)
-        call, last = ('F.conv2d_with(~convolution_activation,4.0,', '') if custom else ('F.conv2d(', ',Act.identity()')
+        call, last = ('F.conv2d_custom(~convolution_activation,4.0,', '') if custom else ('F.conv2d(', ',Act.identity()')
         expression = f'{call}{tensor(dims, x.ravel())},{tensor(weight_shape, weights.ravel())},{tensor([rows], bias)},{stride},{padding}{last})'
         public('public_conv2d_' + name, expression, convolution_oracle(x, weights, bias, stride, padding, custom))
     for name, expression, shape, reason in [
@@ -297,6 +435,45 @@ def convolution_activation(value: F32) -> F32:
         failing('public_conv2d_reject_' + name, expression, 'conv2d: ' + reason.format(shape))
     failing('public_conv2d_sticky', 'F.conv2d(F.reshape(F.zeros([2]),[3]),F.zeros([1,1,1,1]),F.zeros([1]),1,0,Act.identity())',
         'reshape: shapes [2] and [3] do not match')
+    def approximate(name, expression, expected, tolerance):
+        case(name, f'close_result(from_bit_list({bits(np.asarray(expected).ravel())}),{tolerance},F.to_list({expression}))')
+
+    def softmax_reference(values, axis):
+        shifted = np.float32(values - np.max(values, axis=axis, keepdims=True))
+        exponentials = np.exp(shifted.astype(np.float64)).astype(np.float32)
+        total = np.zeros_like(np.take(exponentials, [0], axis=axis))
+        for index in range(values.shape[axis]):
+            total = np.float32(total + np.take(exponentials, [index], axis=axis))
+        return np.float32(exponentials / total)
+
+    # A small classification head exercises convolution, probabilities and
+    # log probabilities; the same values also exercise a non-final axis.
+    x = np.arange(18, dtype=np.float32).reshape(3, 2, 3) / np.float32(13)
+    weights = np.arange(12, dtype=np.float32).reshape(4, 3, 1, 1) / np.float32(7) - np.float32(1)
+    bias = np.array([-0.5, 0, 0.25, 1], dtype=np.float32)
+    logits = convolution_oracle(x, weights, bias, 1, 0, False)
+    head = f'F.conv2d({tensor(x.shape,x.ravel())},{tensor(weights.shape,weights.ravel())},{tensor([4],bias)},1,0,Act.identity())'
+    probabilities = softmax_reference(logits, 0)
+    approximate('classification_probabilities', f'F.softmax({head},0)', probabilities, '0.000002')
+    approximate('classification_log_probabilities', f'F.log(F.softmax({head},0))', np.log(probabilities.astype(np.float64)), '0.000002')
+    approximate('classification_exp_logits', f'F.exp({head})', np.exp(logits.astype(np.float64)), '0.00000024')
+    for axis in [1, 2]:
+        approximate(f'softmax_axis_{axis}', f'F.softmax({tensor(logits.shape,logits.ravel())},{axis})', softmax_reference(logits,axis), '0.000002')
+    special = np.array([0, -0.0, 1, -1, np.inf, -np.inf, np.nan, np.nextafter(np.float32(0), np.float32(1)), -103, 88.7], dtype=np.float32)
+    with np.errstate(all='ignore'):
+        for operation in ['exp', 'log']:
+            expected = getattr(np, operation)(special.astype(np.float64)).astype(np.float32)
+            approximate(f'{operation}_special_and_tail', f'F.{operation}({tensor([10],special)})', expected, '0.00000024')
+        for label, values in [('negative_infinity', [-np.inf]*3), ('nan', [0, np.nan, 1]), ('positive_infinity', [0, np.inf, 1])]:
+            approximate('softmax_' + label, f'F.softmax({tensor([3],values)},0)', [np.nan]*3, '0.0')
+    public('exp_zero_exact', 'F.exp(F.zeros([9]))', np.ones(9,dtype=np.float32))
+    public('log_one_exact', 'F.log(F.ones([9]))', np.zeros(9,dtype=np.float32))
+    public('softmax_empty', 'F.softmax(F.zeros([2,0]),1)', np.zeros((2,0),dtype=np.float32))
+    failing('softmax_invalid_axis', 'F.softmax(F.zeros([2,3]),2)', 'softmax: invalid argument for shape [2, 3]')
+    failing('public_activate_custom', 'F.activate(F.zeros([2]),Act.Custom{1.0})', 'activate: invalid argument for shape [2]')
+    failing('public_activate_custom_sticky', 'F.activate(F.reshape(F.zeros([2]),[3]),Act.Custom{1.0})',
+        'reshape: shapes [2] and [3] do not match')
+    failing('softmax_sticky', 'F.softmax(F.reshape(F.zeros([2]),[3]),0)', 'reshape: shapes [2] and [3] do not match')
     source = helpers + '\n'.join(body for _, body in cases)
     source += '\ndef main() -> List<&2,Bool>:\n  [' + ','.join(f'case_{i}()' for i in range(len(cases))) + ']\n'
     OUT.mkdir(parents=True,exist_ok=True)

@@ -217,7 +217,7 @@ def value(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Element,~o
 def written_cell(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Element,~original: Logical -> U32 -> Element,
   +logical: Logical,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,
   +channel: Nat,+row: Nat,+column: Nat,facts: BandGather.Facts<BandGather.Call{geometry,first,rows,Buffer.length(~Element,input),capacity,Machine.half_word(limits)}>,
-  ready: Buffer.Ready<Element,output>,count_equal: {U32.to_nat(Bands.local_count(geometry,rows)) == Buffer.length(~Element,input) : Nat},
+  ready: Buffer.Sized<Element,output>,count_equal: {U32.to_nat(Bands.local_count(geometry,rows)) == Buffer.length(~Element,input) : Nat},
   length_equal: {U32.to_nat(Bands.local_count(geometry,rows)) == Buffer.length(~Element,output) : Nat},
   room: {Nat.is_le(U32.to_nat(Bands.local_count(geometry,rows)),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
   channel_inside: {Nat.is_lt(channel,BandValues.channels(geometry)) == True{} : Bool},row_inside: {Nat.is_lt(row,U32.to_nat(rows)) == True{} : Bool},
@@ -229,7 +229,7 @@ def written_cell(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Ele
   Bands.Geometry{+images,+channels,+height,+width} = geometry
   Buffer.Model{+source,+input_length,+input_certificate} = input
   Buffer.Model{+target,+output_length,+output_certificate} = output
-  Buffer.Ready{+depth_ok,output_room} = ready
+  Buffer.Sized{+depth_ok,output_room} = ready
   Shape.Both{+inside,equal} = cell
   +count = U32.to_nat(Bands.local_count(Bands.Geometry{images,channels,height,width},rows))
   +context = {Bands.Indexed{Bands.Geometry{images,channels,height,width},first,rows} : Bands.Indexed}
@@ -250,20 +250,20 @@ def written_cell(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Ele
 def allocated_cell(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Element,~original: Logical -> U32 -> Element,
   +logical: Logical,+geometry: Bands.Geometry,+first: U32,+rows: U32,+fill: Element,+input: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,
   +channel: Nat,+row: Nat,+column: Nat,facts: BandGather.Facts<BandGather.Call{geometry,first,rows,Buffer.length(~Element,input),capacity,Machine.half_word(limits)}>,
-  +ready: Buffer.Ready<Element,BandCount.model(~Element,Bands.local_count(geometry,rows),fill)>,count_equal: {U32.to_nat(Bands.local_count(geometry,rows)) == Buffer.length(~Element,input) : Nat},
+  +ready: Buffer.Sized<Element,BandCount.model(~Element,Bands.local_count(geometry,rows),fill)>,count_equal: {U32.to_nat(Bands.local_count(geometry,rows)) == Buffer.length(~Element,input) : Nat},
   channel_inside: {Nat.is_lt(channel,BandValues.channels(geometry)) == True{} : Bool},row_inside: {Nat.is_lt(row,U32.to_nat(rows)) == True{} : Bool},
   column_inside: {Nat.is_lt(column,BandValues.width(geometry)) == True{} : Bool},
   cell: BandValues.At(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input),channel,row,column)) ->
   BandValues.At(~Element,~Logical,~value(~Element,~Logical,~operation,~original),logical,geometry,first,rows,
     Buffer.content_tree(~Element,leaf_model(~Element,~operation,geometry,first,rows,fill,Buffer.content(~Element,input))),Buffer.content_length(~Element,leaf_model(~Element,~operation,geometry,first,rows,fill,Buffer.content(~Element,input))),channel,row,column):
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   written_cell(~Element,~Logical,~operation,~original,logical,geometry,first,rows,input,BandCount.model(~Element,Bands.local_count(geometry,rows),fill),limits,capacity,channel,row,column,
     facts,ready,count_equal,{==},room,channel_inside,row_inside,column_inside,cell)
 
 # What one leaf supplies to every cell of its output.
 type LeafCells<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
   LeafCells{logical: Logical,geometry: Bands.Geometry,first: U32,rows: U32,fill: Element,input: Buffer.Model<Element>,limits: Machine.Limits,capacity: U32,
-    domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+    domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
     count: BandShape.Count<geometry,rows,Buffer.length(~Element,input)>,
     values: BandValues.Leaf(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input))}
 
@@ -297,7 +297,7 @@ def leaf_cell(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Elemen
 
 def leaf_values(~Element: Data,~Logical: Data,~operation: U32 -> Element -> Element,~original: Logical -> U32 -> Element,
   +logical: Logical,+geometry: Bands.Geometry,+first: U32,+rows: U32,+fill: Element,+input: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,
-  domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   facts: BandShape.Count<geometry,rows,Buffer.length(~Element,input)>,
   values: BandValues.Values(~Element,~Logical,~original,logical,geometry,Model.RowBand{Buffer.content(~Element,input),first,rows})) ->
   BandValues.Values(~Element,~Logical,~value(~Element,~Logical,~operation,~original),logical,geometry,Model.RowBand{leaf_model(~Element,~operation,geometry,first,rows,fill,Buffer.content(~Element,input)),first,rows}):

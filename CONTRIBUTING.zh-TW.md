@@ -2,11 +2,11 @@
 
 [English](CONTRIBUTING.md) | [繁體中文](CONTRIBUTING.zh-TW.md)
 
-感謝您對 Bend-Conv 有興趣。
+感謝您對 Stelliferous 有興趣。
 
 ## 問題與 bug
 
-請開 [issue](https://github.com/Kaz9487/Bend-Conv/issues)。回報 bug 時請附上程式或指令、預期的結果、實際的結果，以及 Bend 版本與作業系統。
+請開 [issue](https://github.com/Kaz9487/Stelliferous/issues)。回報 bug 時請附上程式或指令、預期的結果、實際的結果，以及 Bend 版本與作業系統。
 
 ## 修改
 

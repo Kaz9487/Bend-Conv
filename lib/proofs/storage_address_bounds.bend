@@ -19,19 +19,19 @@ def shift_extent(depth: Nat) -> {WordEncoding.shift(depth,1n) == Shape.extent(de
     case 1n+rest:
       Equal.cong(Nat,Nat,Nat.double,WordEncoding.shift(rest,1n),Shape.extent(rest),shift_extent(rest))
 
-def capacity_value(+depth: Nat,limit: {Nat.is_le(depth,30n) == True{} : Bool}) ->
+def capacity_value(+depth: Nat,limit: {Nat.is_le(depth,31n) == True{} : Bool}) ->
   {U32.to_nat(capacity(depth)) == Shape.extent(depth) : Nat}:
   %Equal.sym(U32,capacity(depth),U32{Power.power(32n,depth)},Power.native_power(depth)) : {U32.to_nat(_) == Shape.extent(depth) : Nat}
   Equal.trans(Nat,Word.to_nat(32n,Power.power(32n,depth)),WordEncoding.shift(depth,1n),Shape.extent(depth),
-    Power.power_value(32n,depth,Order.lt_succ(depth,31n,Order.successor(depth,30n,limit))),shift_extent(depth))
+    Power.power_value(32n,depth,Order.lt_succ(depth,31n,limit)),shift_extent(depth))
 
-def natural_bound(+depth: Nat,+index: U32,+limit: {Nat.is_le(depth,30n) == True{} : Bool},bound: {U32.is_lt(index,capacity(depth)) == True{} : Bool}) ->
+def natural_bound(+depth: Nat,+index: U32,+limit: {Nat.is_le(depth,31n) == True{} : Bool},bound: {U32.is_lt(index,capacity(depth)) == True{} : Bool}) ->
   {Nat.is_lt(U32.to_nat(index),Shape.extent(depth)) == True{} : Bool}:
   %capacity_value(depth,limit) : {Nat.is_lt(U32.to_nat(index),_) == True{} : Bool}
   Bounds.as_nat_lt(index,capacity(depth),bound)
 
-def child_limit(+depth: Nat,limit: {Nat.is_le(1n+depth,30n) == True{} : Bool}) -> {Nat.is_le(depth,30n) == True{} : Bool}:
-  Bounds.strict_le(depth,30n,Bounds.predecessor_strict(depth,30n,limit))
+def child_limit_full(+depth: Nat,limit: {Nat.is_le(1n+depth,31n) == True{} : Bool}) -> {Nat.is_le(depth,31n) == True{} : Bool}:
+  Bounds.strict_le(depth,31n,Bounds.predecessor_strict(depth,31n,limit))
 
 def right_order(+depth: Nat,+index: U32,choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) ->
   {Nat.is_le(U32.to_nat(capacity(depth)),U32.to_nat(index)) == True{} : Bool}:
@@ -39,29 +39,29 @@ def right_order(+depth: Nat,+index: U32,choice: {U32.is_lt(index,capacity(depth)
     %Comparison.lt(index,capacity(depth)) : {_ == False{} : Bool}
     choice))
 
-def sub_value(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,30n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
+def sub_value(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,31n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
   choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) -> {U32.to_nat((index - capacity(depth) : U32)) == Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth))) : Nat}:
-  Arithmetic.subtract(index,capacity(depth),capacity(1n+depth),Power.native_power_bound(1n+depth,Order.successor(1n+depth,30n,limit)),right_order(depth,index,choice),
+  Arithmetic.subtract(index,capacity(depth),capacity(1n+depth),Power.native_power_bound(1n+depth,limit),right_order(depth,index,choice),
     Order.transitive(Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth))),U32.to_nat(index),U32.to_nat(capacity(1n+depth)),
       Order.sub_le(U32.to_nat(index),U32.to_nat(capacity(depth))),Bounds.strict_le(U32.to_nat(index),U32.to_nat(capacity(1n+depth)),Bounds.as_nat_lt(index,capacity(1n+depth),bound))))
 
-def right_restores_index(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,30n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
+def right_restores_index_full(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,31n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
   +choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) -> {U32.to_nat(index) == Nat.add(Shape.extent(depth),U32.to_nat((index - capacity(depth) : U32))) : Nat}:
   %Equal.sym(Nat,U32.to_nat((index - capacity(depth) : U32)),Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth))),sub_value(depth,index,limit,bound,choice)) :
     {U32.to_nat(index) == Nat.add(Shape.extent(depth),_) : Nat}
-  %capacity_value(depth,child_limit(depth,limit)) : {U32.to_nat(index) == Nat.add(_,Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth)))) : Nat}
+  %capacity_value(depth,child_limit_full(depth,limit)) : {U32.to_nat(index) == Nat.add(_,Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth)))) : Nat}
   Equal.sym(Nat,Nat.add(U32.to_nat(capacity(depth)),Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth)))),U32.to_nat(index),
     Equal.trans(Nat,Nat.add(U32.to_nat(capacity(depth)),Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth)))),
       Nat.add(Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth))),U32.to_nat(capacity(depth))),U32.to_nat(index),
       Order.commutative(U32.to_nat(capacity(depth)),Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth)))),Subtraction.restore(U32.to_nat(index),U32.to_nat(capacity(depth)),right_order(depth,index,choice))))
 
-def right_stays_in_child(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,30n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
+def right_stays_in_child_full(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,31n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
   +choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) -> {U32.is_lt((index - capacity(depth) : U32),capacity(depth)) == True{} : Bool}:
   %Equal.sym(Bool,U32.is_lt((index - capacity(depth) : U32),capacity(depth)),Nat.is_lt(U32.to_nat((index - capacity(depth) : U32)),U32.to_nat(capacity(depth))),Comparison.lt((index - capacity(depth) : U32),capacity(depth))) : {_ == True{} : Bool}
   %Equal.sym(Nat,U32.to_nat((index - capacity(depth) : U32)),Nat.sub(U32.to_nat(index),U32.to_nat(capacity(depth))),sub_value(depth,index,limit,bound,choice)) :
     {Nat.is_lt(_,U32.to_nat(capacity(depth))) == True{} : Bool}
   Order.sub_lt(U32.to_nat(index),U32.to_nat(capacity(depth)),U32.to_nat(capacity(depth)),right_order(depth,index,choice),
-    %Equal.sym(Nat,U32.to_nat(capacity(depth)),Shape.extent(depth),capacity_value(depth,child_limit(depth,limit))) :
+    %Equal.sym(Nat,U32.to_nat(capacity(depth)),Shape.extent(depth),capacity_value(depth,child_limit_full(depth,limit))) :
       {Nat.is_lt(U32.to_nat(index),Nat.add(_,_)) == True{} : Bool}
     %Equal.sym(Nat,Nat.add(Shape.extent(depth),Shape.extent(depth)),Nat.double(Shape.extent(depth)),Addition.double(Shape.extent(depth))) : {Nat.is_lt(U32.to_nat(index),_) == True{} : Bool}
     natural_bound(1n+depth,index,limit,bound))
@@ -102,3 +102,15 @@ def subtract_compared(+left: U32,+right: U32,+offset: U32,equal: Bool,
 def subtract_distinct(+left: U32,+right: U32,+offset: U32,different: {U32.is_eq(left,right) == False{} : Bool}) ->
   {U32.is_eq((left - offset : U32),(right - offset : U32)) == False{} : Bool}:
   subtract_compared(left,right,offset,U32.is_eq((left - offset : U32),(right - offset : U32)),{==},different)
+
+# Existing allocation proofs use the smaller, 30-bit allocation limit.
+def child_limit(+depth: Nat,limit: {Nat.is_le(1n+depth,30n) == True{} : Bool}) -> {Nat.is_le(depth,30n) == True{} : Bool}:
+  Bounds.strict_le(depth,30n,Bounds.predecessor_strict(depth,30n,limit))
+
+def right_restores_index(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,30n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
+  +choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) -> {U32.to_nat(index) == Nat.add(Shape.extent(depth),U32.to_nat((index - capacity(depth) : U32))) : Nat}:
+  right_restores_index_full(depth,index,Order.successor(1n+depth,30n,limit),bound,choice)
+
+def right_stays_in_child(+depth: Nat,+index: U32,+limit: {Nat.is_le(1n+depth,30n) == True{} : Bool},+bound: {U32.is_lt(index,capacity(1n+depth)) == True{} : Bool},
+  +choice: {U32.is_lt(index,capacity(depth)) == False{} : Bool}) -> {U32.is_lt((index - capacity(depth) : U32),capacity(depth)) == True{} : Bool}:
+  right_stays_in_child_full(depth,index,Order.successor(1n+depth,30n,limit),bound,choice)

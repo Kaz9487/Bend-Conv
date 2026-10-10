@@ -1,6 +1,7 @@
 # Sources of the dense callers: image copies, packed images, weight owners and
 # gather allocation.
 import Base
+import ../../lib/proofs/kernel_pipeline_activation.bend as ActivationProofs
 import ../../lib/proofs/storage_buffer_model.bend as Buffer
 import ../../lib/proofs/storage_tree_model.bend as Tree
 import ../../lib/storage_buffer.bend as Storage
@@ -115,9 +116,9 @@ type Copied<-count: U32,-source: U32,-destination: U32,-input: Buffer.Model<F32>
     owners: {(Buffer.pack(~F32,source_model),Buffer.pack(~F32,output_model)) == Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
     retained: {Buffer.content(~F32,source_model) == Buffer.content(~F32,input) : Buffer.Content<F32>},
     written: {Buffer.content(~F32,output_model) == Batch.copied_content(count,source,destination,input,output) : Buffer.Content<F32>},
-    source_ready: Buffer.Ready<F32,source_model>,output_ready: Buffer.Ready<F32,output_model>}
+    source_ready: Buffer.Sized<F32,source_model>,output_ready: Buffer.Sized<F32,output_model>}
 
-def copied_observed(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+input_ready: Buffer.Ready<F32,input>,+output_ready: Buffer.Ready<F32,output>,
+def copied_observed(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+input_ready: Buffer.Sized<F32,input>,+output_ready: Buffer.Sized<F32,output>,
   observation: Cloned.Observation<F32,Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output))>) -> Copied<count,source,destination,input,output>:
   Cloned.Observation{+left,+right,+equation} = observation
   +retained = observed_source_contents(count,source,destination,input,output,left,right,equation)
@@ -133,7 +134,7 @@ def copied_observed(+count: U32,+source: U32,+destination: U32,+input: Buffer.Mo
       %Equal.sym(Buffer.Content<F32>,Buffer.content(~F32,right),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output)))),actual_output) : Buffer.ContentReady<F32,_>
       Batch.copy_output_ready(count,source,destination,input,output,output_ready))}
 
-def copied(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+input_ready: Buffer.Ready<F32,input>,+output_ready: Buffer.Ready<F32,output>) -> Copied<count,source,destination,input,output>:
+def copied(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+input_ready: Buffer.Sized<F32,input>,+output_ready: Buffer.Sized<F32,output>) -> Copied<count,source,destination,input,output>:
   copied_observed(count,source,destination,input,output,input_ready,output_ready,
     Cloned.observe_pair(~F32,Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output))))
 
@@ -146,7 +147,7 @@ def image_copy_model_length(model: Buffer.Model<F32>) -> {Buffer.content_length(
   {==}
 
 def copied_point(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+count: U32,+source: Nat,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+index: Nat,
-  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Ready<F32,output>,
+  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Sized<F32,output>,
   +destination_room: {Nat.is_le(U32.to_nat(count),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   +source_room: {Nat.is_le(Nat.add(source,U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool},
   +inside: {Nat.is_lt(index,U32.to_nat(count)) == True{} : Bool}) ->
@@ -171,7 +172,7 @@ def image_copy_content_read(+index: U32,content: Buffer.Content<F32>) -> {Tree.r
   {==}
 
 def image_copy_prefix(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+count: U32,+source: Nat,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+remaining: Nat,+start: Nat,
-  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Ready<F32,output>,
+  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Sized<F32,output>,
   +destination_room: {Nat.is_le(U32.to_nat(count),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   +source_room: {Nat.is_le(Nat.add(source,U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool},
   +room: {Nat.is_le(Nat.add(start,remaining),U32.to_nat(count)) == True{} : Bool}) ->
@@ -212,19 +213,19 @@ def image_length(~Logical: Data,~original: Logical -> U32 -> F32,+context: BandC
   BandConvolutionValues.Context{+logical,activation,+channels,outputs,+height,+width,kernel,stride,padding,weights,bias} = context
   WindowContents.image_length(~Logical,~original,Nat.mul(channels,Nat.mul(height,width)),Nat.mul(image,Nat.mul(channels,Nat.mul(height,width))),logical)
 
-def image_source_allocation(+count: U32,+limits: Machine.Limits,+bounded: {U32.is_le(count,Machine.capacity(limits)) == True{} : Bool}) -> Depth.Ready<count>:
+def image_source_allocation(+count: U32,+limits: Machine.Limits,+bounded: {U32.is_le(count,Machine.capacity(limits)) == True{} : Bool}) -> Depth.Sized<count>:
   Depth.bounded_with(count,Machine.capacity(limits),Limits.capacity_fits(limits),Limits.capacity_allocatable(limits),
     %Equal.sym(Bool,U32.is_le(1,Machine.capacity(limits)),Nat.is_le(1n,U32.to_nat(Machine.capacity(limits))),Comparison.le(1,Machine.capacity(limits))) : {_ == True{} : Bool}
     Order.transitive(1n,7n,U32.to_nat(Machine.capacity(limits)),{==},Bounds.as_nat_le(7,Machine.capacity(limits),Limits.seven_within_capacity(limits))),bounded)
 
-def image_source_ready_depth(+count: U32,evidence: Depth.Ready<count>) -> Buffer.ContentReady<F32,Buffer.contents(~F32,Tensors.buffer(~F32,0.0,count))>:
-  Depth.Ready{+depth_ok,+room} = evidence
+def image_source_ready_depth(+count: U32,evidence: Depth.Sized<count>) -> Buffer.ContentReady<F32,Buffer.contents(~F32,Tensors.buffer(~F32,0.0,count))>:
+  Depth.Sized{+depth_ok,+room} = evidence
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,Tensors.buffer(~F32,0.0,count)),Buffer.Content{Tree.fresh(F32,Tensors.depth_for(count),0.0),U32.to_nat(count)},AllocationLaws.contents(~F32,Tensors.depth_for(count),0.0,U32.to_nat(count))) : Buffer.ContentReady<F32,_>
   Buffer.content_ready(~F32,Buffer.fresh(~F32,Tensors.depth_for(count),0.0,U32.to_nat(count)),Buffer.fresh_ready(~F32,Tensors.depth_for(count),0.0,U32.to_nat(count),depth_ok,room))
 
 type ImageSourceAllocated<-count: U32> is Data:
   ImageSourceAllocated{model: Buffer.Model<F32>,owner: {Buffer.pack(~F32,model) == Tensors.buffer(~F32,0.0,count) : Storage.Buffer<F32>},
-    ready: Buffer.Ready<F32,model>,length_exact: {Buffer.length(~F32,model) == U32.to_nat(count) : Nat}}
+    ready: Buffer.Sized<F32,model>,length_exact: {Buffer.length(~F32,model) == U32.to_nat(count) : Nat}}
 
 def allocated_observed(+count: U32,+limits: Machine.Limits,+bounded: {U32.is_le(count,Machine.capacity(limits)) == True{} : Bool},observation: Buffer.Observation<F32,Tensors.buffer(~F32,0.0,count)>) -> ImageSourceAllocated<count>:
   Buffer.Observation{+model,+equation} = observation
@@ -257,24 +258,24 @@ def returned_contents(+count: U32,+source: U32,+input: Buffer.Model<F32>,+output
 
 def returned_prefix(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+count: U32,+source: Nat,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+left: Buffer.Model<F32>,+right: Buffer.Model<F32>,
   +owners: {(Buffer.pack(~F32,left),Buffer.pack(~F32,right)) == Copy.range(~F32,count,U32.from_nat(source),0,Buffer.pack(~F32,input),Buffer.pack(~F32,output)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
-  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Ready<F32,output>,+length_exact: {Buffer.length(~F32,output) == U32.to_nat(count) : Nat},
+  +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,input)),+ready: Buffer.Sized<F32,output>,+length_exact: {Buffer.length(~F32,output) == U32.to_nat(count) : Nat},
   +source_room: {Nat.is_le(Nat.add(source,U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool}) ->
   {Tree.read_sequence(~F32,U32.to_nat(count),0,Buffer.tree(~F32,right)) == WindowContents.image_values(~Logical,~original,U32.to_nat(count),source,logical) : List<&2,F32>}:
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   %Equal.sym(Tree.Tree<F32>,Buffer.tree(~F32,right),Buffer.content_tree(~F32,Buffer.content(~F32,right)),image_source_model_tree(right)) :
     {Tree.read_sequence(~F32,U32.to_nat(count),0,_) == WindowContents.image_values(~Logical,~original,U32.to_nat(count),source,logical) : List<&2,F32>}
   %Equal.sym(Buffer.Content<F32>,Buffer.content(~F32,right),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,U32.from_nat(source),0,Buffer.pack(~F32,input),Buffer.pack(~F32,output)))),returned_contents(count,U32.from_nat(source),input,output,left,right,owners)) :
     {Tree.read_sequence(~F32,U32.to_nat(count),0,Buffer.content_tree(~F32,_)) == WindowContents.image_values(~Logical,~original,U32.to_nat(count),source,logical) : List<&2,F32>}
   %Addition.zero_right(source) :
     {Tree.read_sequence(~F32,U32.to_nat(count),0,Buffer.content_tree(~F32,Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,U32.from_nat(source),0,Buffer.pack(~F32,input),Buffer.pack(~F32,output)))))) == WindowContents.image_values(~Logical,~original,U32.to_nat(count),_,logical) : List<&2,F32>}
-  image_copy_prefix(~Logical,~original,logical,count,source,input,output,U32.to_nat(count),0n,values,Buffer.Ready{depth_ok,room},
+  image_copy_prefix(~Logical,~original,logical,count,source,input,output,U32.to_nat(count),0n,values,Buffer.Sized{depth_ok,room},
     %length_exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool} room,
     source_room,Order.reflexive(U32.to_nat(count)))
 
 def input_prefix(~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+image: Nat,+count: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+left: Buffer.Model<F32>,+right: Buffer.Model<F32>,
   +count_exact: {U32.to_nat(count) == image_size(~Logical,context) : Nat},
   +owners: {(Buffer.pack(~F32,left),Buffer.pack(~F32,right)) == Copy.range(~F32,count,U32.from_nat(Nat.mul(image,image_size(~Logical,context))),0,Buffer.pack(~F32,input),Buffer.pack(~F32,output)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
-  +values: Dense.Values(~F32,~Logical,~original,logical_source(~Logical,context),Buffer.content(~F32,input)),+ready: Buffer.Ready<F32,output>,+length_exact: {Buffer.length(~F32,output) == U32.to_nat(count) : Nat},
+  +values: Dense.Values(~F32,~Logical,~original,logical_source(~Logical,context),Buffer.content(~F32,input)),+ready: Buffer.Sized<F32,output>,+length_exact: {Buffer.length(~F32,output) == U32.to_nat(count) : Nat},
   +source_room: {Nat.is_le(Nat.add(Nat.mul(image,image_size(~Logical,context)),U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool}) ->
   {Tree.read_sequence(~F32,ConvSpec.length(Guards.input(image_problem(~Logical,~original,context,image))),0,Buffer.tree(~F32,right)) == Guards.input(image_problem(~Logical,~original,context,image)) : List<&2,F32>}:
   BandConvolutionValues.Context{+logical,activation,+channels,outputs,+height,+width,kernel,stride,padding,weights,bias} = context
@@ -293,15 +294,15 @@ def returned_length(+count: U32,+source: U32,+input: Buffer.Model<F32>,+output: 
     Equal.cong(Buffer.Content<F32>,Nat,Buffer.content_length(~F32),Buffer.content(~F32,right),Batch.copied_content(count,source,0,input,output),
       observed_output_contents(count,source,0,input,output,left,right,owners)))
 
-def input_room(+model: Buffer.Model<F32>,+length: Nat,+exact: {Buffer.length(~F32,model) == length : Nat},ready: Buffer.Ready<F32,model>) ->
+def input_room(+model: Buffer.Model<F32>,+length: Nat,+exact: {Buffer.length(~F32,model) == length : Nat},ready: Buffer.Sized<F32,model>) ->
   {Nat.is_le(length,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,model)))) == True{} : Bool}:
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   %exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,model)))) == True{} : Bool} room
 
 def storage_parts(~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+image: Nat,+count: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+left: Buffer.Model<F32>,+right: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   +count_exact: {U32.to_nat(count) == image_size(~Logical,context) : Nat},
   +owners: {(Buffer.pack(~F32,left),Buffer.pack(~F32,right)) == Copy.range(~F32,count,U32.from_nat(Nat.mul(image,image_size(~Logical,context))),0,Buffer.pack(~F32,input),Buffer.pack(~F32,output)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
-  +values: Dense.Values(~F32,~Logical,~original,logical_source(~Logical,context),Buffer.content(~F32,input)),+ready: Buffer.Ready<F32,output>,+copied_ready: Buffer.Ready<F32,right>,
+  +values: Dense.Values(~F32,~Logical,~original,logical_source(~Logical,context),Buffer.content(~F32,input)),+ready: Buffer.Sized<F32,output>,+copied_ready: Buffer.Sized<F32,right>,
   +length_exact: {Buffer.length(~F32,output) == U32.to_nat(count) : Nat},
   +source_room: {Nat.is_le(Nat.add(Nat.mul(image,image_size(~Logical,context)),U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool},
   +weight_values: {Tree.read_sequence(~F32,ConvSpec.length(Guards.weights(image_problem(~Logical,~original,context,image))),0,Buffer.tree(~F32,weights)) == Guards.weights(image_problem(~Logical,~original,context,image)) : List<&2,F32>},
@@ -339,16 +340,16 @@ def array_matches(~custom: F32 -> F32,+activation: Activations.Activation,+depth
 
 def storage_matches(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32,+work: Pipeline.Work,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   +reordered: {Buffer.tree(~Tile.Tile8,tiles) == WeightsLaws.run(DensePipeline.work_rows(work),work_inner(work),Buffer.tree(~F32,weights)) : Tree.Tree<Tile.Tile8>}) ->
-  {LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))) ==
+  {ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))) ==
     Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}:
-  Equal.trans(Array<F32>,LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),
-    DensePipeline.array_run_packed(~custom,activation,depth,work,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))),
+  Equal.trans(Array<F32>,ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),
+    DensePipeline.array_run_packed(~custom,activation,depth,work,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))),
     Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))),DensePipeline.run_packed_projection(~custom,activation,depth,work,input,tiles,bias),
-    %Equal.sym(Array<F32>,LeafExecution.storage(~F32,Buffer.pack(~F32,input)),Tree.pack(F32,Buffer.tree(~F32,input)),DensePipeline.storage_matches(~F32,input)) :
-      {DensePipeline.array_run_packed(~custom,activation,depth,work,_,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) == Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}
-    %Equal.sym(Array<Tile.Tile8>,LeafExecution.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),Tree.pack(Tile.Tile8,Buffer.tree(~Tile.Tile8,tiles)),DensePipeline.storage_matches(~Tile.Tile8,tiles)) :
-      {DensePipeline.array_run_packed(~custom,activation,depth,work,Tree.pack(F32,Buffer.tree(~F32,input)),_,LeafExecution.storage(~F32,Buffer.pack(~F32,bias))) == Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}
-    %Equal.sym(Array<F32>,LeafExecution.storage(~F32,Buffer.pack(~F32,bias)),Tree.pack(F32,Buffer.tree(~F32,bias)),DensePipeline.storage_matches(~F32,bias)) :
+    %Equal.sym(Array<F32>,ActivationProofs.storage(~F32,Buffer.pack(~F32,input)),Tree.pack(F32,Buffer.tree(~F32,input)),DensePipeline.storage_matches(~F32,input)) :
+      {DensePipeline.array_run_packed(~custom,activation,depth,work,_,ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) == Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}
+    %Equal.sym(Array<Tile.Tile8>,ActivationProofs.storage(~Tile.Tile8,Buffer.pack(~Tile.Tile8,tiles)),Tree.pack(Tile.Tile8,Buffer.tree(~Tile.Tile8,tiles)),DensePipeline.storage_matches(~Tile.Tile8,tiles)) :
+      {DensePipeline.array_run_packed(~custom,activation,depth,work,Tree.pack(F32,Buffer.tree(~F32,input)),_,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias))) == Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}
+    %Equal.sym(Array<F32>,ActivationProofs.storage(~F32,Buffer.pack(~F32,bias)),Tree.pack(F32,Buffer.tree(~F32,bias)),DensePipeline.storage_matches(~F32,bias)) :
       {DensePipeline.array_run_packed(~custom,activation,depth,work,Tree.pack(F32,Buffer.tree(~F32,input)),Tree.pack(Tile.Tile8,Buffer.tree(~Tile.Tile8,tiles)),_) == Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))) : Array<F32>}
     array_matches(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~Tile.Tile8,tiles),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias),reordered))
 
@@ -368,12 +369,12 @@ def contents(~custom: F32 -> F32,+activation: Activations.Activation,+depth: U32
     Buffer.Content{DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),U32.to_nat(DensePipeline.output_size(work))},Content.run_contents(~custom,activation,depth,work,input,weights,bias)) :
     {Buffer.contents(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))) == _ : Buffer.Content<F32>}
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),
-    Buffer.Content{Tree.reflect(F32,LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))),LeafExecution.buffer_length(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))},
+    Buffer.Content{Tree.reflect(F32,ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))),LeafExecution.buffer_length(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))},
     LeafExecution.contents_parts(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))) :
     {_ == Buffer.Content{DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),U32.to_nat(DensePipeline.output_size(work))} : Buffer.Content<F32>}
   %Equal.sym(Nat,LeafExecution.buffer_length(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),U32.to_nat(DensePipeline.output_size(work)),length_matches(~custom,activation,depth,work,input,tiles,bias)) :
-    {Buffer.Content{Tree.reflect(F32,LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))),_} == Buffer.Content{DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),U32.to_nat(DensePipeline.output_size(work))} : Buffer.Content<F32>}
-  %Equal.sym(Array<F32>,LeafExecution.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))),storage_matches(~custom,activation,depth,work,input,tiles,weights,bias,reordered)) :
+    {Buffer.Content{Tree.reflect(F32,ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)))),_} == Buffer.Content{DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),U32.to_nat(DensePipeline.output_size(work))} : Buffer.Content<F32>}
+  %Equal.sym(Array<F32>,ActivationProofs.storage(~F32,Pipeline.run_packed(~custom,activation,depth,work,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))),storage_matches(~custom,activation,depth,work,input,tiles,weights,bias,reordered)) :
     {Buffer.Content{Tree.reflect(F32,_),U32.to_nat(DensePipeline.output_size(work))} == Buffer.Content{DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),U32.to_nat(DensePipeline.output_size(work))} : Buffer.Content<F32>}
   Equal.cong(Tree.Tree<F32>,Buffer.Content<F32>,tree => Buffer.Content{tree,U32.to_nat(DensePipeline.output_size(work))},Tree.reflect(F32,Tree.pack(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)))),
     DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias)),StorageLaws.reflect_packed(F32,DenseConvolution.run_model(~custom,activation,depth,work,Buffer.tree(~F32,input),Buffer.tree(~F32,weights),Buffer.tree(~F32,bias))))
@@ -400,7 +401,7 @@ def packed_image_ready(~custom: F32 -> F32,+activation: Activations.Activation,+
     Padded.spatial_within_padded(limits,problem,Guards.valid(problem,valid),fast) : {Nat.is_le(U32.to_nat(Padded.spatial(problem)),Support.padded(problem)) == True{} : Bool}}
   Content.ready_observed(DensePipeline.output_size(Inference.work(problem)),Pipeline.run_packed(~custom,activation,depth,Inference.work(problem),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)),
     Buffer.observe(~F32,Pipeline.run_packed(~custom,activation,depth,Inference.work(problem),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias))),DensePipeline.run_packed_footprint(~custom,activation,depth,Inference.work(problem),input,tiles,bias),
-    LeafExecution.product_ready(limits,MicroLeaf.rows(problem),Padded.spatial(problem),DenseConvolution.leaf_room(limits,problem,Padded.spatial(problem),fast,span_bound)))
+    ActivationProofs.product_ready(limits,MicroLeaf.rows(problem),Padded.spatial(problem),DenseConvolution.leaf_room(limits,problem,Padded.spatial(problem),fast,span_bound)))
 
 # Reorder once, observe the actual Tile owner, and carry its content relation
 # through real batch clones. The shared reorder and clone laws supply every
@@ -490,13 +491,13 @@ def classify(+images: U32) -> CountKind<images>:
 
 def many(~custom: F32 -> F32,+activation: Activations.Activation,+images: U32,+depth: U32,+work: Pipeline.Work,+input_size: U32,+output_size: U32,+input: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   +bound: {Nat.is_lt(1n,U32.to_nat(images)) == True{} : Bool}) ->
-  {TensorConvolution.images(~custom,activation,images,depth,work,input_size,output_size,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)) ==
+  {TensorConvolution.images(~custom,activation,images,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows(work),inner(work),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias)) ==
     TensorConvolution.batch(~custom,activation,U32.to_nat(images),0,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows(work),inner(work),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * output_size : U32))) : Storage.Buffer<F32>}:
   Pipeline.Work{rows,height,width,kernel,stride,padding,output_width,positions,inner} = work
   %Equal.sym(Bool,U32.is_eq(images,0),False{},Flags.zero_false(images,bound)) :
-    {TensorConvolution.images_selected(~custom,activation,_,U32.is_eq(images,1),images,depth,work,input_size,output_size,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)) ==
+    {TensorConvolution.images_selected(~custom,activation,_,U32.is_eq(images,1),images,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias)) ==
       TensorConvolution.batch(~custom,activation,U32.to_nat(images),0,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * output_size : U32))) : Storage.Buffer<F32>}
   %Equal.sym(Bool,U32.is_eq(images,1),False{},Flags.one_false(images,bound)) :
-    {TensorConvolution.images_selected(~custom,activation,False{},_,images,depth,work,input_size,output_size,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)) ==
+    {TensorConvolution.images_selected(~custom,activation,False{},_,images,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias)) ==
       TensorConvolution.batch(~custom,activation,U32.to_nat(images),0,depth,work,input_size,output_size,Buffer.pack(~F32,input),GemmBuffer.reorder(rows,inner,Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * output_size : U32))) : Storage.Buffer<F32>}
   {==}

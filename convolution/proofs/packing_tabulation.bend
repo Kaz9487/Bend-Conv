@@ -4,6 +4,7 @@
 # The tabulation still uses native pixel addresses. Connecting its quotient /
 # remainder coordinates to CONV.patch is a separate theorem, not assumed here.
 import Base
+import ../../lib/proofs/storage_shape.bend as Shape
 import ../../lib/math_sequence.bend as Sequence
 import ../../lib/proofs/storage_tree_model.bend as Tree
 import ./packing_lane_reads.bend as LaneReads
@@ -91,3 +92,13 @@ def projected(n,i,start,x,y,h,w,k,stride,pad,output_width,inner,lane):
             stride,pad,output_width,inner),lane) == Tree.write_sequence(~F32,lane_values(rest,(i + 1 : U32),start,x,h,w,k,stride,pad,output_width,inner,lane),
           (i + 1 : U32),_) : Tree.Tree<F32>}
       projected(rest,(i + 1 : U32),start,x,Tree.write(Tile.Tile8,y,i,entry(i,start,x,h,w,k,stride,pad,output_width,inner)),h,w,k,stride,pad,output_width,inner,lane)
+
+# Overwriting any prefix leaves the reusable tile workspace's depth unchanged.
+def fill_balanced(+n: Nat,+i: U32,+start: U32,+x: Tree.Tree<F32>,+y: Tree.Tree<Tile.Tile8>,+h: U32,+w: U32,+k: U32,+stride: U32,+pad: U32,
+  +output_width: U32,+inner: U32,+depth: Nat,balanced: Shape.Balanced(Tile.Tile8,depth,y)) ->
+  Shape.Balanced(Tile.Tile8,depth,fill(n,i,start,x,y,h,w,k,stride,pad,output_width,inner)):
+  match n:
+    case 0n: balanced
+    case 1n+ +rest:
+      fill_balanced(rest,(i + 1 : U32),start,x,Tree.write(Tile.Tile8,y,i,entry(i,start,x,h,w,k,stride,pad,output_width,inner)),h,w,k,stride,pad,output_width,inner,depth,
+        Shape.write(Tile.Tile8,depth,y,i,entry(i,start,x,h,w,k,stride,pad,output_width,inner),balanced))

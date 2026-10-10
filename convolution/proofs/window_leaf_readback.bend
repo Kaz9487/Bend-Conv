@@ -343,10 +343,10 @@ def empty_run(+limits: Machine.Limits,+rows: U32,+tiles: Tree.Tree<Tile.Tile8>,+
   +output: Tree.Tree<F32>,+span: U32,+inner: U32,+empty: {U32.to_nat(span) == 0n : Nat}) ->
   {GemmLaws.run(rows,tiles,weights,bias,output,span,inner) == output : Tree.Tree<F32>}:
   %Equal.sym(Tree.Tree<F32>,GemmLaws.run(rows,tiles,weights,bias,output,span,inner),
-    Writes.pure(F32,GemmWrites.all_writes(GemmWrites.job_count(rows,span),0,Gemm.Layout{rows,span,inner},tiles,weights,bias),output),
+    Writes.pure(F32,GemmWrites.all_writes(GemmWrites.job_count(rows,span),0,Gemm.Layout{rows,span,inner,0,span},tiles,weights,bias),output),
     GemmWrites.run_writes(rows,tiles,weights,bias,output,span,inner)) : {_ == output : Tree.Tree<F32>}
   %Equal.sym(Nat,GemmWrites.job_count(rows,span),0n,zero_jobs(limits,rows,span,empty)) :
-    {Writes.pure(F32,GemmWrites.all_writes(_,0,Gemm.Layout{rows,span,inner},tiles,weights,bias),output) == output : Tree.Tree<F32>}
+    {Writes.pure(F32,GemmWrites.all_writes(_,0,Gemm.Layout{rows,span,inner,0,span},tiles,weights,bias),output) == output : Tree.Tree<F32>}
   {==}
 
 # A leaf over an empty span stores its fresh output for any window.

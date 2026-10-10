@@ -133,22 +133,22 @@ def geometry_length(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32
   Dense.WellFormed{length_exact,ready} = well_formed
   Equal.trans(Nat,length,ShapeLaws.elements(shape),BandGather.elements(geometry),length_exact,BandCount.shape_coherence_elements(shape,geometry,coherent))
 
-def model_ready(~Element: Data,+shape: List<&2,U32>,+result: Buffer.Model<Element>,well_formed: Dense.WellFormed<Element,shape,Buffer.content(~Element,result)>) -> Buffer.Ready<Element,result>:
+def model_ready(~Element: Data,+shape: List<&2,U32>,+result: Buffer.Model<Element>,well_formed: Dense.WellFormed<Element,shape,Buffer.content(~Element,result)>) -> Buffer.Sized<Element,result>:
   Dense.WellFormed{length_exact,ready} = well_formed
   Buffer.ready_content(~Element,result,ready)
 
-def model_depth(~Element: Data,+result: Buffer.Model<Element>,ready: Buffer.Ready<Element,result>) -> {Nat.is_le(Buffer.depth(~Element,result),30n) == True{} : Bool}:
-  Buffer.Ready{depth_ok,room} = ready
+def model_depth(~Element: Data,+result: Buffer.Model<Element>,ready: Buffer.Sized<Element,result>) -> {Nat.is_le(Buffer.depth(~Element,result),30n) == True{} : Bool}:
+  Buffer.Sized{depth_ok,room} = ready
   depth_ok
 
 def output_domain(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+counted: Global.Counted<shape>,+result: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,
   +capacity_limits: {capacity == Machine.capacity(limits) : U32},+capacity_default: {capacity == Machine.capacity(Default.limits()) : U32},
-  evidence: Count.Count<BandGather.elements(geometry),Global.count(shape,counted)>,ready: Buffer.Ready<Element,result>,
+  evidence: Count.Count<BandGather.elements(geometry),Global.count(shape,counted)>,ready: Buffer.Sized<Element,result>,
   length_exact: {Buffer.length(~Element,result) == BandGather.elements(geometry) : Nat},
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool}) ->
   BandGather.Domain<geometry,limits,Tree.capacity(Element,Buffer.tree(~Element,result))>:
   Count.Count{exact,bounded} = evidence
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   BandGather.Domain{Buffer.capacity_bound(~Element,result,depth_ok),channels_positive,height_positive,width_positive,
     %capacity_limits : {Nat.is_le(BandGather.elements(geometry),U32.to_nat(_)) == True{} : Bool}
     BandCount.natural_room(BandGather.elements(geometry),Global.count(shape,counted),capacity,exact,
@@ -229,7 +229,7 @@ def band_status(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
   values: Dense.TensorValues(~Element,~Logical,~original,logical,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,status,workers})) ->
   Dense.TensorValues(~Element,~Logical,~original,logical,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,status,workers})):
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       Shape.Both{metadata,Shape.Both{counted,coherent}} = normal
       banded(~Element,~Logical,~original,logical,geometry,bands,shape,fill,counted,coherent,
         %Model.packed_contents(~Element,bands) : BandShape.WellFormed<Element,geometry,_> metadata,

@@ -15,7 +15,7 @@ Run from the repository root, after [getting started](getting_started.md). On Wi
 | `python run.py api` | Programs written against `F` only, on 1 and 4 threads, compared bit for bit with NumPy |
 | `python run.py model --case bus_640 --threads 4` | YOLOv5n: generate, compile, run, compare with PyTorch |
 | `python run.py benchmark` | Convolution operator timings |
-| `python run.py backends` | YOLOv5n forward time on NumPy, Bend-Conv and PyTorch |
+| `python run.py backends` | YOLOv5n forward time on NumPy, Stelliferous and PyTorch |
 | `python run.py summary` | Lists which recorded results passed, without rerunning them |
 
 Check one Bend file, after scanning it for spellings the checker rejects:

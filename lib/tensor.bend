@@ -18,12 +18,14 @@ type Reason is Data:
   ShapeMismatch{left: List<&2,U32>,right: List<&2,U32>}
   InvalidShape{shape: List<&2,U32>}
   InvalidArgument{shape: List<&2,U32>}
+  FileFault{path: String,detail: String}
+  MissingName{name: String}
 
 type Problem is Data:
   Problem{operation: String,reason: Reason}
 
 type Status is Data:
-  Ready{}
+  Usable{}
   Failed{problem: Problem}
 
 # Like a PyTorch tensor's device, workers is execution context: the size of
@@ -97,6 +99,14 @@ def with_metadata(~Element: Data,~Result: Type,tensor: Tensor<Element>,
 def failed(~Element: Data,operation: String,reason: Reason,shape: List<&2,U32>,+fill: Element,workers: U32) -> Tensor<Element>:
   Tensor{buffer(~Element,fill,0),shape,fill,Failed{Problem{operation,reason}},workers}
 
+# A usable tensor fails with an invalid argument of the operation; a failed one keeps its problem.
+def rejected(~Element: Data,name: String,tensor: Tensor<Element>) -> Tensor<Element>:
+  match tensor:
+    case Tensor{storage,+shape,fill,Usable{},workers}: Tensor{storage,shape,fill,Failed{Problem{name,InvalidArgument{shape}}},workers}
+    case Tensor{storage,shape,fill,Failed{problem},workers}: Tensor{storage,shape,fill,Failed{problem},workers}
+    case Banded{bands,geometry,+shape,fill,Usable{},workers}: Banded{bands,geometry,shape,fill,Failed{Problem{name,InvalidArgument{shape}}},workers}
+    case Banded{bands,geometry,shape,fill,Failed{problem},workers}: Banded{bands,geometry,shape,fill,Failed{problem},workers}
+
 def mismatch(same: Bool,left: List<&2,U32>,right: List<&2,U32>) -> Reason:
   match same:
     case True{}: InvalidShape{left}
@@ -109,7 +119,7 @@ def same_or_invalid(+left: List<&2,U32>,+right: List<&2,U32>) -> Reason:
 
 def full_count(~Element: Data,+shape: List<&2,U32>,count: Maybe<&2,U32>,+value: Element) -> Tensor<Element>:
   match count:
-    case Some{count}: Tensor{buffer(~Element,value,count),shape,value,Ready{},1}
+    case Some{count}: Tensor{buffer(~Element,value,count),shape,value,Usable{},1}
     case None{}: failed(~Element,"full",InvalidShape{shape},shape,value,1)
 
 def full(~Element: Data,+shape: List<&2,U32>,+value: Element) -> Tensor<Element>:
@@ -118,7 +128,7 @@ def full(~Element: Data,+shape: List<&2,U32>,+value: Element) -> Tensor<Element>
 def listed_count(~Element: Data,matches: Bool,+shape: List<&2,U32>,+count: U32,values: List<&2,Element>,+fill: Element) -> Tensor<Element>:
   match matches:
     case True{}:
-      Tensor{Storage.from_list(~Element,values,depth_for(count),fill,U32.to_nat(count)),shape,fill,Ready{},1}
+      Tensor{Storage.from_list(~Element,values,depth_for(count),fill,U32.to_nat(count)),shape,fill,Usable{},1}
     case False{}: failed(~Element,"from_list",InvalidArgument{shape},shape,fill,1)
 
 def listed(~Element: Data,+shape: List<&2,U32>,count: Maybe<&2,U32>,+values: List<&2,Element>,+fill: Element) -> Tensor<Element>:
@@ -133,7 +143,7 @@ def from_list(~Element: Data,+shape: List<&2,U32>,+values: List<&2,Element>,+fil
 
 def stored(~Element: Data,matches: Bool,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,fill: Element) -> Tensor<Element>:
   match matches:
-    case True{}: Tensor{storage,shape,fill,Ready{},1}
+    case True{}: Tensor{storage,shape,fill,Usable{},1}
     case False{}: Tensor{storage,shape,fill,Failed{Problem{"from_storage",InvalidShape{shape}}},1}
 
 def matches_count(count: Maybe<&2,U32>,length: Nat) -> Bool:
@@ -172,14 +182,14 @@ def shape(~Element: Data,tensor: Tensor<Element>) -> Tensor<Element> & List<&2,U
 def checked(~Element: Data,status: Status,storage: Storage.Buffer<Element>,shape: List<&2,U32>,fill: Element,workers: U32) ->
   Result<&1,&1,Tensor<Element> & Problem,Tensor<Element>>:
   match status:
-    case Ready{}: Done{Tensor{storage,shape,fill,Ready{},workers}}
-    case Failed{problem}: Fail{(Tensor{storage,shape,fill,Ready{},workers},problem)}
+    case Usable{}: Done{Tensor{storage,shape,fill,Usable{},workers}}
+    case Failed{problem}: Fail{(Tensor{storage,shape,fill,Usable{},workers},problem)}
 
 def checked_bands(~Element: Data,status: Status,bands: Bands.Bands(~Element),geometry: Bands.Geometry,shape: List<&2,U32>,fill: Element,workers: U32) ->
   Result<&1,&1,Tensor<Element> & Problem,Tensor<Element>>:
   match status:
-    case Ready{}: Done{Banded{bands,geometry,shape,fill,Ready{},workers}}
-    case Failed{problem}: Fail{(Banded{bands,geometry,shape,fill,Ready{},workers},problem)}
+    case Usable{}: Done{Banded{bands,geometry,shape,fill,Usable{},workers}}
+    case Failed{problem}: Fail{(Banded{bands,geometry,shape,fill,Usable{},workers},problem)}
 
 def check(~Element: Data,tensor: Tensor<Element>) -> Result<&1,&1,Tensor<Element> & Problem,Tensor<Element>>:
   match tensor:
@@ -188,7 +198,7 @@ def check(~Element: Data,tensor: Tensor<Element>) -> Result<&1,&1,Tensor<Element
 
 def released(~Element: Data,status: Status,storage: Storage.Buffer<Element>) -> Result<&2,&1,Problem,Storage.Buffer<Element>>:
   match status:
-    case Ready{}: Done{storage}
+    case Usable{}: Done{storage}
     case Failed{problem}: Fail{problem}
 
 def into_storage(~Element: Data,tensor: Tensor<Element>) -> Result<&2,&1,Problem,Storage.Buffer<Element>>:
@@ -196,7 +206,7 @@ def into_storage(~Element: Data,tensor: Tensor<Element>) -> Result<&2,&1,Problem
 
 def listed_values(~Element: Data,status: Status,storage: Array<Element>,length: Nat) -> Result<&2,&2,Problem,List<&2,Element>>:
   match status:
-    case Ready{}: Done{Storage.read_list(~Element,length,0,storage)}
+    case Usable{}: Done{Storage.read_list(~Element,length,0,storage)}
     case Failed{problem}: Fail{problem}
 
 def listed_buffer(~Element: Data,status: Status,buffer: Storage.Buffer<Element>) -> Result<&2,&2,Problem,List<&2,Element>>:
@@ -235,20 +245,20 @@ def value_or(~Value: Data,result: Result<&2,&2,Problem,Value>,fallback: Value) -
 
 def first_failure(left: Status,right: Status) -> Status:
   match left:
-    case Ready{}: right
+    case Usable{}: right
     case Failed{problem}: Failed{problem}
 
 def combined(~Element: Data,operation: String,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+fill: Element,+workers: U32,
   result: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensor<Element>:
   match result:
-    case Operations.Accepted{(left,right)}: Tensor{left,left_shape,fill,Ready{},workers}
+    case Operations.Accepted{(left,right)}: Tensor{left,left_shape,fill,Usable{},workers}
     case Operations.Rejected{(left,right)}: Tensor{left,left_shape,fill,Failed{Problem{operation,same_or_invalid(left_shape,right_shape)}},workers}
 
-def combine_views(~Element: Data,~operation: Element -> Element -> Element,name: String,left_view: Maybe<&2,Views.View>,right_view: Maybe<&2,Views.View>,
+def combine_views_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,left_view: Maybe<&2,Views.View>,right_view: Maybe<&2,Views.View>,
   left: Storage.Buffer<Element>,+left_shape: List<&2,U32>,+fill: Element,right: Storage.Buffer<Element>,+right_shape: List<&2,U32>,+workers: U32) -> Tensor<Element>:
   match left_view right_view:
     case Some{left_view} Some{right_view}:
-      combined(~Element,name,left_shape,right_shape,fill,workers,Operations.combine(~Element,~operation,left,left_view,right,right_view))
+      combined(~Element,name,left_shape,right_shape,fill,workers,Operations.combine_with(~Element,~kernel,left,left_view,right,right_view))
     case left_view right_view: Tensor{left,left_shape,fill,Failed{Problem{name,same_or_invalid(left_shape,right_shape)}},workers}
 
 # A view of an operand read with the extents target; see Views.stretch.
@@ -261,20 +271,20 @@ def stretched(view: Maybe<&2,Views.View>,+target: List<&2,U32>) -> Maybe<&2,View
 # the common extents; the right operand is then combined into that storage.
 # The view of that storage is built once for each of the two steps: using one
 # view value twice would make the compiler share every View constructor.
-def combined_fresh(~Element: Data,~operation: Element -> Element -> Element,name: String,+shape: List<&2,U32>,+fill: Element,+workers: U32,
+def combined_fresh_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   right: Storage.Buffer<Element>,right_view: Views.View,target: Views.View,
   copied: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensor<Element>:
   match copied:
     case Operations.Accepted{(left,output)}:
-      combined(~Element,name,shape,shape,fill,workers,Operations.combine(~Element,~operation,output,target,right,right_view))
+      combined(~Element,name,shape,shape,fill,workers,Operations.combine_with(~Element,~kernel,output,target,right,right_view))
     case Operations.Rejected{(left,output)}: Tensor{output,shape,fill,Failed{Problem{name,InvalidShape{shape}}},workers}
 
-def combine_fresh_views(~Element: Data,~operation: Element -> Element -> Element,name: String,left_view: Maybe<&2,Views.View>,right_view: Maybe<&2,Views.View>,
+def combine_fresh_views_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,left_view: Maybe<&2,Views.View>,right_view: Maybe<&2,Views.View>,
   target: Maybe<&2,Views.View>,output: Maybe<&2,Views.View>,count: Maybe<&2,U32>,left: Storage.Buffer<Element>,right: Storage.Buffer<Element>,
   +shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensor<Element>:
   match left_view right_view target output count:
     case Some{left_view} Some{right_view} Some{target} Some{output} Some{count}:
-      combined_fresh(~Element,~operation,name,shape,fill,workers,right,right_view,output,
+      combined_fresh_with(~Element,~kernel,name,shape,fill,workers,right,right_view,output,
         Operations.copy(~Element,left,left_view,buffer(~Element,fill,count),target))
     case left_view right_view target output count: failed(~Element,name,InvalidShape{shape},shape,fill,workers)
 
@@ -284,42 +294,42 @@ def combine_fresh_views(~Element: Data,~operation: Element -> Element -> Element
 # stretched view into new storage, which the right operand is combined into;
 # both steps run the innermost axis as one loop, which the three-buffer
 # combination with two cursors does not.
-def combine_stretched(~Element: Data,~operation: Element -> Element -> Element,name: String,in_place: Bool,
+def combine_stretched_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,in_place: Bool,
   left: Storage.Buffer<Element>,+left_shape: List<&2,U32>,+fill: Element,right: Storage.Buffer<Element>,+right_shape: List<&2,U32>,+shape: List<&2,U32>,+workers: U32) -> Tensor<Element>:
   match in_place:
     case True{}:
-      combine_views(~Element,~operation,name,view_of(left_shape),stretched(view_of(right_shape),left_shape),left,left_shape,fill,right,right_shape,workers)
+      combine_views_with(~Element,~kernel,name,view_of(left_shape),stretched(view_of(right_shape),left_shape),left,left_shape,fill,right,right_shape,workers)
     case False{}:
-      combine_fresh_views(~Element,~operation,name,stretched(view_of(left_shape),shape),stretched(view_of(right_shape),shape),view_of(shape),view_of(shape),count_of(shape),
+      combine_fresh_views_with(~Element,~kernel,name,stretched(view_of(left_shape),shape),stretched(view_of(right_shape),shape),view_of(shape),view_of(shape),count_of(shape),
         left,right,shape,fill,workers)
 
-def combine_broadcast(~Element: Data,~operation: Element -> Element -> Element,name: String,shape: Maybe<&2,List<&2,U32>>,
+def combine_broadcast_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,shape: Maybe<&2,List<&2,U32>>,
   left: Storage.Buffer<Element>,+left_shape: List<&2,U32>,+fill: Element,right: Storage.Buffer<Element>,+right_shape: List<&2,U32>,+workers: U32) -> Tensor<Element>:
   match shape:
     case Some{+shape}:
-      combine_stretched(~Element,~operation,name,Shapes.same_extents(shape,left_shape),left,left_shape,fill,right,right_shape,shape,workers)
+      combine_stretched_with(~Element,~kernel,name,Shapes.same_extents(shape,left_shape),left,left_shape,fill,right,right_shape,shape,workers)
     case None{}: Tensor{left,left_shape,fill,Failed{Problem{name,ShapeMismatch{left_shape,right_shape}}},workers}
 
 # Equal extents take the direct path. Different extents follow NumPy
 # broadcasting (Shapes.broadcast) and fail only when they are incompatible.
-def combine_shapes(~Element: Data,~operation: Element -> Element -> Element,name: String,same: Bool,
+def combine_shapes_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,same: Bool,
   left: Storage.Buffer<Element>,+left_shape: List<&2,U32>,+fill: Element,right: Storage.Buffer<Element>,+right_shape: List<&2,U32>,+workers: U32) -> Tensor<Element>:
   match same:
-    case True{}: combine_views(~Element,~operation,name,view_of(left_shape),view_of(right_shape),left,left_shape,fill,right,right_shape,workers)
-    case False{}: combine_broadcast(~Element,~operation,name,Shapes.broadcast(left_shape,right_shape),left,left_shape,fill,right,right_shape,workers)
+    case True{}: combine_views_with(~Element,~kernel,name,view_of(left_shape),view_of(right_shape),left,left_shape,fill,right,right_shape,workers)
+    case False{}: combine_broadcast_with(~Element,~kernel,name,Shapes.broadcast(left_shape,right_shape),left,left_shape,fill,right,right_shape,workers)
 
-def combine_status(~Element: Data,~operation: Element -> Element -> Element,name: String,status: Status,
+def combine_status_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,status: Status,
   left: Storage.Buffer<Element>,+left_shape: List<&2,U32>,+fill: Element,right: Storage.Buffer<Element>,+right_shape: List<&2,U32>,+workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: combine_shapes(~Element,~operation,name,Shapes.same_extents(left_shape,right_shape),left,left_shape,fill,right,right_shape,workers)
+    case Usable{}: combine_shapes_with(~Element,~kernel,name,Shapes.same_extents(left_shape,right_shape),left,left_shape,fill,right,right_shape,workers)
     case Failed{problem}: Tensor{left,left_shape,fill,Failed{problem},workers}
 
 # Band layout is kept only for equal extents: operands that need broadcasting
 # are gathered and combined on dense storage.
-def combine_dense(~Element: Data,~operation: Element -> Element -> Element,name: String,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
+def combine_dense_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
   with_dense(~Element,~Tensor<Element>,left,left => left_shape => fill => left_status => left_workers =>
     with_dense(~Element,~Tensor<Element>,right,right => right_shape => right_fill => right_status => right_workers =>
-      combine_status(~Element,~operation,name,first_failure(left_status,right_status),left,left_shape,fill,right,right_shape,U32.max(left_workers,right_workers))))
+      combine_status_with(~Element,~kernel,name,first_failure(left_status,right_status),left,left_shape,fill,right,right_shape,U32.max(left_workers,right_workers))))
 
 def with_status(~Element: Data,status: Status,tensor: Tensor<Element>) -> Tensor<Element>:
   match tensor:
@@ -331,86 +341,94 @@ def aligned(~Element: Data,geometry: Bands.Geometry,layout: Bands.Plan,tensor: T
     case Tensor{storage,shape,fill,status,workers}: Bands.from_dense(~Element,geometry,fill,layout,storage)
     case Banded{bands,previous,shape,fill,status,workers}: Bands.align(~Element,geometry,fill,layout,bands)
 
-def combine_bands_checked(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
+def combine_bands_checked_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
   +layout: Bands.Plan,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,fill: Element,+workers: U32,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
   match status same:
-    case Ready{} True{}:
-      Banded{Bands.combine(~Element,~operation,geometry,BandSchedule.parallel(geometry,workers,12.0,operations,layout),aligned(~Element,geometry,layout,left),aligned(~Element,geometry,layout,right)),
-        geometry,left_shape,fill,Ready{},workers}
-    case Ready{} False{}: combine_dense(~Element,~operation,name,left,right)
+    case Usable{} True{}:
+      Banded{Bands.combine_with(~Element,~kernel,geometry,BandSchedule.parallel(geometry,workers,12.0,operations,layout),aligned(~Element,geometry,layout,left),aligned(~Element,geometry,layout,right)),
+        geometry,left_shape,fill,Usable{},workers}
+    case Usable{} False{}: combine_dense_with(~Element,~kernel,name,left,right)
     case Failed{problem} same: with_status(~Element,Failed{problem},left)
 
-def combine_bands_plan(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
+def combine_bands_plan_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
   +left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+fill: Element,+workers: U32,right: Tensor<Element>,planned: Bands.Bands(~Element) & Bands.Plan) -> Tensor<Element>:
   (left,layout) = planned
-  combine_bands_checked(~Element,~operation,name,operations,status,same,geometry,layout,left_shape,right_shape,fill,workers,
-    Banded{left,geometry,left_shape,fill,Ready{},workers},right)
+  combine_bands_checked_with(~Element,~kernel,name,operations,status,same,geometry,layout,left_shape,right_shape,fill,workers,
+    Banded{left,geometry,left_shape,fill,Usable{},workers},right)
 
-def combine_right_plan(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
+def combine_right_plan_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,
   +left_shape: List<&2,U32>,+right_shape: List<&2,U32>,left_fill: Element,+right_fill: Element,+workers: U32,left: Storage.Buffer<Element>,
   planned: Bands.Bands(~Element) & Bands.Plan) -> Tensor<Element>:
   (right,layout) = planned
   +left_fill = left_fill
-  combine_bands_checked(~Element,~operation,name,operations,status,same,geometry,layout,left_shape,right_shape,left_fill,workers,
-    Tensor{left,left_shape,left_fill,Ready{},workers},Banded{right,geometry,right_shape,right_fill,Ready{},workers})
+  combine_bands_checked_with(~Element,~kernel,name,operations,status,same,geometry,layout,left_shape,right_shape,left_fill,workers,
+    Tensor{left,left_shape,left_fill,Usable{},workers},Banded{right,geometry,right_shape,right_fill,Usable{},workers})
 
-def combine_pair_plans(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,right_geometry: Bands.Geometry,
+def combine_pair_plans_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,operations: F32,status: Status,same: Bool,+geometry: Bands.Geometry,right_geometry: Bands.Geometry,
   +left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,right_fill: Element,+workers: U32,
   left: Bands.Bands(~Element) & Bands.Plan,right: Bands.Bands(~Element) & Bands.Plan) -> Tensor<Element>:
   (left,left_plan) = left
   (right,right_plan) = right
-  combine_bands_checked(~Element,~operation,name,operations,status,same,geometry,BandSchedule.alignment(geometry,left_plan,right_plan),left_shape,right_shape,left_fill,workers,
-    Banded{left,geometry,left_shape,left_fill,Ready{},workers},Banded{right,right_geometry,right_shape,right_fill,Ready{},workers})
+  combine_bands_checked_with(~Element,~kernel,name,operations,status,same,geometry,BandSchedule.alignment(geometry,left_plan,right_plan),left_shape,right_shape,left_fill,workers,
+    Banded{left,geometry,left_shape,left_fill,Usable{},workers},Banded{right,right_geometry,right_shape,right_fill,Usable{},workers})
 
 # operation(left element, right element), retaining band layout when either
 # operand is banded. Alignment is done once, before any parallel leaf work.
 # operations counts the operation's scalar work for the band schedule.
-def combine(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
+def combine_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,name: String,operations: F32,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
   match left right:
     case Tensor{left,left_shape,left_fill,left_status,left_workers} Tensor{right,right_shape,right_fill,right_status,right_workers}:
-      combine_status(~Element,~operation,name,first_failure(left_status,right_status),left,left_shape,left_fill,right,right_shape,U32.max(left_workers,right_workers))
+      combine_status_with(~Element,~kernel,name,first_failure(left_status,right_status),left,left_shape,left_fill,right,right_shape,U32.max(left_workers,right_workers))
     case Banded{left,geometry,+left_shape,left_fill,left_status,left_workers} Tensor{right,+right_shape,right_fill,+right_status,+right_workers}:
-      combine_bands_plan(~Element,~operation,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,
+      combine_bands_plan_with(~Element,~kernel,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,
         left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensor{right,right_shape,right_fill,right_status,right_workers},Bands.plan(~Element,left))
     case Banded{left,geometry,+left_shape,left_fill,left_status,left_workers} Banded{right,right_geometry,+right_shape,right_fill,+right_status,+right_workers}:
-      combine_pair_plans(~Element,~operation,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
+      combine_pair_plans_with(~Element,~kernel,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
         left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),Bands.plan(~Element,left),Bands.plan(~Element,right))
     case Tensor{left,+left_shape,left_fill,left_status,left_workers} Banded{right,geometry,+right_shape,right_fill,right_status,right_workers}:
-      combine_right_plan(~Element,~operation,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,
+      combine_right_plan_with(~Element,~kernel,name,operations,first_failure(left_status,right_status),Shapes.same_extents(left_shape,right_shape),geometry,
         left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),left,Bands.plan(~Element,right))
+
+# The elementwise form: the kernel applies operation to each pair in order.
+def combine(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,left: Tensor<Element>,right: Tensor<Element>) -> Tensor<Element>:
+  combine_with(~Element,~Operations.combine_kernel(~Element,~operation),name,operations,left,right)
 
 def applied(~Element: Data,name: String,+shape: List<&2,U32>,+fill: Element,+workers: U32,result: Operations.Outcome<Storage.Buffer<Element>>) -> Tensor<Element>:
   match result:
-    case Operations.Accepted{storage}: Tensor{storage,shape,fill,Ready{},workers}
+    case Operations.Accepted{storage}: Tensor{storage,shape,fill,Usable{},workers}
     case Operations.Rejected{storage}: Tensor{storage,shape,fill,Failed{Problem{name,InvalidShape{shape}}},workers}
 
-def apply_view(~Element: Data,~operation: Element -> Element,name: String,view: Maybe<&2,Views.View>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,
+def apply_view_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,name: String,view: Maybe<&2,Views.View>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,
   +workers: U32) -> Tensor<Element>:
   match view:
-    case Some{view}: applied(~Element,name,shape,fill,workers,Operations.apply(~Element,~operation,storage,view))
+    case Some{view}: applied(~Element,name,shape,fill,workers,Operations.apply_context(~Element,~Context,~mapper,context,storage,view))
     case None{}: Tensor{storage,shape,fill,Failed{Problem{name,InvalidShape{shape}}},workers}
 
-def apply_status(~Element: Data,~operation: Element -> Element,name: String,status: Status,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,
+def apply_status_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,name: String,status: Status,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,
   +workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: apply_view(~Element,~operation,name,view_of(shape),storage,shape,fill,workers)
+    case Usable{}: apply_view_context(~Element,~Context,~mapper,context,name,view_of(shape),storage,shape,fill,workers)
     case Failed{problem}: Tensor{storage,shape,fill,Failed{problem},workers}
 
-def apply_bands(~Element: Data,~operation: Element -> Element,operations: F32,status: Status,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,
+def apply_bands_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,operations: F32,status: Status,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,
   shape: List<&2,U32>,fill: Element,+workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: Banded{BandSchedule.map(~Element,~operation,geometry,workers,operations,bands),geometry,shape,fill,Ready{},workers}
+    case Usable{}: Banded{BandSchedule.map_context(~Element,~Context,~mapper,context,geometry,workers,operations,bands),geometry,shape,fill,Usable{},workers}
     case Failed{problem}: Banded{bands,geometry,shape,fill,Failed{problem},workers}
 
-def apply(~Element: Data,~operation: Element -> Element,name: String,operations: F32,tensor: Tensor<Element>) -> Tensor<Element>:
+def apply_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,name: String,operations: F32,tensor: Tensor<Element>) -> Tensor<Element>:
   match tensor:
-    case Tensor{storage,shape,fill,status,workers}: apply_status(~Element,~operation,name,status,storage,shape,fill,workers)
-    case Banded{bands,geometry,shape,fill,status,workers}: apply_bands(~Element,~operation,operations,status,bands,geometry,shape,fill,workers)
+    case Tensor{storage,shape,fill,status,workers}: apply_status_context(~Element,~Context,~mapper,context,name,status,storage,shape,fill,workers)
+    case Banded{bands,geometry,shape,fill,status,workers}: apply_bands_context(~Element,~Context,~mapper,context,operations,status,bands,geometry,shape,fill,workers)
+
+def apply(~Element: Data,~mapper: @+count: Nat -> @+position: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element>,name: String,operations: F32,tensor: Tensor<Element>) -> Tensor<Element>:
+  apply_context(~Element,~Unit,~Operations.without_context(~Element,~mapper),Unit{},name,operations,tensor)
+
 
 # The function also receives each element's row-major index.
 def indexed(~Element: Data,+shape: List<&2,U32>,+fill: Element,+workers: U32,result: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensor<Element>:
   match result:
-    case Operations.Accepted{(input,output)}: Tensor{output,shape,fill,Ready{},workers}
+    case Operations.Accepted{(input,output)}: Tensor{output,shape,fill,Usable{},workers}
     case Operations.Rejected{(input,output)}: Tensor{input,shape,fill,Failed{Problem{"apply_indexed",InvalidShape{shape}}},workers}
 
 def apply_indexed_count(~Element: Data,~operation: U32 -> Element -> Element,count: Maybe<&2,U32>,view: Maybe<&2,Views.View>,
@@ -423,7 +441,7 @@ def apply_indexed_count(~Element: Data,~operation: U32 -> Element -> Element,cou
 def apply_indexed_status(~Element: Data,~operation: U32 -> Element -> Element,status: Status,storage: Storage.Buffer<Element>,
   +shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: apply_indexed_count(~Element,~operation,count_of(shape),view_of(shape),storage,shape,fill,workers)
+    case Usable{}: apply_indexed_count(~Element,~operation,count_of(shape),view_of(shape),storage,shape,fill,workers)
     case Failed{problem}: Tensor{storage,shape,fill,Failed{problem},workers}
 
 def indexed_width_positive(geometry: Bands.Geometry) -> Bool:
@@ -435,16 +453,16 @@ def indexed_width_positive(geometry: Bands.Geometry) -> Bool:
 def apply_indexed_positive(~Element: Data,~operation: U32 -> Element -> Element,positive: Bool,operations: F32,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,
   +shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensor<Element>:
   match positive:
-    case True{}: Banded{BandSchedule.indexed(~Element,~operation,geometry,workers,operations,fill,bands),geometry,shape,fill,Ready{},workers}
+    case True{}: Banded{BandSchedule.indexed(~Element,~operation,geometry,workers,operations,fill,bands),geometry,shape,fill,Usable{},workers}
     case False{}:
-      with_dense(~Element,~Tensor<Element>,Banded{bands,geometry,shape,fill,Ready{},workers},
+      with_dense(~Element,~Tensor<Element>,Banded{bands,geometry,shape,fill,Usable{},workers},
         storage => shape => fill => status => workers =>
           apply_indexed_status(~Element,~operation,status,storage,shape,fill,workers))
 
 def apply_indexed_bands(~Element: Data,~operation: U32 -> Element -> Element,operations: F32,status: Status,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,
   shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: apply_indexed_positive(~Element,~operation,indexed_width_positive(geometry),operations,bands,geometry,shape,fill,workers)
+    case Usable{}: apply_indexed_positive(~Element,~operation,indexed_width_positive(geometry),operations,bands,geometry,shape,fill,workers)
     case Failed{problem}: Banded{bands,geometry,shape,fill,Failed{problem},workers}
 
 def apply_indexed(~Element: Data,~operation: U32 -> Element -> Element,operations: F32,tensor: Tensor<Element>) -> Tensor<Element>:
@@ -468,7 +486,7 @@ def reduce_view(~Element: Data,~Accumulator: Data,~operation: Accumulator -> Ele
 def reduce_status(~Element: Data,~Accumulator: Data,~operation: Accumulator -> Element -> Accumulator,name: String,status: Status,
   storage: Storage.Buffer<Element>,+shape: List<&2,U32>,initial: Accumulator) -> Result<&2,&2,Problem,Accumulator>:
   match status:
-    case Ready{}: reduce_view(~Element,~Accumulator,~operation,name,view_of(shape),storage,shape,initial)
+    case Usable{}: reduce_view(~Element,~Accumulator,~operation,name,view_of(shape),storage,shape,initial)
     case Failed{problem}: Fail{problem}
 
 def reduce(~Element: Data,~Accumulator: Data,~operation: Accumulator -> Element -> Accumulator,name: String,tensor: Tensor<Element>,initial: Accumulator) ->
@@ -502,7 +520,7 @@ def broadcast(view: Views.View) -> Views.View:
 def scalar_applied(~Element: Data,name: String,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   result: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensor<Element>:
   match result:
-    case Operations.Accepted{(storage,scalar)}: Tensor{storage,shape,fill,Ready{},workers}
+    case Operations.Accepted{(storage,scalar)}: Tensor{storage,shape,fill,Usable{},workers}
     case Operations.Rejected{(storage,scalar)}: Tensor{storage,shape,fill,Failed{Problem{name,InvalidShape{shape}}},workers}
 
 def scalar_view(~Element: Data,~operation: Element -> Element -> Element,name: String,view: Maybe<&2,Views.View>,
@@ -515,14 +533,14 @@ def scalar_view(~Element: Data,~operation: Element -> Element -> Element,name: S
 def scalar_status(~Element: Data,~operation: Element -> Element -> Element,name: String,status: Status,
   storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+value: Element,+workers: U32) -> Tensor<Element>:
   match status:
-    case Ready{}: scalar_view(~Element,~operation,name,view_of(shape),storage,shape,fill,value,workers)
+    case Usable{}: scalar_view(~Element,~operation,name,view_of(shape),storage,shape,fill,value,workers)
     case Failed{problem}: Tensor{storage,shape,fill,Failed{problem},workers}
 
 # Updates every element x to operation(x, value).
 def scalar_bands(~Element: Data,~operation: Element -> Element -> Element,operations: F32,status: Status,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,
   shape: List<&2,U32>,fill: Element,+workers: U32,value: Element) -> Tensor<Element>:
   match status:
-    case Ready{}: Banded{BandSchedule.scalar(~Element,~operation,geometry,workers,operations,value,bands),geometry,shape,fill,Ready{},workers}
+    case Usable{}: Banded{BandSchedule.scalar(~Element,~operation,geometry,workers,operations,value,bands),geometry,shape,fill,Usable{},workers}
     case Failed{problem}: Banded{bands,geometry,shape,fill,Failed{problem},workers}
 
 def combine_scalar(~Element: Data,~operation: Element -> Element -> Element,name: String,operations: F32,tensor: Tensor<Element>,+value: Element) -> Tensor<Element>:
@@ -550,6 +568,10 @@ def explain(reason: Reason) -> String:
       String.append("shape ",String.append(show_shape(shape)," is invalid or exceeds the machine capacity"))
     case InvalidArgument{shape}:
       String.append("invalid argument for shape ",show_shape(shape))
+    case FileFault{path,detail}:
+      String.append("file ",String.append(path,String.append(" ",detail)))
+    case MissingName{name}:
+      String.append("no tensor named ",name)
 
 def describe(problem: Problem) -> String:
   Problem{operation,reason} = problem

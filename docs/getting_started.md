@@ -7,7 +7,7 @@
 Requires Git, Node.js, [Bun](https://bun.sh), Python 3 and Clang (or the C compiler named by `CC`), on Linux, macOS or WSL.
 
 ```sh
-git clone --depth 1 --branch v2.0.35 https://github.com/bendlang/bend.git .tools/bend
+git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools/bend
 git -C .tools/bend rev-parse HEAD    # must print the commit in scripts/toolchain.json
 ```
 
@@ -89,6 +89,53 @@ def network(image: F.Tensor()) -> F.Tensor():
 ```sh
 node scripts/bend_launcher.mjs examples/small_network.bend -o out/small_network
 ./out/small_network
+```
+
+## Load and save values
+
+A file holds FP32 values, little-endian, in row-major order, with no header; NumPy writes one with `array.astype('<f4').tofile(path)`. A file that cannot be read, or does not hold the values of the shape, gives a failed tensor. [examples/save_and_load.bend](../examples/save_and_load.bend):
+
+```python
+def main() -> IO(Unit):
+  do IO<Unit>:
+    # 1.0 .. 6.0 as two rows, written as 24 bytes
+    saved  : F.Tensor() <- F.save_raw("out/values.bin",F.reshape(F.arange(1.0,6),[2,3]))
+    # the same file, read with its shape
+    loaded : F.Tensor() <- F.load_raw("out/values.bin",[2,3])
+    # the sums, or [] if a step above failed
+    IO.print(List.show(~&2,~F32,~text,F.to_list_or(F.add(saved,loaded),[])))
+```
+
+```sh
+node scripts/bend_launcher.mjs examples/save_and_load.bend -o out/save_and_load
+./out/save_and_load                  # [2, 4, 6, 8, 10, 12]
+```
+
+`F.load_npy` and `F.save_npy` read and write NumPy `.npy` files of FP32 values:
+
+```python
+# a NumPy array file: the shape comes from the file
+weights : F.Tensor() <- F.load_npy("out/weights/named/model.0.conv.weight.npy")
+```
+
+## Load a model's weights
+
+`F.take` gives a tensor of the weights by name, and `F.keep` puts a copy there for a later step, such as a skip connection. [examples/yolov5/yolov5n.bend](../examples/yolov5/yolov5n.bend) is a complete model.
+
+```python
+# A step takes tensors by name; the lines of a do block run in order.
+def block(x: F.Tensor(),+name: String) -> F.Model(F.Tensor()):
+  do F.Model<F.Tensor()>:
+    weights : F.Tensor() <- F.take(name ++ ".weight")
+    bias : F.Tensor() <- F.take(name ++ ".bias")
+    F.Model.pure(F.Tensor(),F.conv2d(x,weights,bias,1,1,Act.relu()))
+
+def main() -> IO(Unit):
+  do IO<Unit>:
+    # folder/names.txt lists the names; folder/<name>.npy holds each tensor
+    weights : F.Weights() <- F.load_weights("out/weights/named")
+    result : F.Tensor() <- F.expect(F.run(F.Tensor(),block(F.zeros([1,3,8,8]),"stem"),weights))
+    ...
 ```
 
 ## Use several workers

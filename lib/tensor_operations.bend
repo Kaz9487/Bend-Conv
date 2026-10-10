@@ -10,6 +10,8 @@ import ./proofs/storage_certificate.bend as Certificate
 import ./proofs/traversal_certificate.bend as TraversalCertificate
 import ./proofs/traversal_witness.bend as TraversalWitness
 import ./proofs/tensor_access_certificate.bend as AccessCertificate
+import ./traversal_lanes.bend as Lanes
+import ./proofs/traversal_lanes_certificate.bend as LanesCertificate
 
 type Outcome<-Value: Type> is Type:
   Accepted{value: Value}
@@ -80,47 +82,76 @@ def combine_buffers(~Element: Data,left_length: Nat,right_length: Nat,result: Ar
   TraversalCertificate.Certificates{right_certificate,left_certificate} = certificates
   (Storage.Buffer{left,left_length,left_certificate},Storage.Buffer{right,right_length,right_certificate})
 
-def combine_when(~Element: Data,~operation: Element -> Element -> Element,valid: Bool,count: Maybe<&2,U32>,
-  +right_view: Views.View,target: Views.View,left: Storage.Buffer<Element>,right: Storage.Buffer<Element>) ->
+def combine_kernel(~Element: Data,~operation: Element -> Element -> Element,+count: Nat,+right_view: Views.View,+offset: U32,
+  left: Storage.Buffer<Element>,right: Storage.Buffer<Element>) -> Storage.Buffer<Element> & Storage.Buffer<Element>:
+  Storage.Buffer{left,left_length,left_certificate} = left
+  Storage.Buffer{right,right_length,right_certificate} = right
+  +fast = Access.zero_contiguous(right_view) && U32.is_zero(offset)
+  combine_buffers(~Element,left_length,right_length,
+    Access.combine_run(~Element,~operation,fast,count,right_view,offset,right,left),
+    AccessCertificate.combine(~Element,~operation,fast,count,right_view,offset,right,left,right_certificate,left_certificate))
+
+def combine_when_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,
+  valid: Bool,count: Maybe<&2,U32>,right_view: Views.View,target: Views.View,left: Storage.Buffer<Element>,right: Storage.Buffer<Element>) ->
   Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>:
   match valid count:
-    case True{} Some{+count}:
-      Views.View{axes,+offset} = target
-      Storage.Buffer{left,left_length,left_certificate} = left
-      Storage.Buffer{right,right_length,right_certificate} = right
-      +fast = Access.zero_contiguous(right_view) && U32.is_zero(offset)
-      Accepted{combine_buffers(~Element,left_length,right_length,
-        Access.combine_run(~Element,~operation,fast,U32.to_nat(count),right_view,offset,right,left),
-        AccessCertificate.combine(~Element,~operation,fast,U32.to_nat(count),right_view,offset,right,left,right_certificate,left_certificate))}
+    case True{} Some{count}:
+      Views.View{axes,offset} = target
+      Accepted{kernel(U32.to_nat(count),right_view,offset,left,right)}
     case valid count: Rejected{(left,right)}
 
-def combine(~Element: Data,~operation: Element -> Element -> Element,
+def combine_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,
   left: Storage.Buffer<Element>,+left_view: Views.View,right: Storage.Buffer<Element>,+right_view: Views.View) ->
   Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>:
   Storage.Buffer{left,+left_length,left_certificate} = left
   Certificate.Certificate{+left_depth,left_equation} = left_certificate
   Storage.Buffer{right,+right_length,right_certificate} = right
   Certificate.Certificate{+right_depth,right_equation} = right_certificate
-  combine_when(~Element,~operation,Shapes.same(Views.shape(left_view),Views.shape(right_view)) && Views.is_contiguous(left_view) &&
+  combine_when_with(~Element,~kernel,Shapes.same(Views.shape(left_view),Views.shape(right_view)) && Views.is_contiguous(left_view) &&
     valid_buffer(left_length,U32.shln(1,left_depth),left_view) &&
     valid_buffer(right_length,U32.shln(1,right_depth),right_view),Views.numel(left_view),right_view,left_view,
     Storage.Buffer{left,left_length,Certificate.Certificate{left_depth,left_equation}},Storage.Buffer{right,right_length,Certificate.Certificate{right_depth,right_equation}})
 
-def apply_when(~Element: Data,~operation: Element -> Element,valid: Bool,count: Maybe<&2,U32>,view: Views.View,
+def combine(~Element: Data,~operation: Element -> Element -> Element,
+  left: Storage.Buffer<Element>,+left_view: Views.View,right: Storage.Buffer<Element>,+right_view: Views.View) ->
+  Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>:
+  combine_with(~Element,~combine_kernel(~Element,~operation),left,left_view,right,right_view)
+
+# A mapper is the ordered map of count values from position on a certified
+# Buffer. mapped applies the operation to one value at a time.
+def mapped(~Element: Data,~operation: Element -> Element,+count: Nat,+position: U32,buffer: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
+  Storage.Buffer{storage,length,certificate} = buffer
+  Storage.Buffer{Traversal.map_in_place(~Element,~Unit,~Access.apply_element(~Element,~operation),count,position,Unit{},storage),length,
+    TraversalCertificate.map_in_place(~Element,~Unit,~Access.apply_element(~Element,~operation),count,position,Unit{},storage,certificate)}
+
+# The same map with the values of each round of eight computed together: an
+# operation written with FP32 arithmetic alone then compiles to vector code.
+# The certificate's depth decides whether the array holds the positions.
+def lanes(~Context: Data,~operation: Context -> F32 -> F32,+count: Nat,+position: U32,+context: Context,buffer: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  Storage.Buffer{storage,length,Certificate.Certificate{+depth,equation}} = buffer
+  Storage.Buffer{Lanes.map_when(~Context,~operation,Lanes.covered(depth,position,count),count,position,context,storage),length,
+    LanesCertificate.map_when(~Context,~operation,Lanes.covered(depth,position,count),count,position,context,storage,Certificate.Certificate{depth,equation})}
+
+def mapped_lanes(~operation: F32 -> F32,+count: Nat,+position: U32,buffer: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  lanes(~Unit,~Access.apply_element(~F32,~operation),count,position,Unit{},buffer)
+
+def apply_context_when(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,valid: Bool,count: Maybe<&2,U32>,view: Views.View,
   buffer: Storage.Buffer<Element>) -> Outcome<Storage.Buffer<Element>>:
   match valid count:
     case True{} Some{+count}:
       Views.View{axes,+offset} = view
-      Storage.Buffer{storage,length,certificate} = buffer
-      Accepted{Storage.Buffer{Traversal.map_in_place(~Element,~Unit,~Access.apply_element(~Element,~operation),U32.to_nat(count),offset,Unit{},storage),length,
-        TraversalCertificate.map_in_place(~Element,~Unit,~Access.apply_element(~Element,~operation),U32.to_nat(count),offset,Unit{},storage,certificate)}}
+      Accepted{mapper(U32.to_nat(count),offset,context,buffer)}
     case valid count: Rejected{buffer}
 
-def apply(~Element: Data,~operation: Element -> Element,buffer: Storage.Buffer<Element>,+view: Views.View) -> Outcome<Storage.Buffer<Element>>:
+def apply_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,buffer: Storage.Buffer<Element>,+view: Views.View) -> Outcome<Storage.Buffer<Element>>:
   Storage.Buffer{storage,+length,certificate} = buffer
   Certificate.Certificate{+depth,equation} = certificate
-  apply_when(~Element,~operation,Views.is_contiguous(view) && valid_buffer(length,U32.shln(1,depth),view),Views.numel(view),view,
+  apply_context_when(~Element,~Context,~mapper,context,Views.is_contiguous(view) && valid_buffer(length,U32.shln(1,depth),view),Views.numel(view),view,
     Storage.Buffer{storage,length,Certificate.Certificate{depth,equation}})
+
+# A mapper without a context, as the Unit-context case.
+def without_context(~Element: Data,~mapper: @+count: Nat -> @+position: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element>,+count: Nat,+position: U32,+context: Unit,buffer: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
+  mapper(count,position,buffer)
 
 def apply_indexed_when(~Element: Data,~operation: U32 -> Element -> Element,valid: Bool,count: Maybe<&2,U32>,+view: Views.View,
   input: Storage.Buffer<Element>,output: Storage.Buffer<Element>) -> Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>:

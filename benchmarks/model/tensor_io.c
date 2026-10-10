@@ -229,27 +229,27 @@ Term tensor_end_run(Env environment, Term *arguments, IoWork *work) {
   return term_pak(CID(Unit), 0);
 }
 static void __attribute__((constructor)) tensor_register(void) {
-  io_eff(CID(Tensor.load), tensor_load_run, 0);
+  io_eff(CID(Tensor.load), tensor_load_run);
 #ifdef CID(Tensor.buffer_like)
-  io_eff(CID(Tensor.buffer_like), tensor_buffer_like_run, 0);
+  io_eff(CID(Tensor.buffer_like), tensor_buffer_like_run);
 #endif
 #ifdef CID(Tensor.get_buffer)
-  io_eff(CID(Tensor.get_buffer), tensor_get_buffer_run, 0);
+  io_eff(CID(Tensor.get_buffer), tensor_get_buffer_run);
 #endif
 #ifdef CID(Tensor.take_buffer)
-  io_eff(CID(Tensor.take_buffer), tensor_take_buffer_run, 0);
+  io_eff(CID(Tensor.take_buffer), tensor_take_buffer_run);
 #endif
 #ifdef CID(Tensor.save_buffer)
-  io_eff(CID(Tensor.save_buffer), tensor_save_buffer_run, 0);
+  io_eff(CID(Tensor.save_buffer), tensor_save_buffer_run);
 #endif
-  io_eff(CID(Tensor.begin), tensor_begin_run, 0);
-  io_eff(CID(Tensor.end), tensor_end_run, 0);
+  io_eff(CID(Tensor.begin), tensor_begin_run);
+  io_eff(CID(Tensor.end), tensor_end_run);
 #ifdef CID(Tensor.operation_begin)
-  io_eff(CID(Tensor.operation_begin), tensor_operation_begin_run, 0);
-  io_eff(CID(Tensor.operation_end), tensor_operation_end_run, 0);
-  io_eff(CID(Tensor.dump_enabled), tensor_dump_enabled_run, 0);
+  io_eff(CID(Tensor.operation_begin), tensor_operation_begin_run);
+  io_eff(CID(Tensor.operation_end), tensor_operation_end_run);
+  io_eff(CID(Tensor.dump_enabled), tensor_dump_enabled_run);
 #endif
 #ifdef CID(Tensor.repetitions)
-  io_eff(CID(Tensor.repetitions), tensor_repetitions_run, 0);
+  io_eff(CID(Tensor.repetitions), tensor_repetitions_run);
 #endif
 }

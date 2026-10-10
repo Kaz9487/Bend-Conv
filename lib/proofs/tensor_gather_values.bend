@@ -44,7 +44,7 @@ def value(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,con
 
 # One index of the copy program into a target at offset zero.
 def cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,+index: Nat,
-  input_ready: Buffer.Ready<Element,input>,ready: Buffer.Ready<Element,output>,values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  input_ready: Buffer.Sized<Element,input>,ready: Buffer.Sized<Element,output>,values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +exact: {ShapeLaws.elements(Views.axis_extents_of(source)) == U32.to_nat(count) : Nat},
   fits: {Views.fits(source,U32.from_nat(Buffer.length(~Element,input))) == True{} : Bool},
@@ -52,8 +52,8 @@ def cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+log
   Dense.At(~Element,~Gather<Logical>,~value(~Element,~Logical,~original),Gather{logical,source},CopyValues.program_content(~Element,count,source,Views.View{target_axes,0},Buffer.content(~Element,input),Buffer.content(~Element,output)),index):
   Buffer.Model{+input_tree,+input_length,+input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
-  Buffer.Ready{+input_depth_ok,+input_room} = input_ready
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+input_depth_ok,+input_room} = input_ready
+  Buffer.Sized{+depth_ok,+room} = ready
   +input = {Buffer.Model{input_tree,input_length,input_certificate} : Buffer.Model<Element>}
   +output = {Buffer.Model{output_tree,output_length,output_certificate} : Buffer.Model<Element>}
   +capacity = Tree.capacity(Element,output_tree)
@@ -78,13 +78,13 @@ def cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+log
     Tree.read(Element,input_tree,address),
     original(logical,CopyValues.address(source,U32.to_nat(U32.from_nat(index)))),
     CopyValues.copied_value(~Element,source,input_tree,output_tree,output_length,U32.to_nat(count),index,
-      Buffer.content_ready(~Element,output,Buffer.Ready{depth_ok,room}),capacity_ok,count_room,inside,exact),
+      Buffer.content_ready(~Element,output,Buffer.Sized{depth_ok,room}),capacity_ok,count_room,inside,exact),
     %Equal.sym(Nat,U32.to_nat(U32.from_nat(index)),index,encoded) : {Tree.read(Element,input_tree,address) == original(logical,CopyValues.address(source,_)) : Element}
     %Arithmetic.native_roundtrip(address) : {Tree.read(Element,input_tree,_) == original(logical,_) : Element}
     Dense.read(~Element,~Logical,~original,logical,Buffer.Content{input_tree,input_length},U32.to_nat(address),values,address_inside))
 
 def cells_range(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,remaining: Nat,+position: Nat,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+ready: Buffer.Ready<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+ready: Buffer.Sized<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +exact: {ShapeLaws.elements(Views.axis_extents_of(source)) == U32.to_nat(count) : Nat},
   +fits: {Views.fits(source,U32.from_nat(Buffer.length(~Element,input))) == True{} : Bool},
@@ -103,7 +103,7 @@ def program_length(~Element: Data,+count: U32,+source: Views.View,+target: Views
   Buffer.Model{output_tree,output_length,output_certificate} = output
   {==}
 
-def program_ready(~Element: Data,+count: U32,+source: Views.View,+target: Views.View,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Ready<Element,output>) ->
+def program_ready(~Element: Data,+count: U32,+source: Views.View,+target: Views.View,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Sized<Element,output>) ->
   Buffer.ContentReady<Element,CopyValues.program_content(~Element,count,source,target,Buffer.content(~Element,input),Buffer.content(~Element,output))>:
   Buffer.Model{+input_tree,input_length,input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
@@ -111,7 +111,7 @@ def program_ready(~Element: Data,+count: U32,+source: Views.View,+target: Views.
     Buffer.content_ready(~Element,Buffer.Model{output_tree,output_length,output_certificate},ready))
 
 def program_values(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+ready: Buffer.Ready<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+ready: Buffer.Sized<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +exact: {ShapeLaws.elements(Views.axis_extents_of(source)) == U32.to_nat(count) : Nat},
   +fits: {Views.fits(source,U32.from_nat(Buffer.length(~Element,input))) == True{} : Bool}) ->
@@ -127,7 +127,7 @@ def Facts(~Element: Data,~Context: Data,~reader: Context -> U32 -> Element,+cont
   Shape.Both<Dense.WellFormed<Element,shape,content>,Dense.Values(~Element,~Context,~reader,context,content)>
 
 def program_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+target_shape: List<&2,U32>,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+ready: Buffer.Ready<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+ready: Buffer.Sized<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +exact: {ShapeLaws.elements(Views.axis_extents_of(source)) == U32.to_nat(count) : Nat},
   +fits: {Views.fits(source,U32.from_nat(Buffer.length(~Element,input))) == True{} : Bool},
@@ -204,7 +204,7 @@ def same_extents(+source: Views.View,+target: Views.View,same: {Shapes.same(View
   ShapeLaws.same_extents(Views.axis_extents(source_axes),Views.axis_extents(target_axes),same)
 
 def guarded_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+target_shape: List<&2,U32>,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+ready: Buffer.Ready<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+ready: Buffer.Sized<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +target_exact: {ShapeLaws.elements(Views.axis_extents(target_axes)) == U32.to_nat(count) : Nat},
   +length_exact: {Buffer.length(~Element,output) == ShapeLaws.elements(target_shape) : Nat},
@@ -227,7 +227,7 @@ def guarded_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
   program_facts(~Element,~Logical,~original,logical,source,target_axes,input,output,target_shape,count,input_ready,ready,values,written,exact,fits,length_exact)
 
 def modeled_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+target_shape: List<&2,U32>,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+ready: Buffer.Ready<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+ready: Buffer.Sized<Element,output>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +written: {U32.to_nat(count) == Buffer.length(~Element,output) : Nat},
   +target_exact: {ShapeLaws.elements(Views.axis_extents(target_axes)) == U32.to_nat(count) : Nat},
   +length_exact: {Buffer.length(~Element,output) == ShapeLaws.elements(target_shape) : Nat},
@@ -242,7 +242,7 @@ def modeled_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
 def allocated_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+source: Views.View,+target_axes: List<&2,Views.Axis>,+input: Buffer.Model<Element>,+view_shape: List<&2,U32>,
   +target_shape: List<&2,U32>,+fill: Element,+count: U32,
   observation: Buffer.Observation<Element,Tensors.buffer(~Element,fill,count)>,evidence: Count.Count<ShapeLaws.elements(view_shape),count>,
-  +input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +target_extents: {Views.axis_extents(target_axes) == view_shape : List<&2,U32>},
   +same_elements: {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
   accepted: {accepted_owners(~Element,OperationsLaws.observe_pair_outcome(~Element,Operations.copy(~Element,Buffer.pack(~Element,input),source,Tensors.buffer(~Element,fill,count),Views.View{target_axes,0}))) == True{} : Bool}) ->
@@ -273,7 +273,7 @@ def allocated_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> E
 # extents it was built from.
 def targeted_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,target: Views.View,+logical: Logical,+source: Views.View,+input: Buffer.Model<Element>,+view_shape: List<&2,U32>,
   +target_shape: List<&2,U32>,+fill: Element,+count: U32,
-  +input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +targets: {Tensors.view_of(view_shape) == Some{target} : Maybe<&2,Views.View>},
   +counts: {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>},
   same_elements: @+count: U32 -> {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>} -> {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
@@ -333,7 +333,7 @@ def copy_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elemen
 # The public selection: a Ready result has its target view and its count.
 def selected(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,target: Maybe<&2,Views.View>,count: Maybe<&2,U32>,+logical: Logical,+name: String,+source: Views.View,+input: Buffer.Model<Element>,
   +view_shape: List<&2,U32>,+source_shape: List<&2,U32>,+target_shape: List<&2,U32>,+fill: Element,+workers: U32,
-  +input_ready: Buffer.Ready<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
+  +input_ready: Buffer.Sized<Element,input>,+values: Dense.Values(~Element,~Logical,~original,logical,Buffer.content(~Element,input)),
   +targets: {Tensors.view_of(view_shape) == target : Maybe<&2,Views.View>},
   +counts: {Tensors.count_of(view_shape) == count : Maybe<&2,U32>},
   same_elements: @+count: U32 -> {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>} -> {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
@@ -354,7 +354,7 @@ def selected(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,
 def observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+name: String,+source: Views.View,+view_shape: List<&2,U32>,-storage: Storage.Buffer<Element>,
   +source_shape: List<&2,U32>,+target_shape: List<&2,U32>,+fill: Element,+workers: U32,
   observation: Buffer.Observation<Element,storage>,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Ready{},workers}),
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Usable{},workers}),
   same_elements: @+count: U32 -> {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>} -> {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
   accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.gather_views(~Element,name,Some{source},Tensors.view_of(view_shape),Tensors.count_of(view_shape),storage,source_shape,target_shape,fill,workers))) == True{} : Bool}) ->
   Dense.Contract(~Element,~Gather<Logical>,~value(~Element,~Logical,~original),Gather{logical,source},Layout.result_of(~Element,Layout.gather_views(~Element,name,Some{source},Tensors.view_of(view_shape),Tensors.count_of(view_shape),storage,source_shape,target_shape,fill,workers))):
@@ -381,7 +381,7 @@ def observed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,
 # the count the call itself accepted.
 def gather(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+name: String,+source: Views.View,+view_shape: List<&2,U32>,storage: Storage.Buffer<Element>,
   +source_shape: List<&2,U32>,+target_shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Ready{},workers}),
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Usable{},workers}),
   same_elements: @+count: U32 -> {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>} -> {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
   accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.gather_views(~Element,name,Some{source},Tensors.view_of(view_shape),Tensors.count_of(view_shape),storage,source_shape,target_shape,fill,workers))) == True{} : Bool}) ->
   Dense.Contract(~Element,~Gather<Logical>,~value(~Element,~Logical,~original),Gather{logical,source},Layout.result_of(~Element,Layout.gather_views(~Element,name,Some{source},Tensors.view_of(view_shape),Tensors.count_of(view_shape),storage,source_shape,target_shape,fill,workers))):
@@ -396,10 +396,10 @@ def Viewed(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+l
 
 def status(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,source: Maybe<&2,Views.View>,+logical: Logical,+name: String,+view_shape: List<&2,U32>,storage: Storage.Buffer<Element>,
   +source_shape: List<&2,U32>,+target_shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Ready{},workers}),
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,source_shape,fill,Tensors.Usable{},workers}),
   same_elements: @+count: U32 -> {Tensors.count_of(view_shape) == Some{count} : Maybe<&2,U32>} -> {ShapeLaws.elements(view_shape) == ShapeLaws.elements(target_shape) : Nat},
-  accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.gather_status(~Element,name,Tensors.Ready{},source,view_shape,target_shape,storage,source_shape,fill,workers))) == True{} : Bool}) ->
-  Viewed(~Element,~Logical,~original,logical,source,Layout.result_of(~Element,Layout.gather_status(~Element,name,Tensors.Ready{},source,view_shape,target_shape,storage,source_shape,fill,workers))):
+  accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.gather_status(~Element,name,Tensors.Usable{},source,view_shape,target_shape,storage,source_shape,fill,workers))) == True{} : Bool}) ->
+  Viewed(~Element,~Logical,~original,logical,source,Layout.result_of(~Element,Layout.gather_status(~Element,name,Tensors.Usable{},source,view_shape,target_shape,storage,source_shape,fill,workers))):
   match source:
     case Some{+source}: gather(~Element,~Logical,~original,logical,name,source,view_shape,storage,source_shape,target_shape,fill,workers,contract,same_elements,accepted)
     case None{}: WordEncoding.false_true(accepted)
@@ -407,29 +407,29 @@ def status(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,so
 # The public layout operations that are one gather of a view of the input.
 # Each statement names the view the operation itself computes.
 def transpose(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+order: List<&2,U32>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.transpose(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},order)) == True{} : Bool}) ->
-  Viewed(~Element,~Logical,~original,logical,Layout.permuted(Tensors.view_of(shape),Layout.naturals(order)),Layout.transpose(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},order)):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.transpose(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},order)) == True{} : Bool}) ->
+  Viewed(~Element,~Logical,~original,logical,Layout.permuted(Tensors.view_of(shape),Layout.naturals(order)),Layout.transpose(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},order)):
   status(~Element,~Logical,~original,Layout.permuted(Tensors.view_of(shape),Layout.naturals(order)),logical,"transpose",Layout.extents(Layout.permuted(Tensors.view_of(shape),Layout.naturals(order))),storage,shape,Layout.extents(Layout.permuted(Tensors.view_of(shape),Layout.naturals(order))),fill,workers,contract,count => counted => {==},accepted)
 
 def slice(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+axis: U32,+start: U32,+count: U32,+step: U32,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.slice(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},axis,start,count,step)) == True{} : Bool}) ->
-  Viewed(~Element,~Logical,~original,logical,Layout.sliced(Tensors.view_of(shape),axis,start,count,step),Layout.slice(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},axis,start,count,step)):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.slice(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},axis,start,count,step)) == True{} : Bool}) ->
+  Viewed(~Element,~Logical,~original,logical,Layout.sliced(Tensors.view_of(shape),axis,start,count,step),Layout.slice(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},axis,start,count,step)):
   status(~Element,~Logical,~original,Layout.sliced(Tensors.view_of(shape),axis,start,count,step),logical,"slice",Layout.extents(Layout.sliced(Tensors.view_of(shape),axis,start,count,step)),storage,shape,Layout.extents(Layout.sliced(Tensors.view_of(shape),axis,start,count,step)),fill,workers,contract,count => counted => {==},accepted)
 
 def broadcast_selected(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,source: Maybe<&2,Views.View>,+logical: Logical,+target: List<&2,U32>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.broadcast_status(~Element,Tensors.Ready{},source,storage,shape,target,fill,workers)) == True{} : Bool}) ->
-  Viewed(~Element,~Logical,~original,logical,source,Layout.broadcast_status(~Element,Tensors.Ready{},source,storage,shape,target,fill,workers)):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.broadcast_status(~Element,Tensors.Usable{},source,storage,shape,target,fill,workers)) == True{} : Bool}) ->
+  Viewed(~Element,~Logical,~original,logical,source,Layout.broadcast_status(~Element,Tensors.Usable{},source,storage,shape,target,fill,workers)):
   match source:
     case Some{+source}: gather(~Element,~Logical,~original,logical,"broadcast_to",source,target,storage,shape,target,fill,workers,contract,count => counted => {==},accepted)
     case None{}: WordEncoding.false_true(accepted)
 
 def broadcast_to(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+target: List<&2,U32>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.broadcast_to(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},target)) == True{} : Bool}) ->
-  Viewed(~Element,~Logical,~original,logical,Tensors.stretched(Tensors.view_of(shape),target),Layout.broadcast_to(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},target)):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.broadcast_to(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},target)) == True{} : Bool}) ->
+  Viewed(~Element,~Logical,~original,logical,Tensors.stretched(Tensors.view_of(shape),target),Layout.broadcast_to(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},target)):
   broadcast_selected(~Element,~Logical,~original,Tensors.stretched(Tensors.view_of(shape),target),logical,target,storage,shape,fill,workers,contract,accepted)
 
 # A Ready dense tensor of a known shape, observed as a model whose content
@@ -437,16 +437,16 @@ def broadcast_to(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 # model wherever it occurs, so a proof never holds the native storage twice.
 type Shaped<-Element: Data,-Context: Data,-reader: Context -> U32 -> Element,-context: Context,-shape: List<&2,U32>,-tensor: Tensors.Tensor<Element>> is Data:
   Shaped{model: Buffer.Model<Element>,fill: Element,workers: U32,
-    equation: {tensor == Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Ready{},workers} : Tensors.Tensor<Element>},
+    equation: {tensor == Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Usable{},workers} : Tensors.Tensor<Element>},
     facts: Facts(~Element,~Context,~reader,context,shape,Buffer.content(~Element,model))}
 
 def shaped_observed(~Element: Data,~Context: Data,~reader: Context -> U32 -> Element,-storage: Storage.Buffer<Element>,+context: Context,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   observation: Buffer.Observation<Element,storage>,
   facts: Facts(~Element,~Context,~reader,context,shape,Buffer.contents(~Element,storage))) ->
-  Shaped<Element,Context,reader,context,shape,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}>:
+  Shaped<Element,Context,reader,context,shape,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}>:
   Buffer.Observation{+model,+equation} = observation
   Shaped{model,fill,workers,
-    Equal.cong(Storage.Buffer<Element>,Tensors.Tensor<Element>,buffer => Tensors.Tensor{buffer,shape,fill,Tensors.Ready{},workers},storage,Buffer.pack(~Element,model),
+    Equal.cong(Storage.Buffer<Element>,Tensors.Tensor<Element>,buffer => Tensors.Tensor{buffer,shape,fill,Tensors.Usable{},workers},storage,Buffer.pack(~Element,model),
       Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,model),storage,equation)),
     %Buffer.packed_contents(~Element,model) : Facts(~Element,~Context,~reader,context,shape,_)
     %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,model),storage,equation) : Facts(~Element,~Context,~reader,context,shape,Buffer.contents(~Element,_))
@@ -457,7 +457,7 @@ def shaped_contract(~Element: Data,~Context: Data,~reader: Context -> U32 -> Ele
   evidence: Shaped<Element,Context,reader,context,shape,tensor>) ->
   Dense.Contract(~Element,~Context,~reader,context,tensor):
   Shaped{+model,+fill,+workers,+equation,Shape.Both{well_formed,values}} = evidence
-  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Ready{},workers},equation) : Dense.Contract(~Element,~Context,~reader,context,_)
+  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Usable{},workers},equation) : Dense.Contract(~Element,~Context,~reader,context,_)
   Shape.Both{Shape.Both{
       %Equal.sym(Buffer.Content<Element>,Buffer.contents(~Element,Buffer.pack(~Element,model)),Buffer.content(~Element,model),Buffer.packed_contents(~Element,model)) : Dense.WellFormed<Element,shape,_>
       well_formed,{==}},

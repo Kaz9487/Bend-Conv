@@ -238,15 +238,15 @@ def count_exact(+geometry: Bands.Geometry,+rows: U32,+length: Nat,count: BandSha
 def copied_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+geometry: Bands.Geometry,+first: U32,+rows: U32,+offset: U32,
   +input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
   width_positive: {BandShape.width_positive(geometry) == True{} : Bool},
-  metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),input_ready: Buffer.Ready<Element,input>,
-  output_ready: Buffer.Ready<Element,output>,room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(Bands.local_count(geometry,rows))),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
+  metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),input_ready: Buffer.Sized<Element,input>,
+  output_ready: Buffer.Sized<Element,output>,room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(Bands.local_count(geometry,rows))),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
   cell: BandValues.At(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input),channel,row,column)) ->
   ChannelAt(~Element,~Logical,~original,logical,BandRange.Request{geometry,first,rows,offset},
     BandGather.output(~Element,StorageCopyLaws.model(~Element,Bands.local_count(geometry,rows),0,offset,BandGather.owners(~Element,Buffer.content(~Element,input),Buffer.content(~Element,output)))),channel,row,column):
   Bands.Geometry{+images,+channels,+height,+width} = geometry
   Buffer.Model{+input_tree,+input_length,+input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
-  Buffer.Ready{+depth_ok,output_length_room} = output_ready
+  Buffer.Sized{+depth_ok,output_length_room} = output_ready
   Shape.Both{inside,equal} = cell
   +count = Bands.local_count(Bands.Geometry{images,channels,height,width},rows)
   +position = BandValues.position(Bands.Geometry{images,channels,height,width},rows,channel,row,column)
@@ -267,7 +267,7 @@ def copied_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
 type CopiedCells<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
   CopiedCells{logical: Logical,geometry: Bands.Geometry,first: U32,rows: U32,offset: U32,input: Buffer.Model<Element>,output: Buffer.Model<Element>,
     width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),
-    input_ready: Buffer.Ready<Element,input>,output_ready: Buffer.Ready<Element,output>,room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(Bands.local_count(geometry,rows))),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
+    input_ready: Buffer.Sized<Element,input>,output_ready: Buffer.Sized<Element,output>,room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(Bands.local_count(geometry,rows))),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
     values: BandValues.Leaf(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input))}
 
 def copied_geometry(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,evidence: CopiedCells<Element,Logical,original>) -> Bands.Geometry:
@@ -295,7 +295,7 @@ def copied_leaf_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> 
 def copied_cells(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+geometry: Bands.Geometry,+first: U32,+rows: U32,+offset: U32,
   +input: Buffer.Model<Element>,+output: Buffer.Model<Element>,
   width_positive: {BandShape.width_positive(geometry) == True{} : Bool},
-  metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),input_ready: Buffer.Ready<Element,input>,output_ready: Buffer.Ready<Element,output>,
+  metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),input_ready: Buffer.Sized<Element,input>,output_ready: Buffer.Sized<Element,output>,
   values: BandValues.Leaf(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
   room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(Bands.local_count(geometry,rows))),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool}) ->
   ChannelValues(~Element,~Logical,~original,logical,BandRange.Request{geometry,first,rows,offset},
@@ -307,7 +307,7 @@ def copied_cells(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 # channel offset keeps its value; no per-write disjointness is supplied.
 def copied_prefix_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+output_geometry: Bands.Geometry,+first: U32,+rows: U32,
   +count: U32,+offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  output_ready: Buffer.Ready<Element,output>,
+  output_ready: Buffer.Sized<Element,output>,
   +room: {Nat.is_le(Nat.add(U32.to_nat(offset),U32.to_nat(count)),U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool},
   +before: {Nat.is_lt(BandValues.position(output_geometry,rows,channel,row,column),U32.to_nat(offset)) == True{} : Bool},
   cell: BandValues.At(~Element,~Logical,~original,logical,output_geometry,first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),channel,row,column)) ->
@@ -316,7 +316,7 @@ def copied_prefix_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -
     Buffer.content_length(~Element,BandGather.output(~Element,StorageCopyLaws.model(~Element,count,0,offset,BandGather.owners(~Element,Buffer.content(~Element,input),Buffer.content(~Element,output))))),channel,row,column):
   Buffer.Model{+input_tree,+input_length,+input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
-  Buffer.Ready{+depth_ok,length_room} = output_ready
+  Buffer.Sized{+depth_ok,length_room} = output_ready
   Shape.Both{inside,equal} = cell
   +position = BandValues.position(output_geometry,rows,channel,row,column)
   +pixel = U32.from_nat(BandValues.pixel(output_geometry,channel,Nat.add(U32.to_nat(first),row),column))
@@ -344,7 +344,7 @@ type WrittenCells<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Ele
     domain: BandGather.Domain<BandRange.request_geometry(request),limits,capacity>,target: BandRange.Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
     source_well_formed: BandShape.WellFormed<Element,BandRange.request_geometry(request),Model.content(~Element,source)>,
     target_metadata: BandShape.Leaf(BandRange.request_geometry(request),BandRange.request_first(request),BandRange.request_rows(request),target_length),
-    ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,BandRange.request_geometry(request),Model.content(~Element,source))}
+    ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,BandRange.request_geometry(request),Model.content(~Element,source))}
 
 def written_geometry(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,evidence: WrittenCells<Element,Logical,original>) -> Bands.Geometry:
   WrittenCells{logical,request,source,output,limits,target_length,capacity,domain,target,source_well_formed,target_metadata,ready,values} = evidence
@@ -373,7 +373,7 @@ def written_cells(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
   domain: BandGather.Domain<BandRange.request_geometry(request),limits,capacity>,target: BandRange.Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   source_well_formed: BandShape.WellFormed<Element,BandRange.request_geometry(request),Model.content(~Element,source)>,
   target_metadata: BandShape.Leaf(BandRange.request_geometry(request),BandRange.request_first(request),BandRange.request_rows(request),target_length),
-  ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,BandRange.request_geometry(request),Model.content(~Element,source))) ->
+  ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,BandRange.request_geometry(request),Model.content(~Element,source))) ->
   ChannelValues(~Element,~Logical,~original,logical,request,BandRange.result(~Element,BandRange.written(~Element,request,Model.content(~Element,source),Buffer.content(~Element,output)))):
   BandValues.cells(~WrittenCells<Element,Logical,original>,~WrittenCell(~Element,~Logical,~original),~written_geometry(~Element,~Logical,~original),~written_rows(~Element,~Logical,~original),~written_leaf_cell(~Element,~Logical,~original),
     WrittenCells{logical,request,source,output,limits,target_length,capacity,domain,target,source_well_formed,target_metadata,ready,values})
@@ -1178,18 +1178,18 @@ def append_parts_well_formed(~Element: Data,parts: Tensors.Parts<Element>,+geome
   append_parts_well_formed_observed(~Element,parts,geometry,workers,state,output_geometry,observe_parts(~Element,parts),observe_band_state(~Element,state),evidence)
 
 def join_model(~Element: Data,+layout: Bands.Plan,+geometry: Bands.Geometry,parts: PartContents<Element>,shape: List<&2,U32>,+fill: Element,workers: U32) -> TensorContent<Element>:
-  BandedContent{state_output(~Element,parts_model(~Element,parts,geometry,(allocation_model(~Element,geometry,fill,layout),0))),geometry,shape,fill,Tensors.Ready{},workers}
+  BandedContent{state_output(~Element,parts_model(~Element,parts,geometry,(allocation_model(~Element,geometry,fill,layout),0))),geometry,shape,fill,Tensors.Usable{},workers}
 
 def join_packed(~Element: Data,+layout: Bands.Plan,+geometry: Bands.Geometry,+parts: PartsOwnerModel<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32) ->
   {tensor_contents(~Element,BandConcat.join(~Element,layout,geometry,parts_owner_pack(~Element,parts),shape,fill,workers)) == join_model(~Element,layout,geometry,parts_contents(~Element,parts_owner_pack(~Element,parts)),shape,fill,workers) : TensorContent<Element>}:
   Equal.trans(TensorContent<Element>,tensor_contents(~Element,BandConcat.join(~Element,layout,geometry,parts_owner_pack(~Element,parts),shape,fill,workers)),
-    BandedContent{state_output(~Element,parts_model(~Element,parts_contents(~Element,parts_owner_pack(~Element,parts)),geometry,(Model.contents(~Element,BandConcat.allocate(~Element,layout,geometry,fill)),0))),geometry,shape,fill,Tensors.Ready{},workers},
+    BandedContent{state_output(~Element,parts_model(~Element,parts_contents(~Element,parts_owner_pack(~Element,parts)),geometry,(Model.contents(~Element,BandConcat.allocate(~Element,layout,geometry,fill)),0))),geometry,shape,fill,Tensors.Usable{},workers},
     join_model(~Element,layout,geometry,parts_contents(~Element,parts_owner_pack(~Element,parts)),shape,fill,workers),
-    Equal.cong(Model.Content<Element>,TensorContent<Element>,content => BandedContent{content,geometry,shape,fill,Tensors.Ready{},workers},
+    Equal.cong(Model.Content<Element>,TensorContent<Element>,content => BandedContent{content,geometry,shape,fill,Tensors.Usable{},workers},
       Model.contents(~Element,BandConcat.append_parts(~Element,parts_owner_pack(~Element,parts),geometry,workers,(BandConcat.allocate(~Element,layout,geometry,fill),0))),
       state_output(~Element,parts_model(~Element,parts_contents(~Element,parts_owner_pack(~Element,parts)),geometry,(Model.contents(~Element,BandConcat.allocate(~Element,layout,geometry,fill)),0))),
       append_parts(~Element,parts_owner_pack(~Element,parts),geometry,workers,(BandConcat.allocate(~Element,layout,geometry,fill),0))),
-    Equal.cong(Model.Content<Element>,TensorContent<Element>,content => BandedContent{state_output(~Element,parts_model(~Element,parts_contents(~Element,parts_owner_pack(~Element,parts)),geometry,(content,0))),geometry,shape,fill,Tensors.Ready{},workers},
+    Equal.cong(Model.Content<Element>,TensorContent<Element>,content => BandedContent{state_output(~Element,parts_model(~Element,parts_contents(~Element,parts_owner_pack(~Element,parts)),geometry,(content,0))),geometry,shape,fill,Tensors.Usable{},workers},
       Model.contents(~Element,BandConcat.allocate(~Element,layout,geometry,fill)),allocation_model(~Element,geometry,fill,layout),allocate(~Element,geometry,fill,layout)))
 
 def join_observed(~Element: Data,+layout: Bands.Plan,+geometry: Bands.Geometry,-parts: Tensors.Parts<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,

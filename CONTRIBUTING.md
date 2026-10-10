@@ -2,11 +2,11 @@
 
 [English](CONTRIBUTING.md) | [繁體中文](CONTRIBUTING.zh-TW.md)
 
-Thank you for your interest in Bend-Conv.
+Thank you for your interest in Stelliferous.
 
 ## Questions and bugs
 
-Open an [issue](https://github.com/Kaz9487/Bend-Conv/issues). For a bug, include the program or command, what you expected, what happened, and your Bend version and operating system.
+Open an [issue](https://github.com/Kaz9487/Stelliferous/issues). For a bug, include the program or command, what you expected, what happened, and your Bend version and operating system.
 
 ## Changes
 

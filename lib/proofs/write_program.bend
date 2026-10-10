@@ -21,6 +21,13 @@ def pure(-T: Data,writes: List<&2,Assignment<T>>,out: Tree.Tree<T>) -> Tree.Tree
     case Put{i,v} <> rest:
       pure(T,rest,Tree.write(T,out,i,v))
 
+def concatenated_native(-T: Data,+first: List<&2,Assignment<T>>,+second: List<&2,Assignment<T>>,-output: Array<T>) ->
+  {native(T,List.append(&2,Assignment<T>,first,second),output) == native(T,second,native(T,first,output)) : Array<T>}:
+  match first:
+    case Nil{}: {==}
+    case Put{+index,+value} <> +rest:
+      concatenated_native(T,rest,second,Array.set(T,output,index,value))
+
 def concatenated_writes(-T: Data,+first: List<&2,Assignment<T>>,+second: List<&2,Assignment<T>>,+output: Tree.Tree<T>) ->
   {pure(T,List.append(&2,Assignment<T>,first,second),output) == pure(T,second,pure(T,first,output)) : Tree.Tree<T>}:
   match first:

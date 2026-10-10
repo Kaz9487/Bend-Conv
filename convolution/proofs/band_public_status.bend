@@ -26,10 +26,10 @@ def planned(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers,Bands.plan(~F32,Model.pack(~F32,source)))):
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers,Bands.plan(~F32,Model.pack(~F32,source)))):
   %Equal.sym(Bands.Bands(~F32) & Bands.Plan,Bands.plan(~F32,Model.pack(~F32,source)),(Model.pack(~F32,source),Model.layout(~F32,source)),Model.plan(~F32,source)) :
     PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-      TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers,_))
+      TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers,_))
   Replan.existing_layout(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,shape,values,weight_exact,bias_exact)
 
 def observed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+frame: PipelineExecution.Frame<Logical>,+batched: Bool,+workers: U32,
@@ -40,16 +40,16 @@ def observed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32
   weight_exact: {Buffer.content_tree(~F32,Buffer.contents(~F32,weights)) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.contents(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),weights,bias,workers,Bands.plan(~F32,source))):
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),weights),bias,workers,Bands.plan(~F32,source))):
   Model.Observation{+source_model,+source_equal} = source_observation
   Buffer.Observation{+weight_model,+weights_equal} = weight_observation
   Buffer.Observation{+bias_model,+bias_equal} = bias_observation
   %source_equal : PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),weights,bias,workers,Bands.plan(~F32,_)))
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),weights),bias,workers,Bands.plan(~F32,_)))
   %weights_equal : PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),_,bias,workers,Bands.plan(~F32,Model.pack(~F32,source_model))))
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),_),bias,workers,Bands.plan(~F32,Model.pack(~F32,source_model))))
   %bias_equal : PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weight_model),_,workers,Bands.plan(~F32,Model.pack(~F32,source_model))))
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weight_model)),_,workers,Bands.plan(~F32,Model.pack(~F32,source_model))))
   planned(~custom,~Logical,~original,frame,batched,workers,source_model,weight_model,bias_model,
     PipelineWellFormed.source_shape(~Logical,frame,source_model,source,source_equal,shape),TensorExecution.source_values(~Logical,~original,frame,source_model,source,source_equal,values),
     Equal.trans(Tree.Tree<F32>,Buffer.tree(~F32,weight_model),Buffer.content_tree(~F32,Buffer.contents(~F32,weights)),PipelineExecution.source_tree(~Logical,frame),
@@ -64,7 +64,7 @@ def owners(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+
   weight_exact: {Buffer.content_tree(~F32,Buffer.contents(~F32,weights)) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.contents(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),weights,bias,workers,Bands.plan(~F32,source))):
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),weights),bias,workers,Bands.plan(~F32,source))):
   observed(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,Model.observe(~F32,source),Buffer.observe(~F32,weights),Buffer.observe(~F32,bias),shape,values,weight_exact,bias_exact)
 
 # Program ownership and sticky status at the actual convolution caller.
@@ -77,7 +77,7 @@ def failed_input(~custom: F32 -> F32,+activation: Activations.Activation,+proble
 
 def failed_parameters(~custom: F32 -> F32,+activation: Activations.Activation,+problem: Tensors.Problem,+layout: Bands.Geometry,
   input: Bands.Bands(~F32),+shape: List<&2,U32>,+fill: F32,+input_workers: U32,weights: Storage.Buffer<F32>,weight_shape: List<&2,U32>,bias: Storage.Buffer<F32>,bias_shape: List<&2,U32>,+parameter_workers: U32,stride: U32,padding: U32) ->
-  {TensorConvolution.input_layout(~custom,activation,Tensors.Banded{input,layout,shape,fill,Tensors.Ready{},input_workers},weights,weight_shape,bias,bias_shape,Tensors.Failed{problem},parameter_workers,stride,padding) ==
+  {TensorConvolution.input_layout(~custom,activation,Tensors.Banded{input,layout,shape,fill,Tensors.Usable{},input_workers},weights,weight_shape,bias,bias_shape,Tensors.Failed{problem},parameter_workers,stride,padding) ==
     Tensors.Banded{input,layout,shape,fill,Tensors.Failed{problem},U32.max(input_workers,parameter_workers)} : Tensors.Tensor<F32>}:
   {==}
 

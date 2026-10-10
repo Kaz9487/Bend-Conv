@@ -39,7 +39,7 @@ def TensorValues(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 
 def status_ready(status: Tensors.Status) -> Bool:
   match status:
-    case Tensors.Ready{}: True{}
+    case Tensors.Usable{}: True{}
     case Tensors.Failed{problem}: False{}
 
 def tensor_ready(~Element: Data,tensor: Tensors.Tensor<Element>) -> Bool:
@@ -72,5 +72,5 @@ def empty_well_formed(~Element: Data,+shape: List<&2,U32>,+fill: Element,empty: 
 
 def empty_tensor(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   empty: {ShapeLaws.elements(shape) == 0n : Nat}) ->
-  Contract(~Element,~Logical,~original,logical,Tensors.Tensor{Tensors.buffer(~Element,fill,0),shape,fill,Tensors.Ready{},workers}):
+  Contract(~Element,~Logical,~original,logical,Tensors.Tensor{Tensors.buffer(~Element,fill,0),shape,fill,Tensors.Usable{},workers}):
   Shape.Both{Shape.Both{empty_well_formed(~Element,shape,fill,empty),{==}},empty_values(~Element,~Logical,~original,logical,fill)}

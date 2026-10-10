@@ -137,26 +137,29 @@ def represent_map(~Element: Data,~Context: Data,
   Traversal.State{Unit{},output,position,context} = state
   Traversal.State{Unit{},Tree.pack(Element,output),position,context}
 
-def model_map_step(~Element: Data,~Context: Data,~map: Context -> Element -> Element,
+def unindexed(~Element: Data,~Context: Data,~map: Context -> Element -> Element,context: Context,position: U32,value: Element) -> Element:
+  map(context,value)
+
+def model_map_step(~Element: Data,~Context: Data,~map: Context -> U32 -> Element -> Element,
   state: Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Context>) -> Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Context>:
   Traversal.State{Unit{},+output,+position,+context} = state
-  Traversal.State{Unit{},Tree.write(Element,output,position,map(context,Tree.read(Element,output,position))),
+  Traversal.State{Unit{},Tree.write(Element,output,position,map(context,position,Tree.read(Element,output,position))),
     (position + 1 : U32),context}
 
 def map_step_refines_model(~Element: Data,~Context: Data,~map: Context -> Element -> Element,
   +state: Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Context>) ->
   {Traversal.map_step(~Element,~Context,~map,represent_map(~Element,~Context,state)) ==
-    represent_map(~Element,~Context,model_map_step(~Element,~Context,~map,state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}:
+    represent_map(~Element,~Context,model_map_step(~Element,~Context,~unindexed(~Element,~Context,~map),state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}:
   Traversal.State{Unit{},+output,+position,+context} = state
   %Equal.sym(Array<Element> & Element,Array.get(Element,Tree.pack(Element,output),position),
     (Tree.pack(Element,output),Tree.read(Element,output,position)),StorageLaws.read(Element,output,position)) :
     {Traversal.mapped_value(~Element,~Context,~map,position,context,_) ==
-      represent_map(~Element,~Context,model_map_step(~Element,~Context,~map,state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}
+      represent_map(~Element,~Context,model_map_step(~Element,~Context,~unindexed(~Element,~Context,~map),state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}
   %Equal.sym(Array<Element>,Array.set(Element,Tree.pack(Element,output),position,map(context,Tree.read(Element,output,position))),
     Tree.pack(Element,Tree.write(Element,output,position,map(context,Tree.read(Element,output,position)))),
     StorageLaws.write(Element,output,position,map(context,Tree.read(Element,output,position)))) :
     {Traversal.State{Unit{},_,(position + 1 : U32),context} ==
-      represent_map(~Element,~Context,model_map_step(~Element,~Context,~map,state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}
+      represent_map(~Element,~Context,model_map_step(~Element,~Context,~unindexed(~Element,~Context,~map),state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}
   {==}
 
 def map_loop_refines_model(~Element: Data,~Context: Data,~map: Context -> Element -> Element,
@@ -164,9 +167,9 @@ def map_loop_refines_model(~Element: Data,~Context: Data,~map: Context -> Elemen
   {Loop.run(~Traversal.State<&2,&1,Unit,Array<Element>,Context>,~Traversal.map_step(~Element,~Context,~map),
       count,represent_map(~Element,~Context,state)) ==
     represent_map(~Element,~Context,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Context>,
-      ~model_map_step(~Element,~Context,~map),count,state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}:
+      ~model_map_step(~Element,~Context,~unindexed(~Element,~Context,~map)),count,state)) : Traversal.State<&2,&1,Unit,Array<Element>,Context>}:
   Projection.iteration_refines_model(~Traversal.State<&2,&1,Unit,Array<Element>,Context>,~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Context>,
-    ~Traversal.map_step(~Element,~Context,~map),~model_map_step(~Element,~Context,~map),~represent_map(~Element,~Context),
+    ~Traversal.map_step(~Element,~Context,~map),~model_map_step(~Element,~Context,~unindexed(~Element,~Context,~map)),~represent_map(~Element,~Context),
     ~map_step_refines_model(~Element,~Context,~map),count,state)
 
 # One representation proof covers the entire indexed output traversal. The

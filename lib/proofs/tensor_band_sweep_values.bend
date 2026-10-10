@@ -58,13 +58,13 @@ def moved_tap(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element
 # position, which the caller relates to the value of its pixel.
 def swept_at(~Element: Data,~Context: Data,~value: Context -> U32 -> Element,~operation: Element -> Element -> Element,+context: Context,+geometry: Bands.Geometry,+first: U32,+rows: U32,
   +local: Access.SweepContext<Element>,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  ready: Buffer.Ready<Element,output>,
+  ready: Buffer.Sized<Element,output>,
   +selected: {Nat.is_lt(BandValues.position(geometry,rows,channel,row,column),Buffer.length(~Element,output)) == True{} : Bool},
   sample: {SweepLaws.sample_swept(~Element,~operation,input,local,U32.from_nat(BandValues.position(geometry,rows,channel,row,column))) ==
     value(context,U32.from_nat(BandValues.pixel(geometry,channel,Nat.add(U32.to_nat(first),row),column))) : Element}) ->
   BandValues.At(~Element,~Context,~value,context,geometry,first,rows,Sweeps.run(~Element,~operation,Buffer.length(~Element,output),local,input,Buffer.tree(~Element,output)),Buffer.length(~Element,output),channel,row,column):
   Buffer.Model{+output_tree,+length,+certificate} = output
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +output = {Buffer.Model{output_tree,length,certificate} : Buffer.Model<Element>}
   +position = BandValues.position(geometry,rows,channel,row,column)
   Shape.Both{selected,
@@ -293,7 +293,7 @@ def column_taps(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
 # What the columns sweep of a leaf supplies to every cell of its output.
 type ColumnCells<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
   ColumnCells{logical: Logical,pad: Element,batch: U32,channels: U32,height: U32,width: U32,kernel: U32,stride: U32,padding: U32,out_width: U32,first: U32,rows: U32,
-    input: Tree.Tree<Element>,length: Nat,output: Buffer.Model<Element>,limits: Machine.Limits,ready: Buffer.Ready<Element,output>,
+    input: Tree.Tree<Element>,length: Nat,output: Buffer.Model<Element>,limits: Machine.Limits,ready: Buffer.Sized<Element,output>,
     values: BandValues.Leaf(~Element,~Logical,~original,logical,Bands.Geometry{batch,channels,height,width},first,rows,input,length),
     length_exact: {Buffer.length(~Element,output) == BandValues.cell_count(Bands.Geometry{batch,channels,height,out_width},rows) : Nat},
     rows_fit: {Nat.is_le(Nat.add(U32.to_nat(first),U32.to_nat(rows)),Nat.mul(U32.to_nat(batch),U32.to_nat(height))) == True{} : Bool},
@@ -340,7 +340,7 @@ def column_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
 # rows, of the batch swept along its columns.
 def columns_leaf(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,~operation: Element -> Element -> Element,+logical: Logical,+pad: Element,+batch: U32,+channels: U32,+height: U32,+width: U32,
   +kernel: U32,+stride: U32,+padding: U32,+out_width: U32,+first: U32,+rows: U32,+input: Tree.Tree<Element>,+length: Nat,+output: Buffer.Model<Element>,+limits: Machine.Limits,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +values: BandValues.Leaf(~Element,~Logical,~original,logical,Bands.Geometry{batch,channels,height,width},first,rows,input,length),
   +length_exact: {Buffer.length(~Element,output) == BandValues.cell_count(Bands.Geometry{batch,channels,height,out_width},rows) : Nat},
   +rows_fit: {Nat.is_le(Nat.add(U32.to_nat(first),U32.to_nat(rows)),Nat.mul(U32.to_nat(batch),U32.to_nat(height))) == True{} : Bool},
@@ -527,7 +527,7 @@ def row_taps(~Element: Data,~Inner: Data,~inner_value: Inner -> U32 -> Element,r
 # What the rows sweep of a leaf supplies to every cell of its output.
 type RowCells<-Element: Data,-Inner: Data,-inner_value: Inner -> U32 -> Element> is Data:
   RowCells{inner: Inner,pad: Element,batch: U32,channels: U32,height: U32,width: U32,kernel: U32,stride: U32,padding: U32,out_height: U32,window_first: U32,window_rows: U32,output_first: U32,output_rows: U32,origin: U32,
-    input: Tree.Tree<Element>,length: Nat,output: Buffer.Model<Element>,limits: Machine.Limits,ready: Buffer.Ready<Element,output>,
+    input: Tree.Tree<Element>,length: Nat,output: Buffer.Model<Element>,limits: Machine.Limits,ready: Buffer.Sized<Element,output>,
     values: BandValues.Leaf(~Element,~Inner,~inner_value,inner,Bands.Geometry{batch,channels,height,width},window_first,window_rows,input,length),
     length_exact: {Buffer.length(~Element,output) == BandValues.cell_count(Bands.Geometry{batch,channels,out_height,width},output_rows) : Nat},
     output_fit: {Nat.is_le(Nat.add(U32.to_nat(output_first),U32.to_nat(output_rows)),Nat.mul(U32.to_nat(batch),U32.to_nat(out_height))) == True{} : Bool},
@@ -578,7 +578,7 @@ def row_cell(~Element: Data,~Inner: Data,~inner_value: Inner -> U32 -> Element,~
 # leaf, with the output rows, of the batch swept along its rows.
 def rows_leaf(~Element: Data,~Inner: Data,~inner_value: Inner -> U32 -> Element,~operation: Element -> Element -> Element,+inner: Inner,+pad: Element,+batch: U32,+channels: U32,+height: U32,+width: U32,
   +kernel: U32,+stride: U32,+padding: U32,+out_height: U32,+window_first: U32,+window_rows: U32,+output_first: U32,+output_rows: U32,+origin: U32,
-  +input: Tree.Tree<Element>,+length: Nat,+output: Buffer.Model<Element>,+limits: Machine.Limits,+ready: Buffer.Ready<Element,output>,
+  +input: Tree.Tree<Element>,+length: Nat,+output: Buffer.Model<Element>,+limits: Machine.Limits,+ready: Buffer.Sized<Element,output>,
   +values: BandValues.Leaf(~Element,~Inner,~inner_value,inner,Bands.Geometry{batch,channels,height,width},window_first,window_rows,input,length),
   +length_exact: {Buffer.length(~Element,output) == BandValues.cell_count(Bands.Geometry{batch,channels,out_height,width},output_rows) : Nat},
   +output_fit: {Nat.is_le(Nat.add(U32.to_nat(output_first),U32.to_nat(output_rows)),Nat.mul(U32.to_nat(batch),U32.to_nat(out_height))) == True{} : Bool},
@@ -616,7 +616,7 @@ def pooled_leaf(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Eleme
   +kernel: U32,+stride: U32,+padding: U32,+out_height: U32,+out_width: U32,+window_first: U32,+window_rows: U32,+output_first: U32,+output_rows: U32,+origin: U32,
   +input: Tree.Tree<Element>,+length: Nat,+middle: Buffer.Model<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,
   rooms: Rooms<batch,channels,height,width,out_height,out_width,window_first,window_rows,output_first,output_rows,limits>,
-  +middle_ready: Buffer.Ready<Element,middle>,+ready: Buffer.Ready<Element,output>,
+  +middle_ready: Buffer.Sized<Element,middle>,+ready: Buffer.Sized<Element,output>,
   +values: BandValues.Leaf(~Element,~Logical,~original,logical,Bands.Geometry{batch,channels,height,width},window_first,window_rows,input,length),
   +middle_exact: {Buffer.length(~Element,middle) == BandValues.cell_count(Bands.Geometry{batch,channels,height,out_width},window_rows) : Nat},
   +length_exact: {Buffer.length(~Element,output) == BandValues.cell_count(Bands.Geometry{batch,channels,out_height,out_width},output_rows) : Nat},

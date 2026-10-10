@@ -15,7 +15,7 @@
 | `python run.py api` | 只用 `F` 寫成的程式，1 與 4 執行緒，與 NumPy 逐位元比對 |
 | `python run.py model --case bus_640 --threads 4` | YOLOv5n：產生、編譯、執行，與 PyTorch 比對 |
 | `python run.py benchmark` | 卷積運算的計時 |
-| `python run.py backends` | YOLOv5n 在 NumPy、Bend-Conv 與 PyTorch 上的 forward 時間 |
+| `python run.py backends` | YOLOv5n 在 NumPy、Stelliferous 與 PyTorch 上的 forward 時間 |
 | `python run.py summary` | 列出已記錄的結果哪些通過，不重新執行 |
 
 檢查單一 Bend 檔；先掃描檢查器會拒絕的寫法：

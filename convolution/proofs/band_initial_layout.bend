@@ -9,6 +9,7 @@ import ../../lib/proofs/tensor_band_values.bend as BandValues
 import ../../lib/proofs/tensor_dense_contract.bend as Dense
 import ../../lib/proofs/tensor_global_shape_count.bend as Global
 import ../../lib/tensor.bend as Tensors
+import ../../lib/kernel_tile.bend as Tile
 import ../../lib/tensor_convolution.bend as TensorConvolution
 import ./band_dense_public.bend as DensePublic
 import ./band_output_metadata.bend as OutputMetadata
@@ -61,7 +62,7 @@ def from_band_header(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U3
     case Tensors.Banded{bands,+geometry,shape,fill,+status,workers}:
       Shape.Both{geometry_exact,Shape.Both{shape_exact,status_exact}} = header
       Shape.Both{values,well_formed} = owners
-      Shape.Both{Shape.Both{Shape.Both{well_formed,Equal.cong(Tensors.Status,Bool,Dense.status_ready,status,Tensors.Ready{},status_exact)},
+      Shape.Both{Shape.Both{Shape.Both{well_formed,Equal.cong(Tensors.Status,Bool,Dense.status_ready,status,Tensors.Usable{},status_exact)},
         band_values(~custom,~Logical,~original,frame,geometry,Model.contents(~F32,bands),values)},normal}
     case Tensors.Tensor{storage,shape,fill,status,workers}:
       Empty.absurd(LayoutContract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),Tensors.Tensor{storage,shape,fill,status,workers}),header)
@@ -73,15 +74,15 @@ def from_initial(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 ->
   from_band_header(~custom,~Logical,~original,frame,batched,tensor,header,owners,normal)
 
 def start_header(~custom: F32 -> F32,~Logical: Data,+frame: PipelineExecution.Frame<Logical>,+batched: Bool,+depth: U32,+workers: U32,+source: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>) ->
-  BandOutputNormal.Header(batched,OutputMetadata.bounds_geometry(~Logical,frame),TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
-  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    TensorConvolution.band_output(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorExecution.execution_parallel(~Logical,frame),Bands.split(~F32,U32.to_nat(depth),PipelineExecution.input_geometry(~Logical,frame),0.0,Buffer.pack(~F32,source)),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
+  BandOutputNormal.Header(batched,OutputMetadata.bounds_geometry(~Logical,frame),TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
+  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
+    TensorConvolution.band_output(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorExecution.execution_parallel(~Logical,frame),Bands.split(~F32,U32.to_nat(depth),PipelineExecution.input_geometry(~Logical,frame),0.0,Buffer.pack(~F32,source)),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
     DensePublic.start_bands_matches(~custom,~Logical,frame,batched,depth,workers,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias))) : BandOutputNormal.Header(batched,OutputMetadata.bounds_geometry(~Logical,frame),_)
   BandOutputNormal.band_output_header(~custom,~Logical,frame,batched,TensorExecution.execution_parallel(~Logical,frame),workers,Bands.split(~F32,U32.to_nat(depth),PipelineExecution.input_geometry(~Logical,frame),0.0,Buffer.pack(~F32,source)),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias))
 
 def start_bands(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+frame: PipelineExecution.Frame<Logical>,+batched: Bool,+depth: U32,+workers: U32,
   +source: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+shape: List<&2,U32>,+fill: F32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),shape,fill,Tensors.Ready{},workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),shape,fill,Tensors.Usable{},workers}),
   coherent: {Window.band_shape(shape,PipelineExecution.input_geometry(~Logical,frame)) == True{} : Bool},
   matched: {BandOutputNormal.shape_matched(BandOutputNormal.images(OutputMetadata.bounds_geometry(~Logical,frame)),batched) == True{} : Bool},
   limits_exact: {PipelineExecution.convolution_limits(~Logical,frame) == Default.limits() : Machine.Limits},
@@ -89,9 +90,9 @@ def start_bands(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> 
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   LayoutContract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
+    TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
   from_initial(~custom,~Logical,~original,frame,batched,
-    TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
+    TensorConvolution.start_bands(~custom,TensorExecution.execution_activation(~Logical,frame),depth,TensorExecution.execution_parallel(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
     start_header(~custom,~Logical,frame,batched,depth,workers,source,weights,bias),
     DensePublic.start_bands(~custom,~Logical,~original,frame,batched,depth,workers,source,weights,bias,shape,fill,normal,coherent,matched,limits_exact,source_values,weight_exact,bias_exact))
 
@@ -133,16 +134,16 @@ def from_dense_header(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U
   Shape.Both{contract,dense_normal(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,tensor,header,contract)}
 
 def arguments_header(~custom: F32 -> F32,+activation: Activations.Activation,+arguments: TensorConvolution.DenseArguments,
-  -input: Storage.Buffer<F32>,-weights: Storage.Buffer<F32>,-bias: Storage.Buffer<F32>,+workers: U32) ->
+  -input: Storage.Buffer<F32>,-weights: Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32>,+workers: U32) ->
   DenseHeader(~F32,TensorConvolution.execute_dense_arguments(~custom,activation,arguments,input,weights,bias,workers)):
   TensorConvolution.DenseArguments{count,work,input_size,output_size,extents,selected} = arguments
   Unit{}
 
 def execute_dense_header(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: TensorConvolution.Geometry,
   -input: Storage.Buffer<F32>,-weights: Storage.Buffer<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
-  DenseHeader(~F32,TensorConvolution.execute_dense(~custom,activation,geometry,input,weights,Buffer.pack(~F32,bias),workers)):
+  DenseHeader(~F32,TensorConvolution.execute_dense(~custom,activation,geometry,input,TensorConvolution.packed(geometry,weights),Buffer.pack(~F32,bias),workers)):
   Buffer.Model{tree,length,Certificate.Certificate{+depth,equation}} = bias
-  arguments_header(~custom,activation,TensorConvolution.dense_arguments(geometry,depth,workers,activation),input,weights,Buffer.pack(~F32,bias),workers)
+  arguments_header(~custom,activation,TensorConvolution.dense_arguments(geometry,depth,workers,activation),input,TensorConvolution.packed(geometry,weights),Buffer.pack(~F32,bias),workers)
 
 def dense_workers(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+workers: U32,tensor: Tensors.Tensor<F32>,
   header: DenseHeader(~F32,tensor),+contract: Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,tensor)) ->

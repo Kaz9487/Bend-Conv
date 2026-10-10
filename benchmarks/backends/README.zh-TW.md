@@ -2,7 +2,7 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-YOLOv5n 在 NumPy、Bend-Conv 與 PyTorch 上的 forward 時間。先完成 [YOLO 範例](../../examples/yolov5/README.zh-TW.md)的設定。
+YOLOv5n 在 NumPy、Stelliferous 與 PyTorch 上的 forward 時間。先完成 [YOLO 範例](../../examples/yolov5/README.zh-TW.md)的設定。
 
 ```sh
 python run.py backends            # CPU
@@ -15,7 +15,7 @@ python run.py backends --cuda     # 另外執行手寫的 C 與 CUDA 程式
 
 - 每個後端在同一個 process 內做兩次暖機、七個樣本。
 - 計時：配置、packing、kernel、gather 與解碼。不計時：載入、編譯、前處理、診斷輸出與 NMS。
-- Bend 在每次計時的 forward 前重新載入輸入；allocator 與 worker 保持存活。
+- Bend 執行的是[範例程式](../../examples/yolov5/yolov5n.bend)。每次計時的 forward 前先複製影像與權重；allocator 與 worker 保持存活。它的時鐘以毫秒計。
 - 沒有固定 CPU affinity 與頻率。GPU 計時在讀取時鐘前先同步。
 - 數值驗證另外執行；缺少結果就視為失敗。
 
@@ -24,7 +24,7 @@ python run.py backends --cuda     # 另外執行手寫的 C 與 CUDA 程式
 | 變數 | 意義 |
 |---|---|
 | `BENCH_PYTHON` | Linux 的直譯器，預設 `python3`。需要 NumPy、PyTorch 與 threadpoolctl |
-| `BEND_REPETITIONS` | 每個 Bend process 做幾次 forward，預設一次。benchmark 設為九次 |
+| `YOLO_EXTRA` | Bend process 在存檔那一次之前先做幾次 forward，預設不做。benchmark 設為八次 |
 
 如果直譯器的環境是唯讀的，把缺少的套件裝到 `out/python_packages`，launcher 會把它加進 `PYTHONPATH`：
 

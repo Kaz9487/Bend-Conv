@@ -4,6 +4,7 @@ import Base
 import ./kernel_cost.bend as Cost
 import ./kernel_window.bend as KernelWindow
 import ./math_activation.bend as Activations
+import ./kernel_pipeline.bend as Pipeline
 
 type Owners is Data:
   Owners{input_capacity: U32,bias_capacity: U32}
@@ -19,9 +20,9 @@ type Work is Data:
 type InputRows is Data:
   InputRows{first: U32,rows: U32,capacity: Nat}
 
-# Input bytes a fork allocates and the rows its first half then holds.
+# Allocation and moved/initialized payload are distinct for a copied band.
 type ForkInput is Data:
-  ForkInput{bytes: Nat,left: InputRows}
+  ForkInput{bytes: Nat,transfer: Nat,left: InputRows}
 
 # critical_ns is the span (the costliest root-to-leaf path) and work_ns the sum
 # over every leaf and fork; together they bound time on a given worker count.
@@ -54,6 +55,12 @@ def weight_bytes(work: Work) -> Nat:
   Work{positions,inner,rows,owners,geometry,activation} = work
   Nat.mul(32n,capacity(((rows + 7) / 8 * inner : U32)))
 
+# The weight reorder writes complete eight-channel tiles, including zero lanes.
+def reorder_ns(+work: Work,config: Cost.Configuration) -> F32:
+  Work{positions,+inner,+rows,owners,geometry,activation} = work
+  Cost.Configuration{mac,byte_ns,operation_ns,grain,wake} = config
+  ((U32.to_f32(((rows + 7) / 8 * 8 : U32)) * U32.to_f32(inner) * 4.0 + payload_float(weight_bytes(work))) * byte_ns : F32)
+
 # Each fork clones the reordered weights and bias, and splits the input rows.
 def fork_bytes(+work: Work,input: Nat) -> Nat:
   Work{positions,inner,rows,Owners{input_capacity,bias},geometry,activation} = work
@@ -69,7 +76,16 @@ def band_rows(+band: KernelWindow.Band,+channels: U32,+width: U32) -> InputRows:
 
 def band_bytes(+band: KernelWindow.Band,+channels: U32,+width: U32) -> Nat:
   KernelWindow.Band{first,+rows} = band
-  Nat.mul(4n,capacity((channels * rows * width : U32)))
+  Nat.mul(4n,Nat.max(2n,capacity((channels * rows * width : U32))))
+
+# copied initializes the new owner and copies every logical band value.
+# Array.clone instead copies the complete allocation, without initialization.
+def input_transfer(copy: Bool,band: KernelWindow.Band,window: InputRows,channels: U32,width: U32) -> Nat:
+  match copy band:
+    case False{} band: clone_bytes(window)
+    case True{} KernelWindow.Band{first,rows}:
+      +count = (channels * rows * width : U32)
+      Nat.mul(4n,Nat.add(U32.to_nat(count),capacity(count)))
 
 # As in the pipelines: a checked band over aligned rows is copied and the
 # second half keeps the parent; otherwise the parent owner is cloned.
@@ -89,66 +105,73 @@ def fork_window(+offset: U32,+half: U32,+window: InputRows,+geometry: Geometry) 
   +band = KernelWindow.band(first,count,height,kernel,stride,padding,output_width,offset,half)
   +copy = KernelWindow.copies_band(first,count,height,kernel,stride,padding,output_width,offset,half,band)
   +parent = {InputRows{first,count,capacity} : InputRows}
-  ForkInput{input_bytes(copy,band,parent,channels,width),left_rows(copy,band,parent,channels,width)}
+  ForkInput{input_bytes(copy,band,parent,channels,width),input_transfer(copy,band,parent,channels,width),left_rows(copy,band,parent,channels,width)}
 
 def fork_input(+offset: U32,+half: U32,+window: InputRows,+work: Work) -> ForkInput:
   Work{positions,inner,rows,owners,+geometry,activation} = work
   fork_window(offset,half,window,geometry)
 
 def forked_bytes(+fork: ForkInput) -> Nat:
-  ForkInput{+bytes,left} = fork
+  ForkInput{+bytes,transfer,left} = fork
   bytes
 
+def forked_transfer(+fork: ForkInput) -> Nat:
+  ForkInput{bytes,+transfer,left} = fork
+  transfer
+
 def forked_left(+fork: ForkInput) -> InputRows:
-  ForkInput{bytes,+left} = fork
+  ForkInput{bytes,transfer,+left} = fork
   left
 
 def root_rows(+work: Work) -> InputRows:
   Work{positions,inner,rows,Owners{+input,bias},Geometry{channels,+height,width,kernel,stride,padding,output_width},activation} = work
   InputRows{0,height,U32.to_nat(input)}
 
-# The activation pass reads and writes each padded output in place; the
+# The activation pass reads and writes each logical output in place; the
 # identity skips the pass.
 def activation_ns(+activation: Activations.Activation,+config: Cost.Configuration) -> F32:
   Bool.pick(F32,Activations.is_identity(activation),0.0,Cost.element_ns(4.0,Activations.operations(activation),config))
 
-def leaf_cost(span: U32,work: Work,+config: Cost.Configuration) -> Movement:
+def leaf_cost(span: U32,+count: U32,work: Work,+config: Cost.Configuration) -> Movement:
   Work{positions,+inner,+rows,owners,geometry,activation} = work
   Cost.Configuration{mac_ns,+byte_ns,operation_ns,grain,wake} = config
   +span = span
-  +packed = Nat.mul(32n,capacity((span / 8 * inner : U32)))
-  +output = Nat.mul(4n,capacity((rows * span : U32)))
+  +packed = Nat.mul(32n,capacity(U32.max(Pipeline.block_tiles(),inner)))
+  +output_capacity = capacity((rows * count : U32))
+  +output = Nat.mul(4n,Nat.max(2n,output_capacity))
   # Padded lanes still execute every MAC, including absent rows of the last unit.
   +core = (U32.to_f32(((rows + 3) / 4 * 4 : U32)) * U32.to_f32(span) * U32.to_f32(inner) * mac_ns : F32)
   # Initializing each allocation and transferring logical data are separate work.
   +packing = ((U32.to_f32(span) * U32.to_f32(inner) * 4.0 + payload_float(packed)) * byte_ns : F32)
-  +stores = ((U32.to_f32(rows) * U32.to_f32(span) * 4.0 + payload_float(output)) * byte_ns : F32)
-  +finish = (U32.to_f32(rows) * U32.to_f32(span) * activation_ns(activation,config) : F32)
+  +stores = ((U32.to_f32(rows) * U32.to_f32(count) * 4.0 + payload_float(Nat.mul(4n,output_capacity))) * byte_ns : F32)
+  +finish = (U32.to_f32(rows) * U32.to_f32(count) * activation_ns(activation,config) : F32)
   +time = (core + packing + stores + finish : F32)
   Movement{packed,output,0n,time,time,time}
 
-def merge(+bytes: Nat,byte_ns: F32,left: Movement,right: Movement) -> Movement:
+def merge(bytes: Nat,transfer: Nat,byte_ns: F32,left: Movement,right: Movement) -> Movement:
   Movement{lp,lo,lc,lt,lw,lmin} = left
   Movement{rp,ro,rc,rt,rw,rmin} = right
-  +copy = (payload_float(bytes) * byte_ns : F32)
+  +copy = (payload_float(transfer) * byte_ns : F32)
   Movement{Nat.add(lp,rp),Nat.add(lo,ro),Nat.add(bytes,Nat.add(lc,rc)),
     (copy + F32.max(lt,rt) : F32),(copy + lw + rw : F32),F32.min(lmin,rmin)}
 
 def movement(depth: Nat,+offset: U32,+span: U32,+window: InputRows,+work: Work,+config: Cost.Configuration) -> Movement:
   match depth:
-    case 0n: leaf_cost(span,work,config)
+    case 0n:
+      Work{+positions,inner,rows,owners,geometry,activation} = work
+      leaf_cost(span,U32.min(span,(positions - offset : U32)),work,config)
     case 1n+ +rest:
       Cost.Configuration{mac,byte_ns,operation_ns,grain,wake} = config
       +half = (span / 16 * 8 : U32)
       +fork = fork_input(offset,half,window,work)
-      merge(fork_bytes(work,forked_bytes(fork)),byte_ns,movement(rest,offset,half,forked_left(fork),work,config),
+      merge(fork_bytes(work,forked_bytes(fork)),fork_bytes(work,forked_transfer(fork)),byte_ns,movement(rest,offset,half,forked_left(fork),work,config),
         movement(rest,(offset + half : U32),(span - half : U32),window,work,config))
 
 def workspace(+depth: U32,+work: Work,cost: Movement) -> Nat:
   Work{+positions,inner,rows,owners,geometry,activation} = work
   Movement{packed,leaves,copies,span,total,minimum} = cost
   Nat.add(weight_bytes(work),Nat.add(packed,Nat.add(copies,
-    Bool.pick(Nat,U32.is_zero(depth) && U32.is_eq(positions,KernelWindow.padded(positions)),0n,leaves))))
+    Bool.pick(Nat,U32.is_zero(depth),0n,leaves))))
 
 # Estimate the partition on workers by (work - span) / workers + span, Graham's
 # bound for greedy list scheduling. BendRT does not steal work: it deals forked
@@ -162,9 +185,9 @@ def estimate(+depth: U32,+work: Work,config: Cost.Configuration,cost: Movement,+
   Work{+positions,+inner,+rows,owners,geometry,activation} = work
   Cost.Configuration{mac,+byte_ns,operation_ns,grain,wake} = config
   Movement{packed,leaves,copies,+span,+total,minimum} = cost
-  # One read/write pass and one initialization of the padded weight owner.
-  +reorder = ((U32.to_f32(rows) * U32.to_f32(inner) * 4.0 + payload_float(weight_bytes(work))) * byte_ns : F32)
-  +gather = Bool.pick(F32,U32.is_zero(depth) && U32.is_eq(positions,KernelWindow.padded(positions)),0.0,
+  +reorder = reorder_ns(work,config)
+  # A depth-zero blocked leaf already owns the exact logical output.
+  +gather = Bool.pick(F32,U32.is_zero(depth),0.0,
     ((U32.to_f32(rows) * U32.to_f32(positions) * 4.0 + payload_float(Nat.mul(4n,capacity((rows * positions : U32))))) * byte_ns : F32))
   (reorder + scheduled(workers,span,total) + gather : F32)
 

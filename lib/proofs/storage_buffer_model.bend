@@ -81,20 +81,20 @@ def capacity_allocatable(~Element: Data,+model: Model<Element>,depth_ok: {Nat.is
 # Logical length and the native machine depth are independent of the stored
 # element values. Allocation establishes them; content-preserving operations
 # carry them with the same owner.
-type Ready<-Element: Data,-model: Model<Element>> is Data:
-  Ready{depth_ok: {Nat.is_le(depth(~Element,model),30n) == True{} : Bool},
+type Sized<-Element: Data,-model: Model<Element>> is Data:
+  Sized{depth_ok: {Nat.is_le(depth(~Element,model),30n) == True{} : Bool},
     room: {Nat.is_le(length(~Element,model),U32.to_nat(Tree.capacity(Element,tree(~Element,model)))) == True{} : Bool}}
 
-def ready_content(~Element: Data,+model: Model<Element>,evidence: ContentReady<Element,content(~Element,model)>) -> Ready<Element,model>:
+def ready_content(~Element: Data,+model: Model<Element>,evidence: ContentReady<Element,content(~Element,model)>) -> Sized<Element,model>:
   Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = model
   ContentReady{+proved_depth,proved_balanced,depth_ok,room} = evidence
-  Ready{
+  Sized{
     %Equal.sym(Nat,depth,proved_depth,Shape.unique_depth(Element,tree,depth,proved_depth,balanced(~Element,model),proved_balanced)) : {Nat.is_le(_,30n) == True{} : Bool} depth_ok,
     room}
 
-def content_ready(~Element: Data,+model: Model<Element>,evidence: Ready<Element,model>) -> ContentReady<Element,content(~Element,model)>:
+def content_ready(~Element: Data,+model: Model<Element>,evidence: Sized<Element,model>) -> ContentReady<Element,content(~Element,model)>:
   Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = model
-  Ready{depth_ok,room} = evidence
+  Sized{depth_ok,room} = evidence
   ContentReady{depth,balanced(~Element,model),depth_ok,room}
 
 def NativeReady(~Element: Data,buffer: Storage.Buffer<Element>) -> Data:
@@ -106,14 +106,14 @@ def native_content_ready(~Element: Data,buffer: Storage.Buffer<Element>,ready: N
   Shape.Both{depth_ok,room} = ready
   ContentReady{depth,Witness.balanced(Element,depth,storage,Certificate.witness_at(Element,depth,storage,equation)),depth_ok,room}
 
-def ready_packed(~Element: Data,+model: Model<Element>,ready: NativeReady(~Element,pack(~Element,model))) -> Ready<Element,model>:
+def ready_packed(~Element: Data,+model: Model<Element>,ready: NativeReady(~Element,pack(~Element,model))) -> Sized<Element,model>:
   Model{+tree,+length,Certificate.Certificate{+depth,equation}} = model
   Shape.Both{depth_ok,room} = ready
-  Ready{depth_ok,
+  Sized{depth_ok,
     %StorageLaws.reflect_packed(Element,tree) : {Nat.is_le(length,U32.to_nat(Tree.capacity(Element,_))) == True{} : Bool} room}
 
 def ready_observed(~Element: Data,-buffer: Storage.Buffer<Element>,+model: Model<Element>,equation: {pack(~Element,model) == buffer : Storage.Buffer<Element>},
-  ready: NativeReady(~Element,buffer)) -> Ready<Element,model>:
+  ready: NativeReady(~Element,buffer)) -> Sized<Element,model>:
   ready_packed(~Element,model,
     %Equal.sym(Storage.Buffer<Element>,pack(~Element,model),buffer,equation) : NativeReady(~Element,_) ready)
 
@@ -126,8 +126,8 @@ def fresh(~Element: Data,+depth: Nat,+fill: Element,length: Nat) -> Model<Elemen
   Model{Tree.fresh(Element,depth,fill),length,fresh_certificate(~Element,depth,fill)}
 
 def fresh_ready(~Element: Data,+depth: Nat,+fill: Element,+length: Nat,depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
-  room: {Nat.is_le(length,U32.to_nat(U32.shln(1,depth))) == True{} : Bool}) -> Ready<Element,fresh(~Element,depth,fill,length)>:
-  Ready{depth_ok,
+  room: {Nat.is_le(length,U32.to_nat(U32.shln(1,depth))) == True{} : Bool}) -> Sized<Element,fresh(~Element,depth,fill,length)>:
+  Sized{depth_ok,
     %Equal.sym(U32,Tree.capacity(Element,Tree.fresh(Element,depth,fill)),U32.shln(1,depth),Shape.capacity(Element,depth,Tree.fresh(Element,depth,fill),Shape.fresh(Element,depth,fill))) :
       {Nat.is_le(length,U32.to_nat(_)) == True{} : Bool} room}
 

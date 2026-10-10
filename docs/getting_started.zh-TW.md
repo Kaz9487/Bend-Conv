@@ -7,7 +7,7 @@
 需要 Git、Node.js、[Bun](https://bun.sh)、Python 3 與 Clang（或由 `CC` 指定的 C 編譯器）；Linux、macOS 或 WSL。
 
 ```sh
-git clone --depth 1 --branch v2.0.35 https://github.com/bendlang/bend.git .tools/bend
+git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools/bend
 git -C .tools/bend rev-parse HEAD    # 必須印出 scripts/toolchain.json 裡的 commit
 ```
 
@@ -89,6 +89,53 @@ def network(image: F.Tensor()) -> F.Tensor():
 ```sh
 node scripts/bend_launcher.mjs examples/small_network.bend -o out/small_network
 ./out/small_network
+```
+
+## 載入與儲存數值
+
+檔案內容是 FP32 數值，小端序、row-major 順序、沒有檔頭；NumPy 用 `array.astype('<f4').tofile(path)` 寫出。檔案讀不到，或內容與形狀不符時，得到失敗的張量。[examples/save_and_load.bend](../examples/save_and_load.bend)：
+
+```python
+def main() -> IO(Unit):
+  do IO<Unit>:
+    # 1.0 .. 6.0 as two rows, written as 24 bytes
+    saved  : F.Tensor() <- F.save_raw("out/values.bin",F.reshape(F.arange(1.0,6),[2,3]))
+    # the same file, read with its shape
+    loaded : F.Tensor() <- F.load_raw("out/values.bin",[2,3])
+    # the sums, or [] if a step above failed
+    IO.print(List.show(~&2,~F32,~text,F.to_list_or(F.add(saved,loaded),[])))
+```
+
+```sh
+node scripts/bend_launcher.mjs examples/save_and_load.bend -o out/save_and_load
+./out/save_and_load                  # [2, 4, 6, 8, 10, 12]
+```
+
+`F.load_npy` 與 `F.save_npy` 讀寫 FP32 的 NumPy `.npy` 檔：
+
+```python
+# a NumPy array file: the shape comes from the file
+weights : F.Tensor() <- F.load_npy("out/weights/named/model.0.conv.weight.npy")
+```
+
+## 載入模型的權重
+
+`F.take` 依名稱從權重取出張量；`F.keep` 放一份副本進去，留給之後的步驟使用，例如跳接。[examples/yolov5/yolov5n.bend](../examples/yolov5/yolov5n.bend) 是完整的模型。
+
+```python
+# A step takes tensors by name; the lines of a do block run in order.
+def block(x: F.Tensor(),+name: String) -> F.Model(F.Tensor()):
+  do F.Model<F.Tensor()>:
+    weights : F.Tensor() <- F.take(name ++ ".weight")
+    bias : F.Tensor() <- F.take(name ++ ".bias")
+    F.Model.pure(F.Tensor(),F.conv2d(x,weights,bias,1,1,Act.relu()))
+
+def main() -> IO(Unit):
+  do IO<Unit>:
+    # folder/names.txt lists the names; folder/<name>.npy holds each tensor
+    weights : F.Weights() <- F.load_weights("out/weights/named")
+    result : F.Tensor() <- F.expect(F.run(F.Tensor(),block(F.zeros([1,3,8,8]),"stem"),weights))
+    ...
 ```
 
 ## 使用多個 worker

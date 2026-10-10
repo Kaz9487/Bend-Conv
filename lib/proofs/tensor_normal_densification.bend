@@ -23,17 +23,17 @@ import ./write_program.bend as Writes
 import ./word_encoding.bend as WordEncoding
 
 def fresh_counted(~Element: Data,+shape: List<&2,U32>,+fill: Element,+count: U32,
-  counted: Count.Count<ShapeLaws.elements(shape),count>,allocation: Depth.Ready<count>) ->
+  counted: Count.Count<ShapeLaws.elements(shape),count>,allocation: Depth.Sized<count>) ->
   Dense.WellFormed<Element,shape,Buffer.contents(~Element,Tensors.buffer(~Element,fill,count))>:
   Count.Count{exact,bounded} = counted
-  Depth.Ready{depth_ok,room} = allocation
+  Depth.Sized{depth_ok,room} = allocation
   %Equal.sym(Buffer.Content<Element>,Buffer.contents(~Element,Tensors.buffer(~Element,fill,count)),Buffer.Content{Tree.fresh(Element,Tensors.depth_for(count),fill),U32.to_nat(count)},
     AllocationLaws.contents(~Element,Tensors.depth_for(count),fill,U32.to_nat(count))) : Dense.WellFormed<Element,shape,_>
   Dense.WellFormed{Equal.sym(Nat,ShapeLaws.elements(shape),U32.to_nat(count),exact),
     Buffer.content_ready(~Element,Buffer.fresh(~Element,Tensors.depth_for(count),fill,U32.to_nat(count)),
       Buffer.fresh_ready(~Element,Tensors.depth_for(count),fill,U32.to_nat(count),depth_ok,room))}
 
-def counted_allocation(+shape: List<&2,U32>,+count: U32,counted: Count.Count<ShapeLaws.elements(shape),count>) -> Depth.Ready<count>:
+def counted_allocation(+shape: List<&2,U32>,+count: U32,counted: Count.Count<ShapeLaws.elements(shape),count>) -> Depth.Sized<count>:
   Count.Count{exact,bounded} = counted
   Depth.bounded(count,bounded)
 
@@ -76,7 +76,7 @@ def dense_status(~Element: Data,+buffer: Buffer.Model<Element>,+shape: List<&2,U
   ready: {Dense.status_ready(status) == True{} : Bool}) ->
   Dense.TensorWellFormed(~Element,DenseObservation.dense_tensor(~Element,Tensors.Tensor{Buffer.pack(~Element,buffer),shape,fill,status,workers})):
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       Shape.Both{content_ready,Shape.Both{counted,length_exact}} = normal
       Dense.WellFormed{length_exact,content_ready}
     case Tensors.Failed{problem}:
@@ -87,7 +87,7 @@ def band_status(~Element: Data,+bands: Model.Model<Element>,+geometry: Bands.Geo
   ready: {Dense.status_ready(status) == True{} : Bool}) ->
   Dense.TensorWellFormed(~Element,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,status,workers})):
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       Shape.Both{metadata,Shape.Both{counted,coherent}} = normal
       gathered(~Element,geometry,bands,shape,fill,counted,coherent)
     case Tensors.Failed{problem}:

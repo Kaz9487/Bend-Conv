@@ -5,22 +5,27 @@
 量測產生出來的 YOLOv5n 程式的工具。先執行 [YOLO 範例](../../examples/yolov5/README.zh-TW.md)，再於 Linux 的儲存庫根目錄執行這些工具。每次執行都很吃資源：先確認可用記憶體，一次只跑一個。輸出寫在 `out/` 底下，會覆蓋原有內容。
 
 ```sh
+# 被量測的程式，每種執行緒數產生一次
+python -B benchmarks/model/generate_yolo_graph.py --case bus_640 --threads 4
+node scripts/bend_launcher.mjs out/models/bus_640_cpu_4t.bend -o out/models/bus_640_cpu_4t.c
+
 python -B benchmarks/model/profile_operations.py --case bus_640 --threads 4
 python -B benchmarks/model/profile_allocations.py --case bus_640 --threads 4
 python -B benchmarks/model/profile_timeline.py --case bus_640 --threads 4 --output out/results/timeline_4t
 python -B benchmarks/model/timeline_claims.py out/results/timeline_4t
 python -B benchmarks/model/report_plans.py out/models/bus_640_cpu_4t.json --output out/results/plans_4t.json
-python -B benchmarks/model/compare_forward.py --baseline-models out/results/baseline/models --output out/results/forward_4t --threads 4
+python -B benchmarks/model/compare_forward.py --case bus_640 --baseline-models out/results/baseline/models --output out/results/forward_4t --threads 4
 ```
 
 | 工具 | 量測內容 |
 |---|---|
+| [generate_yolo_graph.py](generate_yolo_graph.py)、[yolo_graph.py](yolo_graph.py)、[tensor_io.c](tensor_io.c) | 寫出被量測的程式：運算圖、它的 Bend 形式，以及主機端的計時器與緩衝區 |
 | [profile_operations.py](profile_operations.py) | 運算圖中每個運算的時間 |
 | [profile_allocations.py](profile_allocations.py) | 每個運算的 heap 請求與 Array block 配置 |
 | [profile_timeline.py](profile_timeline.py) | 哪些 worker 在什麼時候執行哪個運算 |
 | [timeline_claims.py](timeline_claims.py) | 從時間軸算出：依忙碌 worker 數劃分的時間 |
-| [report_plans.py](report_plans.py) | 規劃器對每個運算的選擇與估計 |
-| [compare_forward.py](compare_forward.py) | 已存下的模型 C 與目前模型的 forward 時間 |
+| [report_plans.py](report_plans.py) | 手寫模型實際卷積規劃（`--handwritten --threads 1 2 4 8 --output out/results/plans.json`），或產生式模型的 metadata 重播 |
+| [compare_forward.py](compare_forward.py) | 手寫模型已存下的 C 與目前的 C 的 forward 時間 |
 
 所有計時工具都在同一個 process 內做兩次暖機、七個樣本。
 
@@ -49,4 +54,4 @@ python -B benchmarks/model/compare_forward.py --baseline-models out/results/base
 
 ## Forward 比較
 
-以相同的旗標編譯存下的 C 與目前的 C，要求每個快照逐位元相同，接著交替執行五輪，回報各輪的中位數與四分位距。Baseline 資料夾是 `out/models` 的一份複本：模型 C、運算圖 JSON 與建置紀錄。
+量測手寫的 [yolov5n.bend](../../examples/yolov5/yolov5n.bend)，不是產生出來的程式。以相同的旗標編譯存下的 C 與目前的 C，要求每一層的輸出逐位元相同，接著交替執行五輪，回報各輪的中位數與四分位距。Baseline 資料夾放 `out/models/yolov5n.c` 與它的建置紀錄的複本；輸出資料夾必須是新的或空的。

@@ -2,6 +2,8 @@
 # one job, row and lane; its value is that job's ordered accumulator plus bias.
 # Jobs are input-major: index = group * units + unit.
 import Base
+import ../../lib/proofs/u32_extrema.bend as U32Extrema
+import ../../lib/proofs/kernel_output_refinement.bend as KernelOutputLaws
 import ../../lib/proofs/kernel_tile_refinement.bend as TileLaws
 import ../../lib/kernel_gemm.bend as Gemm
 import ../../lib/kernel_rows.bend as Rows
@@ -55,8 +57,8 @@ def limit(query: Query) -> U32:
   limit
 
 def layout(query: Query) -> Gemm.Layout:
-  Query{rows,columns,inner,groups,limit,input,weights,bias,channel,column,limit_fits,columns_exact,rows_room,area_room,channel_inside,column_inside} = query
-  Gemm.Layout{rows,columns,inner}
+  Query{rows,+columns,inner,groups,limit,input,weights,bias,channel,column,limit_fits,columns_exact,rows_room,area_room,channel_inside,column_inside} = query
+  Gemm.Layout{rows,columns,inner,0,columns}
 
 def input(query: Query) -> Tree.Tree<Tile.Tile8>:
   Query{rows,columns,inner,groups,limit,input,weights,bias,channel,column,limit_fits,columns_exact,rows_room,area_room,channel_inside,column_inside} = query
@@ -255,6 +257,26 @@ def columns_within(+query: Query) -> {Nat.is_le(U32.to_nat(columns(query)),U32.t
     %RowMajor.multiply_commutative(U32.to_nat(columns(query)),U32.to_nat(rows(query))) : {Nat.is_le(U32.to_nat(columns(query)),_) == True{} : Bool}
     RowMajor.product_covers(U32.to_nat(columns(query)),U32.to_nat(rows(query)),rows_positive(query)),area_room(query))
 
+def complete_group_count(+query: Query,+group: Nat,+position: U32,
+  +position_exact: {U32.to_nat(position) == Nat.mul(group,8n) : Nat},
+  +group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool}) ->
+  {U32.min(8,(columns(query) - position : U32)) == 8 : U32}:
+  +before =
+    {%Equal.sym(Nat,U32.to_nat(position),Nat.mul(group,8n),position_exact) : {Nat.is_le(_,U32.to_nat(columns(query))) == True{} : Bool}
+      Bounds.strict_le(Nat.mul(group,8n),U32.to_nat(columns(query)),
+        %Order.commutative(Nat.mul(group,8n),0n) : {Nat.is_lt(_,U32.to_nat(columns(query))) == True{} : Bool}
+        lane_inside(query,group,0n,group_inside,{==})) : {Nat.is_le(U32.to_nat(position),U32.to_nat(columns(query))) == True{} : Bool}}
+  +difference = Arithmetic.subtract(columns(query),position,limit(query),limit_fits(query),before,
+    Order.transitive(Nat.sub(U32.to_nat(columns(query)),U32.to_nat(position)),U32.to_nat(columns(query)),U32.to_nat(limit(query)),
+      Order.sub_le(U32.to_nat(columns(query)),U32.to_nat(position)),columns_within(query)))
+  U32Extrema.minimum_when_ordered(8,(columns(query) - position : U32),
+    %Equal.sym(Nat,U32.to_nat((columns(query) - position : U32)),Nat.sub(U32.to_nat(columns(query)),U32.to_nat(position)),difference) : {Nat.is_le(8n,_) == True{} : Bool}
+    %Equal.sym(Nat,U32.to_nat(position),Nat.mul(group,8n),position_exact) : {Nat.is_le(8n,Nat.sub(U32.to_nat(columns(query)),_)) == True{} : Bool}
+    %Equal.sym(Nat,U32.to_nat(columns(query)),Nat.mul(groups(query),8n),columns_exact(query)) : {Nat.is_le(8n,Nat.sub(_,Nat.mul(group,8n))) == True{} : Bool}
+    %Equal.sym(Nat,Nat.sub(Nat.mul(groups(query),8n),Nat.mul(group,8n)),Nat.mul(Nat.sub(groups(query),group),8n),RowMajor.subtract_products(groups(query),group,8n)) : {Nat.is_le(8n,_) == True{} : Bool}
+    %RowMajor.multiply_commutative(8n,Nat.sub(groups(query),group)) : {Nat.is_le(8n,_) == True{} : Bool}
+    RowMajor.product_covers(8n,Nat.sub(groups(query),group),Order.positive_difference(groups(query),group,group_inside)))
+
 def lane_offset(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+lane: Nat,+offset: U32,
   +offset_exact: {U32.to_nat(offset) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),Nat.mul(group,8n)) : Nat},
   +row_inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},
@@ -341,6 +363,8 @@ def row_evidence(+query: Query,+capacity: U32,+unit: Nat,+row: Nat,+group: Nat,+
   match valid:
     case False{}: WriteReadback.WriteEvidence{Unit{},Unit{}}
     case True{}:
+      %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+        WriteReadback.WriteEvidence<address(query),wanted(query),capacity,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values)>
       +inside = row_inside(query,unit,row,row_word,row_exact,valid_exact)
       +offset = (row_word * columns(query) + position_word : U32)
       +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
@@ -609,14 +633,23 @@ def job_evidence(+query: Query,+capacity: U32,+unit: Nat,+group: Nat,
     row_offset_exact(query,unit,word,3n,word_exact,unit_rows,{==}),position_exact,{==},group_inside,{==})
   +q = address(query)
   +v = wanted(query)
+  %Equal.sym(Gemm.Job,Gemm.job(layout(query),U32.from_nat(job_index(unit,group,units(query)))),
+    Gemm.Job{Gemm.Context{index,position,rows,columns,(group_value * inner : U32),(word / 2 * inner : U32)},U32.is_eq((word % 2 : U32),1),U32.to_nat(inner)},
+    GemmLaws.zero_offset_job(rows,columns,inner,U32.from_nat(job_index(unit,group,units(query))))) :
+    JobEvidence(query,capacity,GemmWrites.job_writes(_,input,weights,bias))
   WriteReadback.concatenated_evidence(q,v,capacity,l02,w3,
     WriteReadback.concatenated_evidence(q,v,capacity,l01,w2,
       WriteReadback.concatenated_evidence(q,v,capacity,w0,w1,e0,e1),e2),e3)
 
-def job_evidence_at(+query: Query,+capacity: U32,+index: Nat,
-  +capacity_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(capacity)) == True{} : Bool},
-  +inside: {Nat.is_lt(index,Nat.mul(groups(query),units(query))) == True{} : Bool}) ->
-  JobEvidence(query,capacity,GemmWrites.job_writes(Gemm.job(layout(query),U32.from_nat(index)),input(query),weights(query),bias(query))):
+type IndexedJob<-query: Query,-index: Nat> is Data:
+  IndexedJob{unit: Nat,group: Nat,
+    unit_rows: {Nat.is_lt(Nat.mul(unit,4n),U32.to_nat(rows(query))) == True{} : Bool},
+    unit_inside: {Nat.is_lt(unit,units(query)) == True{} : Bool},
+    group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
+    index_exact: {index == job_index(unit,group,units(query)) : Nat}}
+
+def indexed_job(+query: Query,+index: Nat,
+  +inside: {Nat.is_lt(index,Nat.mul(groups(query),units(query))) == True{} : Bool}) -> IndexedJob<query,index>:
   +count = units(query)
   +small = Order.transitive(index,Nat.mul(groups(query),count),U32.to_nat(limit(query)),Bounds.strict_le(index,Nat.mul(groups(query),count),inside),jobs_within(query))
   +unit = Nat.mod(index,count)
@@ -626,9 +659,22 @@ def job_evidence_at(+query: Query,+capacity: U32,+index: Nat,
   +group_inside = RowMajor.row_inside(group,groups(query),count,unit,
     %identity : {Nat.is_lt(_,Nat.mul(groups(query),count)) == True{} : Bool}
     inside)
-  %Equal.sym(Nat,index,job_index(unit,group,count),identity) :
+  IndexedJob{unit,group,unit_bound(query,unit,unit_inside),unit_inside,group_inside,identity}
+
+def job_evidence_indexed(+query: Query,+capacity: U32,+index: Nat,
+  +capacity_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(capacity)) == True{} : Bool},
+  decoded: IndexedJob<query,index>) ->
+  JobEvidence(query,capacity,GemmWrites.job_writes(Gemm.job(layout(query),U32.from_nat(index)),input(query),weights(query),bias(query))):
+  IndexedJob{+unit,+group,+unit_rows,+unit_inside,+group_inside,+exact} = decoded
+  %Equal.sym(Nat,index,job_index(unit,group,units(query)),exact) :
     JobEvidence(query,capacity,GemmWrites.job_writes(Gemm.job(layout(query),U32.from_nat(_)),input(query),weights(query),bias(query)))
-  job_evidence(query,capacity,unit,group,capacity_room,unit_bound(query,unit,unit_inside),unit_inside,group_inside)
+  job_evidence(query,capacity,unit,group,capacity_room,unit_rows,unit_inside,group_inside)
+
+def job_evidence_at(+query: Query,+capacity: U32,+index: Nat,
+  +capacity_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(capacity)) == True{} : Bool},
+  +inside: {Nat.is_lt(index,Nat.mul(groups(query),units(query))) == True{} : Bool}) ->
+  JobEvidence(query,capacity,GemmWrites.job_writes(Gemm.job(layout(query),U32.from_nat(index)),input(query),weights(query),bias(query))):
+  job_evidence_indexed(query,capacity,index,capacity_room,indexed_job(query,index,inside))
 
 def all_evidence(+query: Query,+capacity: U32,+count: Nat,+first: Nat,
   +capacity_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(capacity)) == True{} : Bool},
@@ -691,6 +737,8 @@ def lane0_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,0n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -717,6 +765,8 @@ def lane1_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,1n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -744,6 +794,8 @@ def lane2_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,2n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -772,6 +824,8 @@ def lane3_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,3n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -801,6 +855,8 @@ def lane4_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,4n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -831,6 +887,8 @@ def lane5_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,5n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -862,6 +920,8 @@ def lane6_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,6n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -894,6 +954,8 @@ def lane7_hit(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+row_word: U32,+pos
   +inside: {Nat.is_lt(row_number(unit,row),U32.to_nat(rows(query))) == True{} : Bool},+group_inside: {Nat.is_lt(group,groups(query)) == True{} : Bool},
   +same: {address(query) == Nat.add(Nat.mul(row_number(unit,row),U32.to_nat(columns(query))),lane_number(group,7n)) : Nat}) ->
   Covered(query,GemmWrites.row_writes(True{},row_word,position_word,columns(query),values,bias(query))):
+  %Equal.sym(U32,U32.min(8,(columns(query) - position_word : U32)),8,complete_group_count(query,group,position_word,position_exact,group_inside)) :
+    Covered(query,KernelOutputLaws.tail_assignments(_,(row_word * columns(query) + position_word : U32),Tree.read(F32,bias(query),row_word),values))
   +offset = (row_word * columns(query) + position_word : U32)
   +exact = offset_exact(query,unit,row,group,row_word,position_word,row_exact,position_exact,inside,group_inside)
   +bias_value = Tree.read(F32,bias(query),row_word)
@@ -997,6 +1059,10 @@ def row0_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat
   +l02 = List.append(&2,Writes.Assignment<F32>,l01,w2)
   +hit_row = row_hit(query,unit,0n,group,index,position,a0,row_zero_exact(query,unit,word,word_exact,unit_rows),position_exact,inside,group_inside,
     U32.is_lt(index,rows),{==},lane,lane_small,same)
+  %Equal.sym(Gemm.Job,Gemm.job(layout(query),U32.from_nat(job_index(unit,group,units(query)))),
+    Gemm.Job{Gemm.Context{index,position,rows,columns,(group_value * inner : U32),(word / 2 * inner : U32)},U32.is_eq((word % 2 : U32),1),U32.to_nat(inner)},
+    GemmLaws.zero_offset_job(rows,columns,inner,U32.from_nat(job_index(unit,group,units(query))))) :
+    Covered(query,GemmWrites.job_writes(_,input,weights,bias))
   appended_left(query,l02,w3,appended_left(query,l01,w2,appended_left(query,w0,w1,hit_row)))
 
 def row1_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat.is_lt(lane,8n) == True{} : Bool},
@@ -1029,6 +1095,10 @@ def row1_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat
   +l02 = List.append(&2,Writes.Assignment<F32>,l01,w2)
   +hit_row = row_hit(query,unit,1n,group,i1,position,a1,row_offset_exact(query,unit,word,1n,word_exact,unit_rows,{==}),position_exact,inside,group_inside,
     U32.is_lt(i1,rows),{==},lane,lane_small,same)
+  %Equal.sym(Gemm.Job,Gemm.job(layout(query),U32.from_nat(job_index(unit,group,units(query)))),
+    Gemm.Job{Gemm.Context{index,position,rows,columns,(group_value * inner : U32),(word / 2 * inner : U32)},U32.is_eq((word % 2 : U32),1),U32.to_nat(inner)},
+    GemmLaws.zero_offset_job(rows,columns,inner,U32.from_nat(job_index(unit,group,units(query))))) :
+    Covered(query,GemmWrites.job_writes(_,input,weights,bias))
   appended_left(query,l02,w3,appended_left(query,l01,w2,appended_right(query,w0,w1,hit_row)))
 
 def row2_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat.is_lt(lane,8n) == True{} : Bool},
@@ -1061,6 +1131,10 @@ def row2_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat
   +l02 = List.append(&2,Writes.Assignment<F32>,l01,w2)
   +hit_row = row_hit(query,unit,2n,group,i2,position,a2,row_offset_exact(query,unit,word,2n,word_exact,unit_rows,{==}),position_exact,inside,group_inside,
     U32.is_lt(i2,rows),{==},lane,lane_small,same)
+  %Equal.sym(Gemm.Job,Gemm.job(layout(query),U32.from_nat(job_index(unit,group,units(query)))),
+    Gemm.Job{Gemm.Context{index,position,rows,columns,(group_value * inner : U32),(word / 2 * inner : U32)},U32.is_eq((word % 2 : U32),1),U32.to_nat(inner)},
+    GemmLaws.zero_offset_job(rows,columns,inner,U32.from_nat(job_index(unit,group,units(query))))) :
+    Covered(query,GemmWrites.job_writes(_,input,weights,bias))
   appended_left(query,l02,w3,appended_right(query,l01,w2,hit_row))
 
 def row3_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat.is_lt(lane,8n) == True{} : Bool},
@@ -1093,6 +1167,10 @@ def row3_cover(+query: Query,+unit: Nat,+group: Nat,+lane: Nat,+lane_small: {Nat
   +l02 = List.append(&2,Writes.Assignment<F32>,l01,w2)
   +hit_row = row_hit(query,unit,3n,group,i3,position,a3,row_offset_exact(query,unit,word,3n,word_exact,unit_rows,{==}),position_exact,inside,group_inside,
     U32.is_lt(i3,rows),{==},lane,lane_small,same)
+  %Equal.sym(Gemm.Job,Gemm.job(layout(query),U32.from_nat(job_index(unit,group,units(query)))),
+    Gemm.Job{Gemm.Context{index,position,rows,columns,(group_value * inner : U32),(word / 2 * inner : U32)},U32.is_eq((word % 2 : U32),1),U32.to_nat(inner)},
+    GemmLaws.zero_offset_job(rows,columns,inner,U32.from_nat(job_index(unit,group,units(query))))) :
+    Covered(query,GemmWrites.job_writes(_,input,weights,bias))
   appended_right(query,l02,w3,hit_row)
 
 def job_cover(+query: Query,+unit: Nat,+row: Nat,+group: Nat,+lane: Nat,
@@ -1164,7 +1242,7 @@ def all_cover(+query: Query,+count: Nat,+first: Nat,+target: Nat,
           %Addition.successor_right(first,rest) : {Nat.is_lt(target,_) == True{} : Bool}
           before))
 
-def layout_exact(+query: Query) -> {layout(query) == Gemm.Layout{rows(query),columns(query),inner(query)} : Gemm.Layout}:
+def layout_exact(+query: Query) -> {layout(query) == Gemm.Layout{rows(query),columns(query),inner(query),0,columns(query)} : Gemm.Layout}:
   Query{rows,columns,inner,groups,limit,input,weights,bias,channel,column,limit_fits,columns_exact,rows_room,area_room,channel_inside,column_inside} = query
   {==}
 
@@ -1223,12 +1301,9 @@ def count_exact(+query: Query) -> {GemmWrites.job_count(rows(query),columns(quer
     %Equal.sym(Nat,U32.to_nat(unit_count),units(query),units_word_exact(query)) : {Nat.is_le(Nat.mul(groups(query),_),U32.to_nat(limit(query))) == True{} : Bool}
     jobs_within(query))
 
-# The complete schedule: any in-range output reads back its job value.
-def run_readback(+query: Query,+output: Tree.Tree<F32>,+depth: Nat,+balanced: Shape.Balanced(F32,depth,output),
-  +depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
-  +output_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(Tree.capacity(F32,output))) == True{} : Bool}) ->
-  {Tree.read(F32,GemmLaws.run(rows(query),input(query),weights(query),bias(query),output,columns(query),inner(query)),U32.from_nat(address(query))) ==
-    wanted(query) : F32}:
+# Coverage of the complete job schedule is independent of output allocation.
+def complete_coverage(+query: Query) ->
+  Covered(query,GemmWrites.all_writes(Nat.mul(groups(query),units(query)),0,layout(query),input(query),weights(query),bias(query))):
   +rows_nat = U32.to_nat(rows(query))
   +padded = Nat.add(rows_nat,3n)
   +count = units(query)
@@ -1248,19 +1323,29 @@ def run_readback(+query: Query,+output: Tree.Tree<F32>,+depth: Nat,+balanced: Sh
   +group_inside = split_group_inside(query,group,lane,column_split)
   +target = job_index(unit,group,count)
   +target_inside = RowMajor.radix(group,groups(query),unit,count,group_inside,unit_inside)
-  +covered = all_cover(query,jobs,0n,target,
+  all_cover(query,jobs,0n,target,
     job_cover(query,unit,row,group,lane,
       remainder_small(channel(query),4n,limit(query),limit_fits(query),channel_small,{==}),
       remainder_small(column(query),8n,limit(query),limit_fits(query),column_small,{==}),
       split_address(query,unit,row,group,lane,channel_split,column_split),unit_rows,unit_inside,group_inside,split_row_inside(query,unit,row,channel_split)),
     Order.zero_le(target),target_inside)
+
+# The complete schedule: any in-range output reads back its job value.
+def run_readback(+query: Query,+output: Tree.Tree<F32>,+depth: Nat,+balanced: Shape.Balanced(F32,depth,output),
+  +depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
+  +output_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(query)),U32.to_nat(columns(query))),U32.to_nat(Tree.capacity(F32,output))) == True{} : Bool}) ->
+  {Tree.read(F32,GemmLaws.run(rows(query),input(query),weights(query),bias(query),output,columns(query),inner(query)),U32.from_nat(address(query))) ==
+    wanted(query) : F32}:
+  +rows_nat = U32.to_nat(rows(query))
+  +jobs = Nat.mul(groups(query),units(query))
+  +covered = complete_coverage(query)
   +evidence = all_evidence(query,Tree.capacity(F32,output),jobs,0n,output_room,Order.reflexive(jobs))
   %Equal.sym(Tree.Tree<F32>,GemmLaws.run(rows(query),input(query),weights(query),bias(query),output,columns(query),inner(query)),
-    Writes.pure(F32,GemmWrites.all_writes(GemmWrites.job_count(rows(query),columns(query)),0,Gemm.Layout{rows(query),columns(query),inner(query)},input(query),weights(query),bias(query)),output),
+    Writes.pure(F32,GemmWrites.all_writes(GemmWrites.job_count(rows(query),columns(query)),0,Gemm.Layout{rows(query),columns(query),inner(query),0,columns(query)},input(query),weights(query),bias(query)),output),
     GemmWrites.run_writes(rows(query),input(query),weights(query),bias(query),output,columns(query),inner(query))) :
     {Tree.read(F32,_,U32.from_nat(address(query))) == wanted(query) : F32}
   %Equal.sym(Nat,GemmWrites.job_count(rows(query),columns(query)),jobs,count_exact(query)) :
-    {Tree.read(F32,Writes.pure(F32,GemmWrites.all_writes(_,0,Gemm.Layout{rows(query),columns(query),inner(query)},input(query),weights(query),bias(query)),output),
+    {Tree.read(F32,Writes.pure(F32,GemmWrites.all_writes(_,0,Gemm.Layout{rows(query),columns(query),inner(query),0,columns(query)},input(query),weights(query),bias(query)),output),
       U32.from_nat(address(query))) == wanted(query) : F32}
   %layout_exact(query) :
     {Tree.read(F32,Writes.pure(F32,GemmWrites.all_writes(jobs,0,_,input(query),weights(query),bias(query)),output),

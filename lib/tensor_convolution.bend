@@ -94,25 +94,24 @@ def batch(~custom: F32 -> F32,+activation: Activations.Activation,count: Nat,+in
                 copied_output(Copy.range(~F32,output_size,0,(index * output_size : U32),result,output))))))
 
 def images_selected(~custom: F32 -> F32,+activation: Activations.Activation,empty: Bool,single: Bool,+count: U32,depth: U32,work: Pipeline.Work,input_size: U32,+output_size: U32,
-  input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   match empty:
     case True{}: Tensors.buffer(~F32,0.0,0)
     case False{}:
       match single:
-        case True{}: Pipeline.run(~custom,activation,depth,work,input,weights,bias)
+        case True{}: Pipeline.run_packed(~custom,activation,depth,work,input,weights,bias)
         case False{}:
-          Pipeline.Work{+rows,h,w,k,s,p,ow,positions,+inner} = work
-          batch(~custom,activation,U32.to_nat(count),0,depth,Pipeline.Work{rows,h,w,k,s,p,ow,positions,inner},input_size,output_size,
-            input,GemmBuffer.reorder(rows,inner,weights),bias,Tensors.buffer(~F32,0.0,(count * output_size : U32)))
+          batch(~custom,activation,U32.to_nat(count),0,depth,work,input_size,output_size,
+            input,weights,bias,Tensors.buffer(~F32,0.0,(count * output_size : U32)))
 
 def images(~custom: F32 -> F32,+activation: Activations.Activation,+count: U32,depth: U32,work: Pipeline.Work,input_size: U32,+output_size: U32,
-  input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
+  input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Storage.Buffer<F32>:
   images_selected(~custom,activation,U32.is_eq(count,0),U32.is_eq(count,1),count,depth,work,input_size,output_size,input,weights,bias)
 
 def execute_dense_at_depth(~custom: F32 -> F32,+activation: Activations.Activation,+image_count: U32,+selected_depth: U32,+work: Pipeline.Work,+input_size: U32,+output_size: U32,+output_extents: List<&2,U32>,
-  input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
+  input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
   Tensors.Tensor{images(~custom,activation,image_count,selected_depth,work,input_size,output_size,input,weights,bias),
-    output_extents,0.0,Tensors.Ready{},workers}
+    output_extents,0.0,Tensors.Usable{},workers}
 
 def dense_arguments(geometry: Geometry,+bias_depth: Nat,+workers: U32,+activation: Activations.Activation) -> DenseArguments:
   Geometry{+count,batched,KernelShape.Dimensions{+ci,+rows,+height,+width,+kernel,+stride,+padding}} = geometry
@@ -124,11 +123,11 @@ def dense_arguments(geometry: Geometry,+bias_depth: Nat,+workers: U32,+activatio
   DenseArguments{count,work,input_size,output_size,output_shape(batched,count,U32.from_nat(rows),oh,ow),
     depth(work,U32.from_nat(KernelPlanning.capacity(input_size)),U32.shln(1,bias_depth),workers,activation)}
 
-def execute_dense_arguments(~custom: F32 -> F32,+activation: Activations.Activation,arguments: DenseArguments,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
+def execute_dense_arguments(~custom: F32 -> F32,+activation: Activations.Activation,arguments: DenseArguments,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
   DenseArguments{count,work,input_size,output_size,output_extents,selected_depth} = arguments
   execute_dense_at_depth(~custom,activation,count,selected_depth,work,input_size,output_size,output_extents,input,weights,bias,workers)
 
-def execute_dense(~custom: F32 -> F32,+activation: Activations.Activation,geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
+def execute_dense(~custom: F32 -> F32,+activation: Activations.Activation,geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
   Storage.Buffer{bias,bias_length,Certificate.Certificate{+bias_depth,bias_equation}} = bias
   execute_dense_arguments(~custom,activation,dense_arguments(geometry,bias_depth,workers,activation),input,weights,Storage.Buffer{bias,bias_length,Certificate.Certificate{bias_depth,bias_equation}},workers)
 
@@ -146,27 +145,27 @@ def context_window(context: BandPipeline.Context) -> BandWindow.Geometry:
   BandPipeline.Context{window,rows,inner,parallel,activation} = context
   window
 
-def band_output(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,parallel: Bool,input: Bands.Bands(~F32),weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def band_output(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,parallel: Bool,input: Bands.Bands(~F32),weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   Geometry{+count,batched,KernelShape.Dimensions{ci,+rows,height,width,+kernel,+stride,+padding}} = geometry
   +oh = U32.from_nat(KernelShape.axis_size(height,kernel,stride,padding))
   +ow = U32.from_nat(KernelShape.axis_size(width,kernel,stride,padding))
   Tensors.Banded{BandPipeline.execute(~custom,band_context(geometry,parallel,activation),input,weights,bias),
-    Bands.Geometry{count,U32.from_nat(rows),oh,ow},output_shape(batched,count,U32.from_nat(rows),oh,ow),0.0,Tensors.Ready{},workers}
+    Bands.Geometry{count,U32.from_nat(rows),oh,ow},output_shape(batched,count,U32.from_nat(rows),oh,ow),0.0,Tensors.Usable{},workers}
 
-def start_bands(~custom: F32 -> F32,+activation: Activations.Activation,depth: U32,parallel: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def start_bands(~custom: F32 -> F32,+activation: Activations.Activation,depth: U32,parallel: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   Geometry{count,batched,KernelShape.Dimensions{ci,rows,h,w,k,s,p}} = geometry
   band_output(~custom,activation,geometry,parallel,Bands.split(~F32,U32.to_nat(depth),Bands.Geometry{count,U32.from_nat(ci),U32.from_nat(h),U32.from_nat(w)},0.0,input),weights,bias,workers)
 
-def initial_layout_selected(~custom: F32 -> F32,+activation: Activations.Activation,zero: Bool,depth: U32,parallel: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def initial_layout_selected(~custom: F32 -> F32,+activation: Activations.Activation,zero: Bool,depth: U32,parallel: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   match zero:
     case True{}: Tensors.with_workers(~F32,execute_dense(~custom,activation,geometry,input,weights,bias,1),workers)
     case False{}: start_bands(~custom,activation,depth,parallel,geometry,input,weights,bias,workers)
 
-def initial_layout(~custom: F32 -> F32,+activation: Activations.Activation,plan: BandPlanning.Plan,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def initial_layout(~custom: F32 -> F32,+activation: Activations.Activation,plan: BandPlanning.Plan,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   BandPlanning.Plan{+depth,parallel,time} = plan
   initial_layout_selected(~custom,activation,U32.is_eq(depth,0),depth,parallel,geometry,input,weights,bias,workers)
 
-def execute_many(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
+def execute_many(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
   Storage.Buffer{bias,length,Certificate.Certificate{+depth,equation}} = bias
   +context = band_context(geometry,True{},activation)
   initial_layout(~custom,activation,BandPlanning.select(band_work(context,U32.shln(1,depth)),context_window(context),workers,DefaultCost.configuration()),
@@ -179,22 +178,31 @@ def uses_band_windows(geometry: Geometry) -> Bool:
   U32.is_lt(0,count) && Nat.is_lt(p,k)
 
 def execute_layout(~custom: F32 -> F32,+activation: Activations.Activation,band_windows: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,
-  weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+  weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   match band_windows:
     case False{}: execute_dense(~custom,activation,geometry,input,weights,bias,workers)
     case True{}: execute_many(~custom,activation,geometry,input,weights,bias,workers)
 
-def execute_selected(~custom: F32 -> F32,+activation: Activations.Activation,single_worker: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def execute_selected(~custom: F32 -> F32,+activation: Activations.Activation,single_worker: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   match single_worker:
     case True{}: execute_dense(~custom,activation,geometry,input,weights,bias,1)
     case False{}: execute_layout(~custom,activation,uses_band_windows(geometry),geometry,input,weights,bias,workers)
 
-def execute(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
+def execute(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32) -> Tensors.Tensor<F32>:
   execute_selected(~custom,activation,U32.is_eq(workers,1),geometry,input,weights,bias,workers)
 
-def machine(~custom: F32 -> F32,+activation: Activations.Activation,supported: Bool,geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+shape: List<&2,U32>,fill: F32,+workers: U32) -> Tensors.Tensor<F32>:
+# The weights in the order the kernel reads them: once, after the checks.
+def reordered(dimensions: KernelShape.Dimensions,weights: Storage.Buffer<F32>) -> Storage.Buffer<Tile.Tile8>:
+  KernelShape.Dimensions{ci,rows,h,w,+k,s,p} = dimensions
+  GemmBuffer.reorder(U32.from_nat(rows),U32.from_nat(Nat.mul(ci,Nat.mul(k,k))),weights)
+
+def packed(geometry: Geometry,weights: Storage.Buffer<F32>) -> Storage.Buffer<Tile.Tile8>:
+  Geometry{count,batched,dimensions} = geometry
+  reordered(dimensions,weights)
+
+def machine(~custom: F32 -> F32,+activation: Activations.Activation,supported: Bool,+geometry: Geometry,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+shape: List<&2,U32>,fill: F32,+workers: U32) -> Tensors.Tensor<F32>:
   match supported:
-    case True{}: execute(~custom,activation,geometry,input,weights,bias,workers)
+    case True{}: execute(~custom,activation,geometry,input,packed(geometry,weights),bias,workers)
     case False{}: Tensors.Tensor{input,shape,fill,Tensors.Failed{Tensors.Problem{"conv2d",Tensors.InvalidShape{shape}}},workers}
 
 def machine_support(geometry: Geometry,+limits: Machine.Limits) -> Bool:
@@ -209,20 +217,26 @@ def supported(~custom: F32 -> F32,+activation: Activations.Activation,valid: Boo
     case True{}:
       machine(~custom,activation,machine_support(geometry,Default.limits()),geometry,input,weights,bias,shape,fill,workers)
 
+# What a dense call needs of its three buffers: lengths that fit the shape and
+# the capacities that hold them.
+def dense_call_valid(+dimensions: KernelShape.Dimensions,+count: U32,+input_length: Nat,+input_depth: Nat,+weight_length: Nat,+weight_depth: Nat,
+  +bias_length: Nat,+bias_depth: Nat) -> Bool:
+  KernelShape.Dimensions{+ci,rows,+h,+w,k,s,p} = dimensions
+  KernelShape.valid(dimensions,Nat.mul(ci,Nat.mul(h,w)),weight_length,bias_length) &&
+    Nat.is_eq(input_length,Nat.mul(U32.to_nat(count),Nat.mul(ci,Nat.mul(h,w)))) &&
+    Nat.is_le(input_length,U32.to_nat(U32.shln(1,input_depth))) &&
+    Nat.is_le(weight_length,U32.to_nat(U32.shln(1,weight_depth))) && Nat.is_le(bias_length,U32.to_nat(U32.shln(1,bias_depth)))
+
 def checked(~custom: F32 -> F32,+activation: Activations.Activation,geometry: Maybe<&2,Geometry>,input: Storage.Buffer<F32>,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+shape: List<&2,U32>,fill: F32,+workers: U32) -> Tensors.Tensor<F32>:
   match geometry:
     case None{}: Tensors.Tensor{input,shape,fill,Tensors.Failed{Tensors.Problem{"conv2d",Tensors.InvalidArgument{shape}}},workers}
     case Some{+geometry}:
       Geometry{+count,batched,+dimensions} = geometry
-      KernelShape.Dimensions{+ci,rows,+h,+w,k,s,p} = dimensions
       Storage.Buffer{input,+input_length,Certificate.Certificate{+input_depth,input_equation}} = input
       Storage.Buffer{weights,+weight_length,Certificate.Certificate{+weight_depth,weight_equation}} = weights
       Storage.Buffer{bias,+bias_length,Certificate.Certificate{+bias_depth,bias_equation}} = bias
       supported(~custom,activation,
-        KernelShape.valid(dimensions,Nat.mul(ci,Nat.mul(h,w)),weight_length,bias_length) &&
-        Nat.is_eq(input_length,Nat.mul(U32.to_nat(count),Nat.mul(ci,Nat.mul(h,w)))) &&
-        Nat.is_le(input_length,U32.to_nat(U32.shln(1,input_depth))) &&
-        Nat.is_le(weight_length,U32.to_nat(U32.shln(1,weight_depth))) && Nat.is_le(bias_length,U32.to_nat(U32.shln(1,bias_depth))),geometry,
+        dense_call_valid(dimensions,count,input_length,input_depth,weight_length,weight_depth,bias_length,bias_depth),geometry,
         Storage.Buffer{input,input_length,Certificate.Certificate{input_depth,input_equation}},
         Storage.Buffer{weights,weight_length,Certificate.Certificate{weight_depth,weight_equation}},
         Storage.Buffer{bias,bias_length,Certificate.Certificate{bias_depth,bias_equation}},shape,fill,workers)
@@ -231,13 +245,13 @@ def status(~custom: F32 -> F32,+activation: Activations.Activation,status: Tenso
   weights: Storage.Buffer<F32>,weight_shape: List<&2,U32>,bias: Storage.Buffer<F32>,bias_shape: List<&2,U32>,stride: U32,padding: U32,+workers: U32) -> Tensors.Tensor<F32>:
   match status:
     case Tensors.Failed{problem}: Tensors.Tensor{input,input_extents,fill,Tensors.Failed{problem},workers}
-    case Tensors.Ready{}: checked(~custom,activation,geometry(input_shape(input_extents),weight_shape,bias_shape,stride,padding),input,weights,bias,input_extents,fill,workers)
+    case Tensors.Usable{}: checked(~custom,activation,geometry(input_shape(input_extents),weight_shape,bias_shape,stride,padding),input,weights,bias,input_extents,fill,workers)
 
-def replanned(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,selection: BandPlanning.LayoutPlan,input: Bands.Bands(~F32),weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+def replanned(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,selection: BandPlanning.LayoutPlan,input: Bands.Bands(~F32),weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   BandPlanning.LayoutPlan{layout,+parallel,time,repartition} = selection
   band_output(~custom,activation,geometry,parallel,Bands.align(~F32,BandWindow.input_geometry(context_window(band_context(geometry,parallel,Activations.Identity{}))),0.0,layout,input),weights,bias,workers)
 
-def existing_layout(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+workers: U32,
+def existing_layout(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,+workers: U32,
   owners: Bands.Bands(~F32) & Bands.Plan) -> Tensors.Tensor<F32>:
   Storage.Buffer{bias,length,Certificate.Certificate{+depth,equation}} = bias
   (input,plan) = owners
@@ -246,7 +260,7 @@ def existing_layout(~custom: F32 -> F32,+activation: Activations.Activation,+geo
     input,weights,Storage.Buffer{bias,length,Certificate.Certificate{depth,equation}},workers)
 
 def execute_existing_layout(~custom: F32 -> F32,+activation: Activations.Activation,band_windows: Bool,+geometry: Geometry,+layout: Bands.Geometry,
-  input: Bands.Bands(~F32),weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
+  input: Bands.Bands(~F32),weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,workers: U32) -> Tensors.Tensor<F32>:
   match band_windows:
     case True{}: existing_layout(~custom,activation,geometry,weights,bias,workers,Bands.plan(~F32,input))
     case False{}:
@@ -258,7 +272,7 @@ def execute_existing_layout(~custom: F32 -> F32,+activation: Activations.Activat
 def band_machine(~custom: F32 -> F32,+activation: Activations.Activation,supported: Bool,+geometry: Geometry,layout: Bands.Geometry,input: Bands.Bands(~F32),
   weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,+shape: List<&2,U32>,fill: F32,workers: U32) -> Tensors.Tensor<F32>:
   match supported:
-    case True{}: execute_existing_layout(~custom,activation,uses_band_windows(geometry),geometry,layout,input,weights,bias,workers)
+    case True{}: execute_existing_layout(~custom,activation,uses_band_windows(geometry),geometry,layout,input,packed(geometry,weights),bias,workers)
     case False{}: Tensors.Banded{input,layout,shape,fill,Tensors.Failed{Tensors.Problem{"conv2d",Tensors.InvalidShape{shape}}},workers}
 
 def band_supported(~custom: F32 -> F32,+activation: Activations.Activation,valid: Bool,+geometry: Geometry,layout: Bands.Geometry,input: Bands.Bands(~F32),
@@ -268,18 +282,25 @@ def band_supported(~custom: F32 -> F32,+activation: Activations.Activation,valid
     case True{}:
       band_machine(~custom,activation,machine_support(geometry,Default.limits()),geometry,layout,input,weights,bias,shape,fill,workers)
 
+# What a call on bands needs: bands that cover the images of the geometry, and
+# parameters whose lengths fit the shape and their capacities.
+def band_call_valid(+dimensions: KernelShape.Dimensions,+count: U32,layout: Bands.Geometry,inspection: Bands.Inspection,+weight_length: Nat,+weight_depth: Nat,
+  +bias_length: Nat,+bias_depth: Nat) -> Bool:
+  KernelShape.Dimensions{+ci,rows,+h,+w,k,s,p} = dimensions
+  Bands.Geometry{batch,channels,height,width} = layout
+  Bands.Inspection{valid,first,end,leaves} = inspection
+  valid && U32.is_zero(first) && Nat.is_eq(U32.to_nat(end),Nat.mul(U32.to_nat(count),h)) &&
+    U32.is_eq(batch,count) && Nat.is_eq(U32.to_nat(channels),ci) && Nat.is_eq(U32.to_nat(height),h) && Nat.is_eq(U32.to_nat(width),w) &&
+    KernelShape.valid(dimensions,Nat.mul(ci,Nat.mul(h,w)),weight_length,bias_length) &&
+    Nat.is_le(weight_length,U32.to_nat(U32.shln(1,weight_depth))) && Nat.is_le(bias_length,U32.to_nat(U32.shln(1,bias_depth)))
+
 def band_inspected(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: Geometry,+layout: Bands.Geometry,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,shape: List<&2,U32>,fill: F32,workers: U32,
   inspected: Bands.Bands(~F32) & Bands.Inspection) -> Tensors.Tensor<F32>:
   Geometry{+count,batched,+dimensions} = geometry
-  KernelShape.Dimensions{ci,rows,+h,w,k,s,p} = dimensions
-  Bands.Geometry{batch,channels,height,width} = layout
   Storage.Buffer{weights,+weight_length,Certificate.Certificate{+weight_depth,weight_equation}} = weights
   Storage.Buffer{bias,+bias_length,Certificate.Certificate{+bias_depth,bias_equation}} = bias
-  (input,Bands.Inspection{valid,first,end,leaves}) = inspected
-  band_supported(~custom,activation,valid && U32.is_zero(first) && Nat.is_eq(U32.to_nat(end),Nat.mul(U32.to_nat(count),h)) &&
-    U32.is_eq(batch,count) && Nat.is_eq(U32.to_nat(channels),ci) && Nat.is_eq(U32.to_nat(height),h) && Nat.is_eq(U32.to_nat(width),w) &&
-    KernelShape.valid(dimensions,Nat.mul(ci,Nat.mul(h,w)),weight_length,bias_length) &&
-    Nat.is_le(weight_length,U32.to_nat(U32.shln(1,weight_depth))) && Nat.is_le(bias_length,U32.to_nat(U32.shln(1,bias_depth))),
+  (input,inspection) = inspected
+  band_supported(~custom,activation,band_call_valid(dimensions,count,layout,inspection,weight_length,weight_depth,bias_length,bias_depth),
     geometry,layout,input,Storage.Buffer{weights,weight_length,Certificate.Certificate{weight_depth,weight_equation}},
     Storage.Buffer{bias,bias_length,Certificate.Certificate{bias_depth,bias_equation}},shape,fill,workers)
 
@@ -293,7 +314,7 @@ def band_status(~custom: F32 -> F32,+activation: Activations.Activation,status: 
   weights: Storage.Buffer<F32>,weight_shape: List<&2,U32>,bias: Storage.Buffer<F32>,bias_shape: List<&2,U32>,stride: U32,padding: U32,workers: U32) -> Tensors.Tensor<F32>:
   match status:
     case Tensors.Failed{problem}: Tensors.Banded{input,layout,shape,fill,Tensors.Failed{problem},workers}
-    case Tensors.Ready{}: band_checked(~custom,activation,geometry(input_shape(shape),weight_shape,bias_shape,stride,padding),layout,input,weights,bias,shape,fill,workers)
+    case Tensors.Usable{}: band_checked(~custom,activation,geometry(input_shape(shape),weight_shape,bias_shape,stride,padding),layout,input,weights,bias,shape,fill,workers)
 
 def input_layout(~custom: F32 -> F32,+activation: Activations.Activation,input: Tensors.Tensor<F32>,weights: Storage.Buffer<F32>,weight_shape: List<&2,U32>,bias: Storage.Buffer<F32>,bias_shape: List<&2,U32>,
   parameter_status: Tensors.Status,parameter_workers: U32,stride: U32,padding: U32) -> Tensors.Tensor<F32>:

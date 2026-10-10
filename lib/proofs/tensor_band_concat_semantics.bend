@@ -452,12 +452,12 @@ def range_read_before(~Element: Data,+request: BandRange.Request,+source: Model.
   +domain: BandGather.Domain<BandRange.request_geometry(request),limits,capacity>,
   +target: BandRange.Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   source_well_formed: BandShape.WellFormed<Element,BandRange.request_geometry(request),Model.content(~Element,source)>,
-  ready: Buffer.Ready<Element,output>,
+  ready: Buffer.Sized<Element,output>,
   +inside: {U32.is_lt(query,Tree.capacity(Element,Buffer.tree(~Element,output))) == True{} : Bool},
   +before: {Nat.is_lt(U32.to_nat(query),U32.to_nat(BandRange.request_offset(request))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,BandRange.content_writes(~Element,request,Model.content(~Element,source)),Buffer.tree(~Element,output)),query) == Tree.read(Element,Buffer.tree(~Element,output),query) : Element}:
   BandShape.WellFormed{+metadata,+source_ready,coverage} = source_well_formed
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +facts = BandRange.tree(~Element,request,source,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output)),target,metadata,Model.ready(~Element,source,source_ready),BandGather.rows_room(BandRange.request_geometry(request),limits,capacity,domain))
   %BandRange.content_program(~Element,request,source) : {Tree.read(Element,Writes.pure(Element,_,Buffer.tree(~Element,output)),query) == Tree.read(Element,Buffer.tree(~Element,output),query) : Element}
   Equal.trans(Element,Tree.read(Element,Writes.pure(Element,BandRange.writes(~Element,request,source),Buffer.tree(~Element,output)),query),Readback.selected(~Element,BandRange.writes(~Element,request,source),query,Tree.read(Element,Buffer.tree(~Element,output),query)),Tree.read(Element,Buffer.tree(~Element,output),query),
@@ -466,11 +466,11 @@ def range_read_before(~Element: Data,+request: BandRange.Request,+source: Model.
 
 def prefix_offset(~Element: Data,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+channel: U32,+first: U32,+rows: U32,+output: Buffer.Model<Element>,
   +width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},
-  metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+  metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
   +channel_room: {Nat.is_le(Nat.add(U32.to_nat(channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}) ->
   {U32.to_nat(BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},channel,rows)) == Nat.mul(U32.to_nat(channel),Nat.mul(U32.to_nat(rows),U32.to_nat(width))) : Nat}:
   BandShape.Fields{local,rows_fit,+length_exact} = metadata
-  Buffer.Ready{+depth_ok,+length_room} = ready
+  Buffer.Sized{+depth_ok,+length_room} = ready
   +capacity = Tree.capacity(Element,Buffer.tree(~Element,output))
   +plane = Nat.mul(U32.to_nat(rows),U32.to_nat(width))
   +channels_room = Order.transitive(U32.to_nat(channel),Nat.add(U32.to_nat(channel),U32.to_nat(source_channels)),U32.to_nat(output_channels),Order.le_add(U32.to_nat(channel),U32.to_nat(source_channels)),channel_room)
@@ -490,7 +490,7 @@ def target_offset_room(request: BandRange.Request,+row_capacity: U32,+output_cap
 # A cell of a channel below the cursor lies before the channel offset of the
 # next append.
 def prefix_cell_before(~Element: Data,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+prefix_channel: U32,+first: U32,+rows: U32,+output: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  +width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,+channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool},
+  +width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,+channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool},
   channel_inside: {Nat.is_lt(channel,U32.to_nat(prefix_channel)) == True{} : Bool},row_inside: {Nat.is_lt(row,U32.to_nat(rows)) == True{} : Bool},
   column_inside: {Nat.is_lt(column,U32.to_nat(width)) == True{} : Bool}) ->
   {Nat.is_lt(BandValues.position(Bands.Geometry{images,output_channels,height,width},rows,channel,row,column),U32.to_nat(BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows))) == True{} : Bool}:
@@ -502,12 +502,12 @@ def prefix_cell_before(~Element: Data,+images: U32,+source_channels: U32,+output
 # A range append leaves every cell before its channel offset unchanged.
 def range_prefix_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+output_geometry: Bands.Geometry,+request: BandRange.Request,+source: Model.Model<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,+channel: Nat,+row: Nat,+column: Nat,
   domain: BandGather.Domain<BandRange.request_geometry(request),limits,capacity>,+target: BandRange.Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
-  source_well_formed: BandShape.WellFormed<Element,BandRange.request_geometry(request),Model.content(~Element,source)>,ready: Buffer.Ready<Element,output>,
+  source_well_formed: BandShape.WellFormed<Element,BandRange.request_geometry(request),Model.content(~Element,source)>,ready: Buffer.Sized<Element,output>,
   +before: {Nat.is_lt(BandValues.position(output_geometry,BandRange.request_rows(request),channel,row,column),U32.to_nat(BandRange.request_offset(request))) == True{} : Bool},
   cell: BandValues.At(~Element,~Logical,~original,logical,output_geometry,BandRange.request_first(request),BandRange.request_rows(request),Buffer.tree(~Element,output),Buffer.length(~Element,output),channel,row,column)) ->
   BandValues.At(~Element,~Logical,~original,logical,output_geometry,BandRange.request_first(request),BandRange.request_rows(request),
     Writes.pure(Element,BandRange.content_writes(~Element,request,Model.content(~Element,source)),Buffer.tree(~Element,output)),Buffer.length(~Element,output),channel,row,column):
-  Buffer.Ready{+depth_ok,length_room} = ready
+  Buffer.Sized{+depth_ok,length_room} = ready
   Shape.Both{inside,equal} = cell
   +position = BandValues.position(output_geometry,BandRange.request_rows(request),channel,row,column)
   +pixel = U32.from_nat(BandValues.pixel(output_geometry,channel,Nat.add(U32.to_nat(BandRange.request_first(request)),row),column))
@@ -531,7 +531,7 @@ def PrefixValues(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Elem
 type RangePrefix<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
   RangePrefix{logical: Logical,images: U32,source_channels: U32,output_channels: U32,height: U32,width: U32,prefix_channel: U32,first: U32,rows: U32,source: Model.Model<Element>,output: Buffer.Model<Element>,limits: Machine.Limits,capacity: U32,
     domain: BandGather.Domain<Bands.Geometry{images,source_channels,height,width},limits,capacity>,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},
-    source_well_formed: BandShape.WellFormed<Element,Bands.Geometry{images,source_channels,height,width},Model.content(~Element,source)>,metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+    source_well_formed: BandShape.WellFormed<Element,Bands.Geometry{images,source_channels,height,width},Model.content(~Element,source)>,metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
     target: BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
     values: BandValues.Channels(~Element,~Logical,~original,logical,Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),U32.to_nat(prefix_channel)),channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}}
 
@@ -632,16 +632,16 @@ def dense_target_valid(request: BandRange.Request,+row_capacity: U32,+output_cap
 # Dense rows use the shared copy schedule, including its real image start.
 # No source samples or final concat equality are supplied by the caller.
 def dense_at_offset(~Element: Data,+images: U32,+channels: U32,+height: U32,+width: U32,+first: U32,+rows: U32,+offset: U32,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,
-  +target: BandRange.Target(BandRange.Request{Bands.Geometry{images,channels,height,width},first,rows,offset},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Ready<Element,output>,
+  +target: BandRange.Target(BandRange.Request{Bands.Geometry{images,channels,height,width},first,rows,offset},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Sized<Element,output>,
   +channel: Nat,+index: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(channels)) == True{} : Bool},+index_inside: {Nat.is_lt(index,U32.to_nat((rows * width : U32))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,BandCopy.writes(~Element,U32.to_nat(channels),0,(rows * width : U32),(height * width : U32),(rows * width : U32),((first / height * channels * height + first % height) * width : U32),offset,input),Buffer.tree(~Element,output)),BandCopy.readback_query(dense_region(BandRange.Request{Bands.Geometry{images,channels,height,width},first,rows,offset},Tree.capacity(Element,Buffer.tree(~Element,output))),channel,index)) == BandCopy.sample(~Element,input,(height * width : U32),((first / height * channels * height + first % height) * width : U32),channel,index) : Element}:
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +request = {BandRange.Request{Bands.Geometry{images,channels,height,width},first,rows,offset} : BandRange.Request}
   +region = dense_region(request,Tree.capacity(Element,Buffer.tree(~Element,output)))
   BandCopy.read_inside(~Element,U32.to_nat(channels),0n,channel,index,region,(height * width : U32),dense_source_start(request),input,Buffer.tree(~Element,output),Buffer.depth(~Element,output),Buffer.balanced(~Element,output),depth_ok,{==},dense_target_valid(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output)),target,index,index_inside),Order.reflexive(U32.to_nat(channels)),channel_inside,index_inside)
 
 def dense_channel_point(~Element: Data,request: BandRange.Request,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,
-  +target: BandRange.Target(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Ready<Element,output>,
+  +target: BandRange.Target(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Sized<Element,output>,
   +channel: Nat,+index: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(BandRange.channel_count(request))) == True{} : Bool},
   +index_inside: {Nat.is_lt(index,U32.to_nat(BandCopy.count(dense_region(request,Tree.capacity(Element,Buffer.tree(~Element,output)))))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,dense_requested_writes(~Element,request,input),Buffer.tree(~Element,output)),BandCopy.readback_query(dense_region(request,Tree.capacity(Element,Buffer.tree(~Element,output))),channel,index)) == BandCopy.sample(~Element,input,dense_source_stride(request),dense_source_start(request),channel,index) : Element}:
@@ -649,7 +649,7 @@ def dense_channel_point(~Element: Data,request: BandRange.Request,+input: Tree.T
   dense_at_offset(~Element,images,channels,height,width,first,rows,offset,input,output,row_capacity,target,ready,channel,index,channel_inside,index_inside)
 
 def dense_native_channel_point(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+prefix_channel: U32,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,
-  +target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),+ready: Buffer.Ready<Element,output>,
+  +target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),+ready: Buffer.Sized<Element,output>,
   +channel: Nat,+index: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(BandRange.channel_count(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)}))) == True{} : Bool},
   +index_inside: {Nat.is_lt(index,U32.to_nat(BandCopy.count(dense_region(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},Tree.capacity(Element,Buffer.tree(~Element,output)))))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,BandConcatExecution.dense_writes(~Element,geometry,first,rows,prefix_channel,input),Buffer.tree(~Element,output)),BandCopy.readback_query(dense_region(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},Tree.capacity(Element,Buffer.tree(~Element,output))),channel,index)) == BandCopy.sample(~Element,input,dense_source_stride(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)}),dense_source_start(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)}),channel,index) : Element}:
@@ -767,7 +767,7 @@ def metadata_length(geometry: Bands.Geometry,+first: U32,+rows: U32,+length: Nat
   length_exact
 
 def local_count_exact(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+width_positive: {BandShape.width_positive(geometry) == True{} : Bool},
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>) ->
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>) ->
   {U32.to_nat(Bands.local_count(geometry,rows)) == BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0}) : Nat}:
   Equal.trans(Nat,U32.to_nat(Bands.local_count(geometry,rows)),Buffer.length(~Element,input),BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0}),
     count_projection(geometry,rows,Buffer.length(~Element,input),BandShape.count(~Element,geometry,first,rows,input,width_positive,metadata,ready)),metadata_length(geometry,first,rows,Buffer.length(~Element,input),metadata))
@@ -785,7 +785,7 @@ def channel_length_offset(geometry: Bands.Geometry,+first: U32,+rows: U32,+offse
   {==}
 
 def aligned_leaf_channels(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+geometry: Bands.Geometry,+channel: U32,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,
-  +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+input_ready: Buffer.Ready<Element,input>,+output_ready: Buffer.Ready<Element,output>,
+  +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+input_ready: Buffer.Sized<Element,input>,+output_ready: Buffer.Sized<Element,output>,
   +values: BandValues.Leaf(~Element,~Logical,~original,logical,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
   +target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output)))) ->
   BandConcatExecution.TreeChannelValues(~Element,~Logical,~original,logical,geometry,channel,BandConcatExecution.aligned_model(~Element,geometry,channel,Model.content(~Element,Model.Leaf{input,first,rows}),Model.content(~Element,Model.Leaf{output,first,rows}))):
@@ -900,7 +900,7 @@ def source_width(geometry: Bands.Geometry,+limits: Machine.Limits,+capacity: U32
 # The cell an append wrote at its channel offset is the cell of the output
 # leaf at the channel moved by the prefix, and holds the concat oracle there.
 def extended_cell(~Element: Data,~original: BandConcatExecution.TensorContent<Element> -> U32 -> Element,+input: BandConcatExecution.TensorContent<Element>,+root: BandConcatExecution.PartContents<Element>,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+prefix_channel: U32,+first: U32,+rows: U32,+output: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,+channel: Nat,+row: Nat,+column: Nat,
-  +output_domain: BandGather.Domain<Bands.Geometry{images,output_channels,height,width},limits,capacity>,+width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},+metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+  +output_domain: BandGather.Domain<Bands.Geometry{images,output_channels,height,width},limits,capacity>,+width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},+metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
   +source_count: {BandConcat.channels(BandConcatExecution.tensor_shape(~Element,input)) == source_channels : U32},+total_exact: {U32.to_nat(output_channels) == BandConcatExecution.total_channels(~Element,root) : Nat},
   +channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool},
   source_position: ConcatOrderedSources.SourcePosition<Element,Unit,channel_extent(~Element),Unit{},input,root,U32.to_nat(prefix_channel)>,
@@ -932,7 +932,7 @@ def extended_cell(~Element: Data,~original: BandConcatExecution.TensorContent<El
 # What an append supplies to every cell of the channels it adds.
 type Extended<-Element: Data,-original: BandConcatExecution.TensorContent<Element> -> U32 -> Element> is Data:
   Extended{input: BandConcatExecution.TensorContent<Element>,root: BandConcatExecution.PartContents<Element>,images: U32,source_channels: U32,output_channels: U32,height: U32,width: U32,prefix_channel: U32,first: U32,rows: U32,output: Buffer.Model<Element>,limits: Machine.Limits,capacity: U32,
-    output_domain: BandGather.Domain<Bands.Geometry{images,output_channels,height,width},limits,capacity>,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+    output_domain: BandGather.Domain<Bands.Geometry{images,output_channels,height,width},limits,capacity>,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
     added: BandConcatExecution.ChannelValues(~Element,~BandConcatExecution.TensorContent<Element>,~original,input,BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Buffer.content(~Element,output)),
     source_count: {BandConcat.channels(BandConcatExecution.tensor_shape(~Element,input)) == source_channels : U32},total_exact: {U32.to_nat(output_channels) == BandConcatExecution.total_channels(~Element,root) : Nat},
     channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool},
@@ -991,7 +991,7 @@ def extend_channels(~Element: Data,~original: BandConcatExecution.TensorContent<
 # What an aligned append supplies to every cell below the cursor.
 type AlignedPrefix<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
   AlignedPrefix{logical: Logical,images: U32,source_channels: U32,output_channels: U32,height: U32,width: U32,prefix_channel: U32,first: U32,rows: U32,input: Buffer.Model<Element>,output: Buffer.Model<Element>,limits: Machine.Limits,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},
-    source_metadata: BandShape.Leaf(Bands.Geometry{images,source_channels,height,width},first,rows,Buffer.length(~Element,input)),metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),source_ready: Buffer.Ready<Element,input>,ready: Buffer.Ready<Element,output>,
+    source_metadata: BandShape.Leaf(Bands.Geometry{images,source_channels,height,width},first,rows,Buffer.length(~Element,input)),metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),source_ready: Buffer.Sized<Element,input>,ready: Buffer.Sized<Element,output>,
     target: BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
     values: BandValues.Channels(~Element,~Logical,~original,logical,Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),U32.to_nat(prefix_channel)),channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}}
 
@@ -1024,7 +1024,7 @@ def aligned_prefix_cells_leaf_cell(~Element: Data,~Logical: Data,~original: Logi
     BandValues.channels_cell(~Element,~Logical,~original,logical,Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),U32.to_nat(prefix_channel),channel,row,column,values,channel_inside,row_inside,column_inside))
 
 def aligned_prefix_leaf(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+prefix_channel: U32,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,
-  width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},source_metadata: BandShape.Leaf(Bands.Geometry{images,source_channels,height,width},first,rows,Buffer.length(~Element,input)),metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),source_ready: Buffer.Ready<Element,input>,ready: Buffer.Ready<Element,output>,
+  width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},source_metadata: BandShape.Leaf(Bands.Geometry{images,source_channels,height,width},first,rows,Buffer.length(~Element,input)),metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),source_ready: Buffer.Sized<Element,input>,ready: Buffer.Sized<Element,output>,
   values: BandValues.Channels(~Element,~Logical,~original,logical,Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),U32.to_nat(prefix_channel)),
   target: BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}) ->
@@ -1078,7 +1078,7 @@ def dense_query_encoding(+request: BandRange.Request,+capacity: U32,+channel: Na
 # its pixel: the shared copy schedule reads the source at the pixel index.
 def dense_cell(~Element: Data,~band_value: Model.Content<Element> -> Bands.Geometry -> U32 -> Element,+geometry: Bands.Geometry,+first: U32,+rows: U32,+prefix_channel: U32,+input: Tree.Tree<Element>,+input_length: Nat,+shape: List<&2,U32>,+fill: Element,+status: Tensors.Status,+workers: U32,+output: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,+channel: Nat,+row: Nat,+column: Nat,
   +domain: BandGather.Domain<geometry,limits,capacity>,+target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
-  metadata: BandShape.Leaf(geometry,first,rows,BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0})),ready: Buffer.Ready<Element,output>,
+  metadata: BandShape.Leaf(geometry,first,rows,BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0})),ready: Buffer.Sized<Element,output>,
   +channel_inside: {Nat.is_lt(channel,BandValues.channels(geometry)) == True{} : Bool},+row_inside: {Nat.is_lt(row,U32.to_nat(rows)) == True{} : Bool},
   +column_inside: {Nat.is_lt(column,BandValues.width(geometry)) == True{} : Bool}) ->
   BandConcatExecution.ChannelAt(~Element,~BandConcatExecution.TensorContent<Element>,~tensor_original(~Element,~band_value),BandConcatExecution.DenseContent{Buffer.Content{input,input_length},shape,fill,status,workers},BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},
@@ -1114,7 +1114,7 @@ def dense_cell(~Element: Data,~band_value: Model.Content<Element> -> Bands.Geome
 type DenseCells<-Element: Data,-band_value: Model.Content<Element> -> Bands.Geometry -> U32 -> Element> is Data:
   DenseCells{geometry: Bands.Geometry,first: U32,rows: U32,prefix_channel: U32,input: Tree.Tree<Element>,input_length: Nat,shape: List<&2,U32>,fill: Element,status: Tensors.Status,workers: U32,output: Buffer.Model<Element>,limits: Machine.Limits,capacity: U32,
     domain: BandGather.Domain<geometry,limits,capacity>,target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
-    metadata: BandShape.Leaf(geometry,first,rows,BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0})),ready: Buffer.Ready<Element,output>}
+    metadata: BandShape.Leaf(geometry,first,rows,BandConcatExecution.channel_length(BandRange.Request{geometry,first,rows,0})),ready: Buffer.Sized<Element,output>}
 
 def dense_cells_geometry(~Element: Data,~band_value: Model.Content<Element> -> Bands.Geometry -> U32 -> Element,evidence: DenseCells<Element,band_value>) -> Bands.Geometry:
   DenseCells{geometry,first,rows,prefix_channel,input,input_length,shape,fill,status,workers,output,limits,capacity,domain,target,metadata,ready} = evidence
@@ -1152,20 +1152,20 @@ def dense_tree_channels(~Element: Data,~band_value: Model.Content<Element> -> Ba
       Shape.Both{left_targets,right_targets} = targets
       Shape.Both{dense_tree_channels(~Element,~band_value,geometry,prefix_channel,input,shape,fill,status,workers,left,limits,capacity,domain,left_ready,left_targets),dense_tree_channels(~Element,~band_value,geometry,prefix_channel,input,shape,fill,status,workers,right,limits,capacity,domain,right_ready,right_targets)}
 
-def dense_requested_read_before(~Element: Data,request: BandRange.Request,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,+query: U32,+target: BandRange.Target(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Ready<Element,output>,
+def dense_requested_read_before(~Element: Data,request: BandRange.Request,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,+query: U32,+target: BandRange.Target(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Sized<Element,output>,
   +inside: {U32.is_lt(query,Tree.capacity(Element,Buffer.tree(~Element,output))) == True{} : Bool},+before: {Nat.is_lt(U32.to_nat(query),U32.to_nat(BandRange.request_offset(request))) == True{} : Bool},+plane_positive: {Nat.is_lt(0n,U32.to_nat(BandCopy.count(dense_region(request,Tree.capacity(Element,Buffer.tree(~Element,output)))))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,dense_requested_writes(~Element,request,input),Buffer.tree(~Element,output)),query) == Tree.read(Element,Buffer.tree(~Element,output),query) : Element}:
   BandRange.Request{Bands.Geometry{+images,+channels,+height,+width},+first,+rows,+offset} = request
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +region = dense_region(request,Tree.capacity(Element,Buffer.tree(~Element,output)))
   BandCopy.read_outside(~Element,U32.to_nat(channels),0n,region,dense_source_stride(request),dense_source_start(request),input,Buffer.tree(~Element,output),query,Buffer.depth(~Element,output),Buffer.balanced(~Element,output),depth_ok,{==},dense_target_valid(request,row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output)),target,0n,plane_positive),inside,Order.reflexive(U32.to_nat(channels)),planes_before(U32.to_nat(channels),0n,region,query,before))
 
 def dense_read_before(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+prefix_channel: U32,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+row_capacity: U32,+position: Nat,
-  +target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Ready<Element,output>,
+  +target: BandRange.Target(BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)},row_capacity,Tree.capacity(Element,Buffer.tree(~Element,output))),ready: Buffer.Sized<Element,output>,
   +before: {Nat.is_lt(position,U32.to_nat(BandConcat.channel_offset(geometry,prefix_channel,rows))) == True{} : Bool},
   +plane_positive: {Nat.is_lt(0n,U32.to_nat(BandCopy.count(dense_region(BandRange.Request{geometry,first,rows,0},Tree.capacity(Element,Buffer.tree(~Element,output)))))) == True{} : Bool}) ->
   {Tree.read(Element,Writes.pure(Element,BandConcatExecution.dense_writes(~Element,geometry,first,rows,prefix_channel,input),Buffer.tree(~Element,output)),U32.from_nat(position)) == Tree.read(Element,Buffer.tree(~Element,output),U32.from_nat(position)) : Element}:
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +request = {BandRange.Request{geometry,first,rows,BandConcat.channel_offset(geometry,prefix_channel,rows)} : BandRange.Request}
   +buffer_capacity = Tree.capacity(Element,Buffer.tree(~Element,output))
   +position_room = Bounds.nat_trans(position,U32.to_nat(BandRange.request_offset(request)),U32.to_nat(buffer_capacity),before,target_offset_room(request,row_capacity,buffer_capacity,target))
@@ -1176,7 +1176,7 @@ def dense_read_before(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows
 
 # A dense append leaves every cell before its channel offset unchanged.
 def dense_prefix_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+prefix_channel: U32,+first: U32,+rows: U32,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+limits: Machine.Limits,+channel: Nat,+row: Nat,+column: Nat,
-  +width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),+ready: Buffer.Ready<Element,output>,
+  +width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),+ready: Buffer.Sized<Element,output>,
   +target: BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   +channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool},
   +channel_inside: {Nat.is_lt(channel,U32.to_nat(prefix_channel)) == True{} : Bool},+row_inside: {Nat.is_lt(row,U32.to_nat(rows)) == True{} : Bool},
@@ -1201,7 +1201,7 @@ def dense_prefix_cell(~Element: Data,~Logical: Data,~original: Logical -> U32 ->
 
 # What a dense append supplies to every cell below the cursor.
 type DensePrefix<-Element: Data,-Logical: Data,-original: Logical -> U32 -> Element> is Data:
-  DensePrefix{logical: Logical,images: U32,source_channels: U32,output_channels: U32,height: U32,width: U32,prefix_channel: U32,first: U32,rows: U32,input: Tree.Tree<Element>,output: Buffer.Model<Element>,limits: Machine.Limits,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+  DensePrefix{logical: Logical,images: U32,source_channels: U32,output_channels: U32,height: U32,width: U32,prefix_channel: U32,first: U32,rows: U32,input: Tree.Tree<Element>,output: Buffer.Model<Element>,limits: Machine.Limits,width_positive: {Nat.is_lt(0n,U32.to_nat(width)) == True{} : Bool},metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
     target: BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},prefix_channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
     values: BandValues.Channels(~Element,~Logical,~original,logical,Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.tree(~Element,output),Buffer.length(~Element,output),U32.to_nat(prefix_channel)),channel_room: {Nat.is_le(Nat.add(U32.to_nat(prefix_channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}}
 
@@ -1745,13 +1745,13 @@ def concat_first_values(~Element: Data,~band_value: Model.Content<Element> -> Ba
 type NativeBandFields<-Element: Data,-parts: Tensors.Parts<Element>,-first: List<&2,U32>,-axis: U32,-count: U32,-layout: Bands.Plan> is Data:
   NativeBandFields{
     valid: {BandConcatCaller.survey_valid(BandConcatCaller.observed_summary(~Element,Layout.survey(~Element,parts,first,U32.to_nat(axis),BandConcatCaller.initial_summary(first,U32.to_nat(axis))))) == True{} : Bool},
-    status: {BandConcatCaller.status_of(BandConcatCaller.observed_summary(~Element,Layout.survey(~Element,parts,first,U32.to_nat(axis),BandConcatCaller.initial_summary(first,U32.to_nat(axis))))) == Tensors.Ready{} : Tensors.Status},
+    status: {BandConcatCaller.status_of(BandConcatCaller.observed_summary(~Element,Layout.survey(~Element,parts,first,U32.to_nat(axis),BandConcatCaller.initial_summary(first,U32.to_nat(axis))))) == Tensors.Usable{} : Tensors.Status},
     counted: {Tensors.count_of(BandConcatCaller.target_shape(first,axis,BandConcatCaller.observed_summary(~Element,Layout.survey(~Element,parts,first,U32.to_nat(axis),BandConcatCaller.initial_summary(first,U32.to_nat(axis)))))) == Some{count} : Maybe<&2,U32>},
     layout: {BandConcatCaller.discovered_plan(~Element,BandConcat.discover(~Element,parts)) == Some{layout} : Maybe<&2,Bands.Plan>},
     compatible: {BandConcatCaller.compatible_flag(~Element,BandConcatCaller.compatible_model(~Element,BandConcatExecution.parts_contents(~Element,parts))) && Bool.not(Shapes.has_zero(BandConcatCaller.target_shape(first,axis,BandConcatCaller.observed_summary(~Element,Layout.survey(~Element,parts,first,U32.to_nat(axis),BandConcatCaller.initial_summary(first,U32.to_nat(axis))))))) == True{} : Bool}}
 
 def survey_fields(~Element: Data,+parts: BandConcatExecution.PartContents<Element>,+rank: BandConcatCaller.Rank,+channels: U32,+height: U32,+width: U32,+summary: Layout.Survey,+count: U32,+layout: Bands.Plan,
-  valid: {BandConcatCaller.survey_valid(summary) == True{} : Bool},status: {BandConcatCaller.status_of(summary) == Tensors.Ready{} : Tensors.Status},
+  valid: {BandConcatCaller.survey_valid(summary) == True{} : Bool},status: {BandConcatCaller.status_of(summary) == Tensors.Usable{} : Tensors.Status},
   counted: {Tensors.count_of(BandConcatCaller.target_shape(BandConcatCaller.shape_of(rank,channels,height,width),BandConcatCaller.axis_of(rank),summary)) == Some{count} : Maybe<&2,U32>},selected: {BandConcatCaller.discovery_model(~Element,parts) == Some{layout} : Maybe<&2,Bands.Plan>},
   compatible: {BandConcatCaller.compatible_flag(~Element,BandConcatCaller.compatible_model(~Element,parts)) && Bool.not(Shapes.has_zero(BandConcatCaller.target_shape(BandConcatCaller.shape_of(rank,channels,height,width),BandConcatCaller.axis_of(rank),summary))) == True{} : Bool}) ->
   BandConcatCaller.BandSurveyFields<Element,parts,BandConcatCaller.shape_of(rank,channels,height,width),BandConcatCaller.axis_of(rank),summary,Bands.Geometry{BandConcatCaller.images_of(rank),BandConcatCaller.survey_total(summary),height,width},count,layout>:
@@ -1765,7 +1765,7 @@ def native_fields_packed(~Element: Data,+sources: BandConcatExecution.PartsOwner
   +summary_equal = BandConcatCaller.native_summary_packed(~Element,sources,first,U32.to_nat(BandConcatCaller.axis_of(rank)),BandConcatCaller.initial_summary(first,U32.to_nat(BandConcatCaller.axis_of(rank))))
   survey_fields(~Element,BandConcatExecution.parts_contents(~Element,BandConcatExecution.parts_owner_pack(~Element,sources)),rank,channels,height,width,BandConcatCaller.survey_model(~Element,BandConcatExecution.parts_contents(~Element,BandConcatExecution.parts_owner_pack(~Element,sources)),first,U32.to_nat(BandConcatCaller.axis_of(rank)),BandConcatCaller.initial_summary(first,U32.to_nat(BandConcatCaller.axis_of(rank)))),count,layout,
     %summary_equal : {BandConcatCaller.survey_valid(_) == True{} : Bool} valid,
-    %summary_equal : {BandConcatCaller.status_of(_) == Tensors.Ready{} : Tensors.Status} status,
+    %summary_equal : {BandConcatCaller.status_of(_) == Tensors.Usable{} : Tensors.Status} status,
     %summary_equal : {Tensors.count_of(BandConcatCaller.target_shape(first,BandConcatCaller.axis_of(rank),_)) == Some{count} : Maybe<&2,U32>} counted,
     %BandConcatCaller.discover_plan_packed(~Element,sources) : {_ == Some{layout} : Maybe<&2,Bands.Plan>} selected,
     %summary_equal : {BandConcatCaller.compatible_flag(~Element,BandConcatCaller.compatible_model(~Element,BandConcatExecution.parts_contents(~Element,BandConcatExecution.parts_owner_pack(~Element,sources)))) && Bool.not(Shapes.has_zero(BandConcatCaller.target_shape(first,BandConcatCaller.axis_of(rank),_))) == True{} : Bool} compatible)
@@ -1860,19 +1860,19 @@ def native_concat(~Element: Data,~band_value: Model.Content<Element> -> Bands.Ge
 
 def status_ready(status: Tensors.Status) -> Bool:
   match status:
-    case Tensors.Ready{}: True{}
+    case Tensors.Usable{}: True{}
     case Tensors.Failed{problem}: False{}
 
 def merge_previous_ready(previous: Tensors.Status,current: Tensors.Status,
   accepted: {status_ready(Tensors.first_failure(previous,current)) == True{} : Bool}) -> {status_ready(previous) == True{} : Bool}:
   match previous current:
-    case Tensors.Ready{} current: {==}
+    case Tensors.Usable{} current: {==}
     case Tensors.Failed{problem} current: Empty.absurd({False{} == True{} : Bool},WordEncoding.false_true(accepted))
 
 def merge_current_ready(previous: Tensors.Status,current: Tensors.Status,
   accepted: {status_ready(Tensors.first_failure(previous,current)) == True{} : Bool}) -> {status_ready(current) == True{} : Bool}:
   match previous current:
-    case Tensors.Ready{} current: accepted
+    case Tensors.Usable{} current: accepted
     case Tensors.Failed{problem} current: Empty.absurd({status_ready(current) == True{} : Bool},WordEncoding.false_true(accepted))
 
 def survey_status_step(~Element: Data,+input: BandConcatExecution.TensorContent<Element>,+first: List<&2,U32>,+axis: Nat,+summary: Layout.Survey) ->
@@ -1973,7 +1973,7 @@ def IncomingNormals(~Element: Data,sources: BandConcatExecution.PartsOwnerModel<
 def IncomingValues(~Element: Data,~band_value: Model.Content<Element> -> Bands.Geometry -> U32 -> Element,input: BandConcatExecution.TensorOwnerModel<Element>) -> Data:
   match input:
     case BandConcatExecution.DenseOwner{buffer,shape,fill,status,workers}: Unit
-    case BandConcatExecution.BandedOwner{+bands,+geometry,+shape,+fill,Tensors.Ready{},+workers}:
+    case BandConcatExecution.BandedOwner{+bands,+geometry,+shape,+fill,Tensors.Usable{},+workers}:
       BandValues.Values(~Element,~BandConcatExecution.TensorContent<Element>,~tensor_original(~Element,~band_value),BandConcatExecution.tensor_contents(~Element,BandConcatExecution.tensor_owner_pack(~Element,input)),geometry,Model.contents(~Element,Model.pack(~Element,bands)))
     case BandConcatExecution.BandedOwner{bands,geometry,shape,fill,Tensors.Failed{problem},workers}: Unit
 
@@ -1989,7 +1989,7 @@ def incoming_source_contract(~Element: Data,~band_value: Model.Content<Element> 
   SourceContract(~Element,~band_value,images,height,width,BandConcatExecution.tensor_contents(~Element,BandConcatExecution.tensor_owner_pack(~Element,input))):
   match input:
     case BandConcatExecution.DenseOwner{buffer,shape,fill,status,workers}: Unit{}
-    case BandConcatExecution.BandedOwner{+bands,+geometry,+shape,+fill,Tensors.Ready{},+workers}:
+    case BandConcatExecution.BandedOwner{+bands,+geometry,+shape,+fill,Tensors.Usable{},+workers}:
       Shape.Both{well_formed,Shape.Both{counted,+coherent}} = normal
       +expected = {Bands.Geometry{images,BandConcat.channels(shape),height,width} : Bands.Geometry}
       +same_geometry = Equal.cong(Maybe<&2,Bands.Geometry>,Bands.Geometry,BandCount.value,Some{geometry},Some{expected},
@@ -2135,7 +2135,7 @@ def concat_first_incoming(~Element: Data,~band_value: Model.Content<Element> -> 
   +initial = BandConcatCaller.initial_summary(first,U32.to_nat(BandConcatCaller.axis_of(rank)))
   +summary = BandConcatCaller.survey_model(~Element,parts,first,U32.to_nat(BandConcatCaller.axis_of(rank)),initial)
   +statuses = surveyed_statuses(~Element,parts,first,U32.to_nat(BandConcatCaller.axis_of(rank)),initial,
-    %Equal.sym(Tensors.Status,BandConcatCaller.status_of(summary),Tensors.Ready{},status) : {status_ready(_) == True{} : Bool} {==})
+    %Equal.sym(Tensors.Status,BandConcatCaller.status_of(summary),Tensors.Usable{},status) : {status_ready(_) == True{} : Bool} {==})
   +contracts = incoming_source_contracts(~Element,~band_value,sources,BandConcatCaller.images_of(rank),height,width,
     surveyed_geometries(~Element,parts,rank,channels,height,width,initial,limit,BandConcatCaller.prefixes(~Element,parts,first,U32.to_nat(BandConcatCaller.axis_of(rank)),initial,limit,maximum,accepted)),statuses,normals,values)
   +domain = counted_output_domain(rank,channels,height,width,summary,count,BandConcatCaller.compatible_flag(~Element,BandConcatCaller.compatible_model(~Element,parts)),counted,compatible)
@@ -2201,7 +2201,7 @@ def selection_is_band(inputs: ConcatSelectionInputs) -> Bool:
   ConcatSelectionInputs{status,valid,geometry,counted,layout,compatible} = inputs
   match status:
     case Tensors.Failed{problem}: False{}
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       match valid:
         case False{}: False{}
         case True{}:
@@ -2233,29 +2233,29 @@ def selection_received(~Element: Data,+parts: BandConcatExecution.PartContents<E
   match status:
     case Tensors.Failed{+problem}:
       selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Failed{problem},valid,geometry,counted,layout,compatible},actual,{==})
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       match valid:
         case False{}:
-          selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Ready{},False{},geometry,counted,layout,compatible},actual,{==})
+          selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Usable{},False{},geometry,counted,layout,compatible},actual,{==})
         case True{}:
           match geometry:
             case None{}:
-              selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Ready{},True{},None{},counted,layout,compatible},actual,{==})
+              selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Usable{},True{},None{},counted,layout,compatible},actual,{==})
             case Some{+geometry}:
               match counted:
                 case None{}:
-                  selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Ready{},True{},Some{geometry},None{},layout,compatible},actual,{==})
+                  selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Usable{},True{},Some{geometry},None{},layout,compatible},actual,{==})
                 case Some{+count}:
                   match layout:
                     case None{}:
-                      selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Ready{},True{},Some{geometry},Some{count},None{},compatible},actual,{==})
+                      selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Usable{},True{},Some{geometry},Some{count},None{},compatible},actual,{==})
                     case Some{+layout}:
                       match compatible:
                         case False{}:
-                          selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Ready{},True{},Some{geometry},Some{count},Some{layout},False{}},actual,{==})
+                          selection_disabled_received(~Element,parts,first,axis,summary,ConcatSelectionInputs{Tensors.Usable{},True{},Some{geometry},Some{count},Some{layout},False{}},actual,{==})
                         case True{}:
                           +observed = selection_inputs(~Element,parts,first,axis,summary)
-                          +selected = {ConcatSelectionInputs{Tensors.Ready{},True{},Some{geometry},Some{count},Some{layout},True{}} : ConcatSelectionInputs}
+                          +selected = {ConcatSelectionInputs{Tensors.Usable{},True{},Some{geometry},Some{count},Some{layout},True{}} : ConcatSelectionInputs}
                           ConcatBandSelected{geometry,count,layout,Equal.cong(ConcatSelectionInputs,Bool,selection_is_band,observed,selected,actual),BandConcatCaller.BandSurveyFields{
                             Equal.cong(ConcatSelectionInputs,Bool,selection_valid,observed,selected,actual),
                             Equal.cong(ConcatSelectionInputs,Tensors.Status,selection_status,observed,selected,actual),

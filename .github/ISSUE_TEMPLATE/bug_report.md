@@ -19,4 +19,4 @@ The program or command, as small as possible:
 
 - Bend version:
 - Operating system:
-- Bend-Conv version or commit:
+- Stelliferous version or commit:

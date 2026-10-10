@@ -4,6 +4,7 @@
 import Base
 import ./tensor_band.bend as Bands
 import ./storage_buffer.bend as Storage
+import ./tensor_operations.bend as Operations
 import ./kernel_cost.bend as Cost
 import ./default_kernel_cost.bend as DefaultCost
 
@@ -46,12 +47,12 @@ def allocation_elements(layout: Bands.Plan,+geometry: Bands.Geometry) -> Nat:
 def alignment(+geometry: Bands.Geometry,+left: Bands.Plan,+right: Bands.Plan) -> Bands.Plan:
   Bool.pick(Bands.Plan,Bands.same_plan(left,right) || Nat.is_le(allocation_elements(left,geometry),allocation_elements(right,geometry)),left,right)
 
-def mapped(~Element: Data,~operation: Element -> Element,+geometry: Bands.Geometry,workers: U32,operations: F32,owners: Bands.Bands(~Element) & Bands.Plan) -> Bands.Bands(~Element):
+def mapped_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,+geometry: Bands.Geometry,workers: U32,operations: F32,owners: Bands.Bands(~Element) & Bands.Plan) -> Bands.Bands(~Element):
   (bands,+layout) = owners
-  Bands.map(~Element,~operation,layout,parallel(geometry,workers,8.0,operations,layout),geometry,bands)
+  Bands.map_with(~Element,~Context,~Bands.map_whole_context(~Element,~Context,~mapper),layout,parallel(geometry,workers,8.0,operations,layout),geometry,context,bands)
 
-def map(~Element: Data,~operation: Element -> Element,geometry: Bands.Geometry,workers: U32,operations: F32,bands: Bands.Bands(~Element)) -> Bands.Bands(~Element):
-  mapped(~Element,~operation,geometry,workers,operations,Bands.plan(~Element,bands))
+def map_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,geometry: Bands.Geometry,workers: U32,operations: F32,bands: Bands.Bands(~Element)) -> Bands.Bands(~Element):
+  mapped_context(~Element,~Context,~mapper,context,geometry,workers,operations,Bands.plan(~Element,bands))
 
 def scalar_planned(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,workers: U32,operations: F32,value: Element,owners: Bands.Bands(~Element) & Bands.Plan) -> Bands.Bands(~Element):
   (bands,+layout) = owners

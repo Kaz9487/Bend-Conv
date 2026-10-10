@@ -44,13 +44,9 @@ def models():
     cases = [(case, 1) for case in ['bus_320', 'bus_640', 'zidane_320', 'zidane_640']]
     for case, threads in cases + [('bus_640', 4)]:
         suffix = f'_{threads}t' if threads != 1 else ''
-        stem = case + (f'_cpu{suffix}' if suffix else '')
         result = read(f'out/results/{case}/comparison_native{suffix}.json')
         assert result['passed'] and result['nms_pass'], case
         pinned_build(result['bend_build'])
-        graph = read(f'out/models/{stem}.json')
-        # F.conv2d plans inside Bend; the thread count only names the runtime.
-        assert graph['backend'] == 'lib/tensor_f32.bend' and graph['threads'] == threads
 
 
 def model_comparison():

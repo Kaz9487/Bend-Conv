@@ -150,7 +150,7 @@ def scatter_content(~Element: Data,+count: U32,+target: Views.View,input: Buffer
 
 # One index of the scatter program.
 def cell(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+target: Views.View,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,+index: Nat,
-  ready: Buffer.Ready<Element,output>,
+  ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +count_room: {Nat.is_le(U32.to_nat(count),Buffer.length(~Element,input)) == True{} : Bool},
@@ -161,7 +161,7 @@ def cell(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -
     scatter_content(~Element,count,target,Buffer.content(~Element,input),Buffer.content(~Element,output)),index):
   Buffer.Model{+input_tree,+input_length,+input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   +output = {Buffer.Model{output_tree,output_length,output_certificate} : Buffer.Model<Element>}
   +capacity = Tree.capacity(Element,output_tree)
   +capacity_ok = Buffer.capacity_bound(~Element,output,depth_ok)
@@ -190,7 +190,7 @@ def cell(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -
 
 # Every index of the scatter program.
 def cells_range(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,remaining: Nat,+position: Nat,+before: Before,+part: Part,+target_axes: List<&2,Views.Axis>,+target_offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   +before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +count_room: {Nat.is_le(U32.to_nat(count),Buffer.length(~Element,input)) == True{} : Bool},
@@ -210,7 +210,7 @@ def program_length(~Element: Data,+count: U32,+target: Views.View,+input: Buffer
   Buffer.Model{output_tree,output_length,output_certificate} = output
   {==}
 
-def program_ready(~Element: Data,+count: U32,+target: Views.View,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Ready<Element,output>) ->
+def program_ready(~Element: Data,+count: U32,+target: Views.View,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Sized<Element,output>) ->
   Buffer.ContentReady<Element,scatter_content(~Element,count,target,Buffer.content(~Element,input),Buffer.content(~Element,output))>:
   Buffer.Model{+input_tree,input_length,input_certificate} = input
   Buffer.Model{+output_tree,+output_length,+output_certificate} = output
@@ -218,7 +218,7 @@ def program_ready(~Element: Data,+count: U32,+target: Views.View,+input: Buffer.
     Buffer.content_ready(~Element,Buffer.Model{output_tree,output_length,output_certificate},ready))
 
 def program_values(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+target_axes: List<&2,Views.Axis>,+target_offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   +before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +count_room: {Nat.is_le(U32.to_nat(count),Buffer.length(~Element,input)) == True{} : Bool},
@@ -230,7 +230,7 @@ def program_values(~Element: Data,~Before: Data,~Part: Data,~before_value: Befor
   cells_range(~Element,~Before,~Part,~before_value,~part_value,Buffer.length(~Element,output),0n,before,part,target_axes,target_offset,input,output,count,ready,part_values,before_values,count_room,exact,fits,Order.reflexive(Buffer.length(~Element,output)))
 
 def program_facts(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+target_axes: List<&2,Views.Axis>,+target_offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,+target_shape: List<&2,U32>,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   +before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +count_room: {Nat.is_le(U32.to_nat(count),Buffer.length(~Element,input)) == True{} : Bool},
@@ -315,7 +315,7 @@ def guarded(~Element: Data,+source: Views.View,+target: Views.View,+input: Buffe
       Boolean.right((same && contiguous && input_valid : Bool),output_valid,truth))}
 
 def guarded_facts(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+target_axes: List<&2,Views.Axis>,+target_offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,+source_axes: List<&2,Views.Axis>,+target_shape: List<&2,U32>,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   +before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +source_exact: {ShapeLaws.elements(Views.axis_extents(source_axes)) == Buffer.length(~Element,input) : Nat},
@@ -344,7 +344,7 @@ def guarded_facts(~Element: Data,~Before: Data,~Part: Data,~before_value: Before
 
 # The storage content of the target after an accepted scatter of the part.
 def modeled_facts(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+target_axes: List<&2,Views.Axis>,+target_offset: U32,+input: Buffer.Model<Element>,+output: Buffer.Model<Element>,+count: U32,+source_axes: List<&2,Views.Axis>,+target_shape: List<&2,U32>,
-  +ready: Buffer.Ready<Element,output>,
+  +ready: Buffer.Sized<Element,output>,
   +part_values: Dense.Values(~Element,~Part,~part_value,part,Buffer.content(~Element,input)),
   +before_values: Dense.Values(~Element,~Before,~before_value,before,Buffer.content(~Element,output)),
   +source_exact: {ShapeLaws.elements(Views.axis_extents(source_axes)) == Buffer.length(~Element,input) : Nat},

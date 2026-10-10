@@ -1,6 +1,6 @@
 name: Benchmark
 
-# Started by hand. It times the YOLOv5n forward on NumPy, Bend-Conv and
+# Started by hand. It times the YOLOv5n forward on NumPy, Stelliferous and
 # PyTorch on a hosted runner and writes the report to the job summary.
 # A hosted runner is shared hardware: read the numbers as an indication.
 on:

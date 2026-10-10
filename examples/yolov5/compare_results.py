@@ -18,17 +18,15 @@ def run(case, threads=1):
     if threads < 1:
         raise ValueError('threads must be positive')
     backend = 'native' + (f'_{threads}t' if threads != 1 else '')
-    stem = case + (f'_cpu_{threads}t' if threads != 1 else '')
     folder = ROOT / 'out/results' / case
     ref = json.loads((folder / 'reference.json').read_text())
     run = json.loads((folder / backend / 'native_run.json').read_text())
-    native_meta = json.loads((ROOT / 'out/models' / f'{stem}.json').read_text())
-    run.update(macs=native_meta['macs'], weights_sha256=native_meta['weights_sha256'])
     meta = json.loads((ROOT / 'out/weights/model.json').read_text())
+    assert meta['sha256'] == ref['weights_sha256'], 'The weights and the reference differ'
     checks = []
     for name, shape in ref['outputs'].items():
-        bp = folder / backend / f'{name}.bin'
-        bend = np.fromfile(bp, dtype='<f4').reshape(shape)
+        bend = np.load(folder / backend / f'{name}.npy')
+        assert list(bend.shape) == shape, name
         for reference_backend in ['torch', 'numpy']:
             p = folder / reference_backend / f'{name}.bin'
             if not p.exists():
@@ -56,7 +54,7 @@ def run(case, threads=1):
             print(
                 name, reference_backend, 'max_abs', float(diff.max()), 'PASS' if passed else 'FAIL'
             )
-    pred = np.fromfile(folder / backend / 'pred.bin', dtype='<f4').reshape(ref['outputs']['pred'])
+    pred = np.load(folder / backend / 'pred.npy')
     det = nms(pred)
     torch_det = np.array(
         json.loads((folder / 'torch/nms.json').read_text()), dtype=np.float32
@@ -96,8 +94,7 @@ def run(case, threads=1):
             bend_seconds=run['seconds'],
         ),
         backend=run['backend'],
-        macs=run['macs'],
-        weights_sha256=run['weights_sha256'],
+        weights_sha256=meta['sha256'],
     )
     build_path = folder / backend / 'bend_build.json'
     report['bend_build'] = json.loads(build_path.read_text()) if build_path.exists() else None

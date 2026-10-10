@@ -871,7 +871,7 @@ def join_from_compatible(~Element: Data,parts: Tensors.Parts<Element>,+shape: Li
   join_from_compatible_observed(~Element,parts,shape,axis,fill,workers,geometry,count,layout,BandConcatExecution.observe_parts(~Element,parts),enabled,geometry_selected,count_selected,layout_selected)
 
 def initial_summary(+first: List<&2,U32>,axis: Nat) -> Layout.Survey:
-  Layout.Survey{Nat.is_lt(axis,List.length(&2,U32,first)),0,Tensors.Ready{},1}
+  Layout.Survey{Nat.is_lt(axis,List.length(&2,U32,first)),0,Tensors.Usable{},1}
 
 def native_cursor_packed(~Element: Data,+parts: BandConcatExecution.PartsOwnerModel<Element>,+geometry: Bands.Geometry,+output: Model.Content<Element>,+rank: Rank,+channels: U32,+height: U32,+width: U32,+limit: U32,+maximum: {limit == 4294967295 : U32},
   accepted: {survey_valid(observed_summary(~Element,Layout.survey(~Element,BandConcatExecution.parts_owner_pack(~Element,parts),shape_of(rank,channels,height,width),U32.to_nat(axis_of(rank)),initial_summary(shape_of(rank,channels,height,width),U32.to_nat(axis_of(rank)))))) == True{} : Bool}) ->
@@ -903,7 +903,7 @@ def target_shape(+first: List<&2,U32>,+axis: U32,summary: Layout.Survey) -> List
   Layout.with_extent(first,U32.to_nat(axis),survey_total(summary))
 
 type BandSurveyFields<-Element: Data,-parts: BandConcatExecution.PartContents<Element>,-first: List<&2,U32>,-axis: U32,-summary: Layout.Survey,-geometry: Bands.Geometry,-count: U32,-layout: Bands.Plan> is Data:
-  BandSurveyFields{valid: {survey_valid(summary) == True{} : Bool},status: {status_of(summary) == Tensors.Ready{} : Tensors.Status},
+  BandSurveyFields{valid: {survey_valid(summary) == True{} : Bool},status: {status_of(summary) == Tensors.Usable{} : Tensors.Status},
     geometry: {BandConcat.geometry(target_shape(first,axis,summary),axis) == Some{geometry} : Maybe<&2,Bands.Geometry>},
     counted: {Tensors.count_of(target_shape(first,axis,summary)) == Some{count} : Maybe<&2,U32>},
     layout: {discovery_model(~Element,parts) == Some{layout} : Maybe<&2,Bands.Plan>},
@@ -924,10 +924,10 @@ def joined_band(~Element: Data,owners: Tensors.Parts<Element> & Layout.Survey,+f
   (parts,+summary) = owners
   Layout.Survey{+valid,+total,+status,+workers} = summary
   BandSurveyFields{valid_guard,status_guard,geometry_guard,count_guard,layout_guard,compatible_guard} = evidence
-  %Equal.sym(Tensors.Status,status,Tensors.Ready{},status_guard) :
+  %Equal.sym(Tensors.Status,status,Tensors.Usable{},status_guard) :
     {BandConcatExecution.tensor_contents(~Element,Layout.join_status(~Element,_,valid,first,Layout.with_extent(first,U32.to_nat(axis),total),axis,fill,workers,parts)) == BandConcatExecution.join_model(~Element,layout,geometry,BandConcatExecution.parts_contents(~Element,parts),Layout.with_extent(first,U32.to_nat(axis),total),fill,workers) : BandConcatExecution.TensorContent<Element>}
   %Equal.sym(Bool,valid,True{},valid_guard) :
-    {BandConcatExecution.tensor_contents(~Element,Layout.join_status(~Element,Tensors.Ready{},_,first,Layout.with_extent(first,U32.to_nat(axis),total),axis,fill,workers,parts)) == BandConcatExecution.join_model(~Element,layout,geometry,BandConcatExecution.parts_contents(~Element,parts),Layout.with_extent(first,U32.to_nat(axis),total),fill,workers) : BandConcatExecution.TensorContent<Element>}
+    {BandConcatExecution.tensor_contents(~Element,Layout.join_status(~Element,Tensors.Usable{},_,first,Layout.with_extent(first,U32.to_nat(axis),total),axis,fill,workers,parts)) == BandConcatExecution.join_model(~Element,layout,geometry,BandConcatExecution.parts_contents(~Element,parts),Layout.with_extent(first,U32.to_nat(axis),total),fill,workers) : BandConcatExecution.TensorContent<Element>}
   join_from_compatible(~Element,parts,Layout.with_extent(first,U32.to_nat(axis),total),axis,fill,workers,geometry,count,layout,compatible_guard,geometry_guard,count_guard,layout_guard)
 
 def concat_first_band_packed(~Element: Data,+parts: BandConcatExecution.PartsOwnerModel<Element>,+first: List<&2,U32>,+axis: U32,+fill: Element,+geometry: Bands.Geometry,+count: U32,+layout: Bands.Plan,
@@ -1039,7 +1039,7 @@ def remaining_channel_room(+channel: U32,+source_channels: U32,+output_channels:
 def range_target_leaf(~Element: Data,+images: U32,+source_channels: U32,+output_channels: U32,+height: U32,+width: U32,+channel: U32,+first: U32,+rows: U32,
   +limits: Machine.Limits,+global_capacity: U32,+output: Buffer.Model<Element>,
   +domain: BandGather.Domain<Bands.Geometry{images,output_channels,height,width},limits,global_capacity>,
-  metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>,
+  metadata: BandShape.Leaf(Bands.Geometry{images,output_channels,height,width},first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>,
   source_positive: {Nat.is_lt(0n,U32.to_nat(source_channels)) == True{} : Bool},
   channel_room: {Nat.is_le(Nat.add(U32.to_nat(channel),U32.to_nat(source_channels)),U32.to_nat(output_channels)) == True{} : Bool}) ->
   Shape.Both<BandRange.Target(BandRange.Request{Bands.Geometry{images,source_channels,height,width},first,rows,BandConcat.channel_offset(Bands.Geometry{images,source_channels,height,width},channel,rows)},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
@@ -1047,7 +1047,7 @@ def range_target_leaf(~Element: Data,+images: U32,+source_channels: U32,+output_
   Buffer.Model{+tree,+length,+certificate} = output
   BandGather.Domain{capacity_ok,output_positive,height_positive,+width_positive,machine_room,allocation_room} = domain
   BandShape.Fields{+local,+rows_fit,+length_exact} = metadata
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   +capacity = Tree.capacity(Element,tree)
   +capacity_bound = Buffer.capacity_bound(~Element,output,depth_ok)
   +plane = Nat.mul(U32.to_nat(rows),U32.to_nat(width))
@@ -1250,7 +1250,7 @@ def written_ready(~Element: Data,+request: BandRange.Request,+source: Model.Cont
 
 def banded_rows_ready(~Element: Data,+external_geometry: Bands.Geometry,+source_geometry: Bands.Geometry,+first: U32,+rows: U32,+channel: U32,
   +source: Model.Model<Element>,+output: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+status: Tensors.Status,+workers: U32,
-  ready: Buffer.Ready<Element,output>) ->
+  ready: Buffer.Sized<Element,output>) ->
   Buffer.ContentReady<Element,BandConcatExecution.rows_output_content(~Element,BandConcat.rows(~Element,external_geometry,first,rows,channel,
     Tensors.Banded{Model.pack(~Element,source),source_geometry,shape,fill,status,workers},Buffer.pack(~Element,output)))>:
   +request = {BandRange.Request{source_geometry,first,rows,BandConcat.channel_offset(source_geometry,channel,rows)} : BandRange.Request}

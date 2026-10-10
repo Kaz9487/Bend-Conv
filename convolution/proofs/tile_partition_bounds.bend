@@ -56,6 +56,14 @@ def remainder_exact(+span: U32,+cap: U32,+cap_ok: {U32.is_le(cap,2147483648) == 
   Arithmetic.subtract(span,half(span),cap,cap_ok,half_le(span,cap,cap_ok,bound),Order.transitive(Nat.sub(U32.to_nat(span),
         U32.to_nat(half(span))),U32.to_nat(span),U32.to_nat(cap),Order.sub_le(U32.to_nat(span),U32.to_nat(half(span))),bound))
 
+# The remainder of an eight-position split cannot exceed its parent span.
+def remainder_le(+span: U32,+cap: U32,+cap_ok: {U32.is_le(cap,2147483648) == True{} : Bool},
+  +bound: {Nat.is_le(U32.to_nat(span),U32.to_nat(cap)) == True{} : Bool}) ->
+  {Nat.is_le(U32.to_nat((span - half(span) : U32)),U32.to_nat(span)) == True{} : Bool}:
+  %Equal.sym(Nat,U32.to_nat((span - half(span) : U32)),Nat.sub(U32.to_nat(span),U32.to_nat(half(span))),remainder_exact(span,cap,cap_ok,bound)) :
+    {Nat.is_le(_,U32.to_nat(span)) == True{} : Bool}
+  Order.sub_le(U32.to_nat(span),U32.to_nat(half(span)))
+
 def sum(+span: U32,+cap: U32,+cap_ok: {U32.is_le(cap,2147483648) == True{} : Bool},+bound: {Nat.is_le(U32.to_nat(span),
       U32.to_nat(cap)) == True{} : Bool}) -> {Nat.add(U32.to_nat(half(span)),U32.to_nat((span - half(span) : U32))) == U32.to_nat(span) : Nat}:
   %Equal.sym(Nat,U32.to_nat((span - half(span) : U32)),Nat.sub(U32.to_nat(span),U32.to_nat(half(span))),remainder_exact(span,cap,cap_ok,

@@ -120,14 +120,14 @@ type ImageResult<-Logical: Data,-original: Logical -> U32 -> F32,-custom: F32 ->
     owners: {(Buffer.pack(~F32,source_model),Buffer.pack(~F32,output_model)) == TensorConvolution.image(~custom,image_activation(~Logical,context),depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))),index,count,Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
     retained: {Buffer.content(~F32,source_model) == Buffer.content(~F32,input) : Buffer.Content<F32>},
     source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,source_model)),
-    source_ready: Buffer.Ready<F32,source_model>,output_ready: Buffer.Ready<F32,output_model>,
+    source_ready: Buffer.Sized<F32,source_model>,output_ready: Buffer.Sized<F32,output_model>,
     length_exact: {Buffer.length(~F32,output_model) == U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index)))) : Nat},
     values: Dense.Values(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index)),image_activation(~Logical,context)},Buffer.content(~F32,output_model))}
 
 def leaf_observed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+index: U32,+count: U32,+depth: U32,+input: Buffer.Model<F32>,+allocated: Buffer.Model<F32>,+left: Buffer.Model<F32>,+right: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   +count_exact: {U32.to_nat(count) == DenseSources.image_size(~Logical,context) : Nat},+allocation: {Buffer.pack(~F32,allocated) == Tensors.buffer(~F32,0.0,count) : Storage.Buffer<F32>},
   +owners: {(Buffer.pack(~F32,left),Buffer.pack(~F32,right)) == Copy.range(~F32,count,U32.from_nat(Nat.mul(U32.to_nat(index),DenseSources.image_size(~Logical,context))),0,Buffer.pack(~F32,input),Buffer.pack(~F32,allocated)) : Storage.Buffer<F32> & Storage.Buffer<F32>},
-  +retained: {Buffer.content(~F32,left) == Buffer.content(~F32,input) : Buffer.Content<F32>},+source_ready: Buffer.Ready<F32,left>,
+  +retained: {Buffer.content(~F32,left) == Buffer.content(~F32,input) : Buffer.Content<F32>},+source_ready: Buffer.Sized<F32,left>,
   +source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,input)),
   +storage: DenseSingle.SourceStorage<DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index)),right,weights,bias>,
   +reordered: {Buffer.tree(~Tile.Tile8,tiles) == WeightsLaws.run(MicroLeaf.rows(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))),Coordinates.native_inner(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))),Buffer.tree(~F32,weights)) : Tree.Tree<Tile.Tile8>},
@@ -166,7 +166,7 @@ def leaf_observed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -
 type ImageInputs<-Logical: Data,-original: Logical -> U32 -> F32,-context: BandConvolutionValues.Context<Logical>,-limits: Machine.Limits,-index: U32,-count: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-weights: Buffer.Model<F32>,-bias: Buffer.Model<F32>> is Data:
   ImageInputs{count_exact: {U32.to_nat(count) == DenseSources.image_size(~Logical,context) : Nat},
     count_within: {U32.is_le(count,Machine.capacity(limits)) == True{} : Bool},
-    source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,input)),source_ready: Buffer.Ready<F32,input>,
+    source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,input)),source_ready: Buffer.Sized<F32,input>,
     source_room: {Nat.is_le(Nat.add(Nat.mul(U32.to_nat(index),DenseSources.image_size(~Logical,context)),U32.to_nat(count)),Buffer.length(~F32,input)) == True{} : Bool},
     weight_values: {Tree.read_sequence(~F32,ConvSpec.length(Guards.weights(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index)))),0,Buffer.tree(~F32,weights)) == Guards.weights(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))) : List<&2,F32>},
     bias_values: {Tree.read_sequence(~F32,ConvSpec.length(Guards.bias(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index)))),0,Buffer.tree(~F32,bias)) == Guards.bias(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))) : List<&2,F32>},
@@ -176,7 +176,7 @@ type ImageInputs<-Logical: Data,-original: Logical -> U32 -> F32,-context: BandC
     valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))) == True{} : Bool},
     supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,U32.to_nat(index))) == True{} : Bool}}
 
-def input_ready(~Logical: Data,~original: Logical -> U32 -> F32,-context: BandConvolutionValues.Context<Logical>,-limits: Machine.Limits,-index: U32,-count: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-weights: Buffer.Model<F32>,-bias: Buffer.Model<F32>,evidence: ImageInputs<Logical,original,context,limits,index,count,input,tiles,weights,bias>) -> Buffer.Ready<F32,input>:
+def input_ready(~Logical: Data,~original: Logical -> U32 -> F32,-context: BandConvolutionValues.Context<Logical>,-limits: Machine.Limits,-index: U32,-count: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-weights: Buffer.Model<F32>,-bias: Buffer.Model<F32>,evidence: ImageInputs<Logical,original,context,limits,index,count,input,tiles,weights,bias>) -> Buffer.Sized<F32,input>:
   ImageInputs{count_exact,count_within,source_values,source_ready,source_room,weight_values,bias_values,weight_room,bias_room,reordered,valid,supported} = evidence
   source_ready
 
@@ -185,7 +185,7 @@ def count_within(~Logical: Data,~original: Logical -> U32 -> F32,-context: BandC
   count_within
 
 def image_with_copy(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+index: U32,+count: U32,+depth: U32,+input: Buffer.Model<F32>,+allocated: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
-  +allocation: {Buffer.pack(~F32,allocated) == Tensors.buffer(~F32,0.0,count) : Storage.Buffer<F32>},+allocation_ready: Buffer.Ready<F32,allocated>,+allocation_length: {Buffer.length(~F32,allocated) == U32.to_nat(count) : Nat},
+  +allocation: {Buffer.pack(~F32,allocated) == Tensors.buffer(~F32,0.0,count) : Storage.Buffer<F32>},+allocation_ready: Buffer.Sized<F32,allocated>,+allocation_length: {Buffer.length(~F32,allocated) == U32.to_nat(count) : Nat},
   evidence: ImageInputs<Logical,original,context,limits,index,count,input,tiles,weights,bias>,
   copied: DenseSources.Copied<count,U32.from_nat(Nat.mul(U32.to_nat(index),DenseSources.image_size(~Logical,context))),0,input,allocated>) -> ImageResult<Logical,original,custom,context,index,count,depth,input,tiles,bias>:
   ImageInputs{+count_exact,count_within,+source_values,source_ready,+source_room,+weight_values,+bias_values,+weight_room,+bias_room,+reordered,+valid,+supported} = evidence
@@ -271,7 +271,7 @@ def source_room(+images: U32,+index: U32,+size: Nat,+length: Nat,+inside: {Nat.i
 type Sources<-Logical: Data,-original: Logical -> U32 -> F32,-context: BandConvolutionValues.Context<Logical>,-limits: Machine.Limits,-images: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-weights: Buffer.Model<F32>,-bias: Buffer.Model<F32>> is Data:
   Sources{length_exact: {Buffer.length(~F32,input) == Nat.mul(U32.to_nat(images),DenseSources.image_size(~Logical,context)) : Nat},
     whole_room: {Nat.is_le(Nat.mul(U32.to_nat(images),DenseSources.image_size(~Logical,context)),U32.to_nat(Machine.capacity(limits))) == True{} : Bool},
-    source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,input)),source_ready: Buffer.Ready<F32,input>,
+    source_values: Dense.Values(~F32,~Logical,~original,DenseSources.logical_source(~Logical,context),Buffer.content(~F32,input)),source_ready: Buffer.Sized<F32,input>,
     weight_values: {Tree.read_sequence(~F32,ConvSpec.length(Guards.weights(DenseSources.image_problem(~Logical,~original,context,0n))),0,Buffer.tree(~F32,weights)) == Guards.weights(DenseSources.image_problem(~Logical,~original,context,0n)) : List<&2,F32>},
     bias_values: {Tree.read_sequence(~F32,ConvSpec.length(Guards.bias(DenseSources.image_problem(~Logical,~original,context,0n))),0,Buffer.tree(~F32,bias)) == Guards.bias(DenseSources.image_problem(~Logical,~original,context,0n)) : List<&2,F32>},
     weight_room: {Nat.is_le(ConvSpec.length(Guards.weights(DenseSources.image_problem(~Logical,~original,context,0n))),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,weights)))) == True{} : Bool},
@@ -302,19 +302,19 @@ def inputs(~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolu
 
 # Actual image cursors and stores are bounded by the whole output owner.
 # The selected kernel depth does not occur in these allocation obligations.
-def natural_room(+images: U32,+image: U32,+volume: Nat,+output: Buffer.Model<F32>,ready: Buffer.Ready<F32,output>,
+def natural_room(+images: U32,+image: U32,+volume: Nat,+output: Buffer.Model<F32>,ready: Buffer.Sized<F32,output>,
   +length_exact: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),volume) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool}) ->
   {Nat.is_le(Nat.add(Nat.mul(U32.to_nat(image),volume),volume),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool}:
-  Buffer.Ready{depth_ok,+room} = ready
+  Buffer.Sized{depth_ok,+room} = ready
   Order.transitive(Nat.add(Nat.mul(U32.to_nat(image),volume),volume),Buffer.length(~F32,output),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output))),
     source_room(images,image,volume,Buffer.length(~F32,output),inside,length_exact),room)
 
-def cursor_exact(+image: U32,+size: U32,+volume: Nat,+output: Buffer.Model<F32>,ready: Buffer.Ready<F32,output>,
+def cursor_exact(+image: U32,+size: U32,+volume: Nat,+output: Buffer.Model<F32>,ready: Buffer.Sized<F32,output>,
   +size_exact: {U32.to_nat(size) == volume : Nat},
   +room: {Nat.is_le(Nat.add(Nat.mul(U32.to_nat(image),volume),volume),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool}) ->
   {U32.to_nat((image * size : U32)) == Nat.mul(U32.to_nat(image),volume) : Nat}:
-  Buffer.Ready{+depth_ok,allocation_room} = ready
+  Buffer.Sized{+depth_ok,allocation_room} = ready
   %Equal.sym(U32,(image * size : U32),U32.from_nat(Nat.mul(U32.to_nat(image),volume)),offset_matches(image,size,volume,size_exact)) :
     {U32.to_nat(_) == Nat.mul(U32.to_nat(image),volume) : Nat}
   Bounds.roundtrip(Nat.mul(U32.to_nat(image),volume),Tree.capacity(F32,Buffer.tree(~F32,output)),Buffer.capacity_bound(~F32,output,depth_ok),
@@ -326,7 +326,7 @@ type StoreBounds<-image: U32,-size: U32,-volume: Nat,-output: Buffer.Model<F32>>
     natural: {Nat.is_le(Nat.add(Nat.mul(U32.to_nat(image),volume),volume),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
     store: {Nat.is_le(Nat.add(U32.to_nat((image * size : U32)),U32.to_nat(size)),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool}}
 
-def prepared(+images: U32,+image: U32,+size: U32,+volume: Nat,+output: Buffer.Model<F32>,+ready: Buffer.Ready<F32,output>,
+def prepared(+images: U32,+image: U32,+size: U32,+volume: Nat,+output: Buffer.Model<F32>,+ready: Buffer.Sized<F32,output>,
   +size_exact: {U32.to_nat(size) == volume : Nat},
   +length_exact: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),volume) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool}) -> StoreBounds<image,size,volume,output>:
@@ -386,9 +386,9 @@ def original_matches(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U3
     BandConvolutionValues.at_position(~custom,~Logical,~original,logical,activation,channels,outputs,height,width,kernel,stride,padding,weights,bias,image,channel,position),
     BandConvolutionValues.decoded(~custom,~Logical,~original,logical,activation,channels,outputs,height,width,kernel,stride,padding,weights,bias,image,channel,position,channel_inside,position_inside))
 
-def local_exact(+model: Buffer.Model<F32>,+index: Nat,ready: Buffer.Ready<F32,model>,+inside: {Nat.is_lt(index,Buffer.length(~F32,model)) == True{} : Bool}) ->
+def local_exact(+model: Buffer.Model<F32>,+index: Nat,ready: Buffer.Sized<F32,model>,+inside: {Nat.is_lt(index,Buffer.length(~F32,model)) == True{} : Bool}) ->
   {U32.to_nat(U32.from_nat(index)) == index : Nat}:
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   Bounds.roundtrip(index,Tree.capacity(F32,Buffer.tree(~F32,model)),Buffer.capacity_bound(~F32,model,depth_ok),
     Bounds.strict_le(index,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,model))),Bounds.nat_trans(index,Buffer.length(~F32,model),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,model))),inside,room)))
 
@@ -402,7 +402,7 @@ def destination_query(+image: U32,+size: U32,+count: Nat,+index: Nat,+exact: {U3
 def copied_point(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+image: U32,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>,+index: Nat,
   +valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},
   +values: Dense.Values(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)),image_activation(~Logical,context)},Buffer.content(~F32,result)),
-  +result_ready: Buffer.Ready<F32,result>,output_ready: Buffer.Ready<F32,output>,
+  +result_ready: Buffer.Sized<F32,result>,output_ready: Buffer.Sized<F32,output>,
   +length_exact: {Buffer.length(~F32,result) == U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)))) : Nat},
   +copy_room: {Nat.is_le(Nat.add(U32.to_nat((image * PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) : U32)),U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))))),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   +global_room: {Nat.is_le(Nat.add(Nat.mul(U32.to_nat(image),reference_volume(~Logical,context)),index),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
@@ -410,7 +410,7 @@ def copied_point(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 ->
   {Buffer.value(~F32,U32.from_nat(Nat.add(Nat.mul(U32.to_nat(image),reference_volume(~Logical,context)),index)),
       Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))),0,(image * PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) : U32),Buffer.pack(~F32,result),Buffer.pack(~F32,output))))) ==
     BandConvolutionValues.value(~custom,~Logical,~original,context,U32.from_nat(Nat.add(Nat.mul(U32.to_nat(image),reference_volume(~Logical,context)),index))) : F32}:
-  Buffer.Ready{+depth_ok,+output_room} = output_ready
+  Buffer.Sized{+depth_ok,+output_room} = output_ready
   +problem = DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))
   +size = PreparedOutputReadback.count(problem)
   +destination = (image * size : U32)
@@ -424,7 +424,7 @@ def copied_point(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 ->
     Equal.trans(F32,Buffer.value(~F32,(destination + U32.from_nat(index) : U32),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,size,0,destination,Buffer.pack(~F32,result),Buffer.pack(~F32,output))))),
       Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,result)),DenseConvolution.original(~custom,DenseConvolution.Logical{problem,image_activation(~Logical,context)},U32.from_nat(index)),
       Equal.trans(F32,Buffer.value(~F32,(destination + U32.from_nat(index) : U32),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,size,0,destination,Buffer.pack(~F32,result),Buffer.pack(~F32,output))))),Tree.read(F32,Buffer.tree(~F32,result),(0 + U32.from_nat(index) : U32)),Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,result)),
-        Batch.copy_inside(size,0,destination,result,output,index,Buffer.Ready{depth_ok,output_room},copy_room,
+        Batch.copy_inside(size,0,destination,result,output,index,Buffer.Sized{depth_ok,output_room},copy_room,
           %length_exact : {Nat.is_lt(index,_) == True{} : Bool} inside),
         %Equal.sym(U32,(0 + U32.from_nat(index) : U32),U32.from_nat(index),Arithmetic.add_zero_left(U32.from_nat(index))) :
           {Tree.read(F32,Buffer.tree(~F32,result),_) == Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,result)) : F32}
@@ -455,13 +455,13 @@ def read(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+co
 def copied_content(+size: U32,+image: U32,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>) -> Buffer.Content<F32>:
   Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,size,0,(image * size : U32),Buffer.pack(~F32,result),Buffer.pack(~F32,output))))
 
-def earlier_point(+size: U32,+destination: U32,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>,+index: Nat,+ready: Buffer.Ready<F32,output>,
+def earlier_point(+size: U32,+destination: U32,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>,+index: Nat,+ready: Buffer.Sized<F32,output>,
   +room: {Nat.is_le(Nat.add(U32.to_nat(destination),U32.to_nat(size)),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   +inside: {Nat.is_lt(index,Buffer.length(~F32,output)) == True{} : Bool},
   +before: {Nat.is_lt(index,U32.to_nat(destination)) == True{} : Bool}) ->
   {Buffer.value(~F32,U32.from_nat(index),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,size,0,destination,Buffer.pack(~F32,result),Buffer.pack(~F32,output))))) == Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,output)) : F32}:
-  Buffer.Ready{+depth_ok,+allocation_room} = ready
-  +exact = local_exact(output,index,Buffer.Ready{depth_ok,allocation_room},inside)
+  Buffer.Sized{+depth_ok,+allocation_room} = ready
+  +exact = local_exact(output,index,Buffer.Sized{depth_ok,allocation_room},inside)
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,size,0,destination,Buffer.pack(~F32,result),Buffer.pack(~F32,output)))),Batch.copied_content(size,0,destination,result,output),Batch.copy_output_contents(size,0,destination,result,output)) :
     {Buffer.value(~F32,U32.from_nat(index),_) == Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,output)) : F32}
   Equal.trans(F32,Buffer.value(~F32,U32.from_nat(index),Batch.copied_content(size,0,destination,result,output)),Tree.read(F32,Buffer.tree(~F32,output),U32.from_nat(index)),Buffer.value(~F32,U32.from_nat(index),Buffer.content(~F32,output)),
@@ -477,7 +477,7 @@ def earlier_point(+size: U32,+destination: U32,+result: Buffer.Model<F32>,+outpu
     DenseSources.model_read(U32.from_nat(index),output))
 
 def retained_range(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+size: U32,+image: U32,+volume: Nat,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>,remaining: Nat,+start: Nat,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),volume)),+ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),volume)),+ready: Buffer.Sized<F32,output>,
   +cursor: {U32.to_nat((image * size : U32)) == Nat.mul(U32.to_nat(image),volume) : Nat},
   +store_room: {Nat.is_le(Nat.add(U32.to_nat((image * size : U32)),U32.to_nat(size)),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   +prefix_room: {Nat.is_le(Nat.mul(U32.to_nat(image),volume),Buffer.length(~F32,output)) == True{} : Bool},
@@ -497,7 +497,7 @@ def retained_range(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 
 def image_range(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+image: U32,+result: Buffer.Model<F32>,+output: Buffer.Model<F32>,remaining: Nat,+start: Nat,
   +valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},
   +values: Dense.Values(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)),image_activation(~Logical,context)},Buffer.content(~F32,result)),
-  +result_ready: Buffer.Ready<F32,result>,+output_ready: Buffer.Ready<F32,output>,
+  +result_ready: Buffer.Sized<F32,result>,+output_ready: Buffer.Sized<F32,output>,
   +length_exact: {Buffer.length(~F32,result) == U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)))) : Nat},
   +bounds: StoreBounds<image,PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))),reference_volume(~Logical,context),output>,
   +range_room: {Nat.is_le(Nat.add(start,remaining),Buffer.length(~F32,result)) == True{} : Bool}) ->
@@ -520,7 +520,7 @@ def copied_prefix_parts(~custom: F32 -> F32,~Logical: Data,~original: Logical ->
   +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),
   +valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},
   +values: Dense.Values(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)),image_activation(~Logical,context)},Buffer.content(~F32,result)),
-  +result_ready: Buffer.Ready<F32,result>,+output_ready: Buffer.Ready<F32,output>,
+  +result_ready: Buffer.Sized<F32,result>,+output_ready: Buffer.Sized<F32,output>,
   +length_exact: {Buffer.length(~F32,result) == U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)))) : Nat},
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool},
@@ -547,7 +547,7 @@ def copied_prefix(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -
   +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),
   +valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) == True{} : Bool},
   +values: Dense.Values(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)),image_activation(~Logical,context)},Buffer.content(~F32,result)),
-  +result_ready: Buffer.Ready<F32,result>,+output_ready: Buffer.Ready<F32,output>,
+  +result_ready: Buffer.Sized<F32,result>,+output_ready: Buffer.Sized<F32,output>,
   +length_exact: {Buffer.length(~F32,result) == U32.to_nat(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image)))) : Nat},
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool}) ->
@@ -742,7 +742,7 @@ type Step<-Logical: Data,-original: Logical -> U32 -> F32,-custom: F32 -> F32,-c
     copy_owners: {Buffer.pack(~F32,output_model) == TensorConvolution.copied_output(Copy.range(~F32,PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,0n)),0,(image * PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,0n)) : U32),Buffer.pack(~F32,result_model),Buffer.pack(~F32,output))) : Storage.Buffer<F32>},
     retained: {Buffer.content(~F32,source_model) == Buffer.content(~F32,input) : Buffer.Content<F32>},
     length_exact: {Buffer.length(~F32,output_model) == Buffer.length(~F32,output) : Nat},
-    ready: Buffer.Ready<F32,output_model>,
+    ready: Buffer.Sized<F32,output_model>,
     values: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output_model),Nat.add(Nat.mul(U32.to_nat(image),reference_volume(~Logical,context)),reference_volume(~Logical,context)))}
 
 def image_result(~Logical: Data,~original: Logical -> U32 -> F32,~custom: F32 -> F32,-context: BandConvolutionValues.Context<Logical>,-image: U32,-depth: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-bias: Buffer.Model<F32>,leaf: ImageResult<Logical,original,custom,context,image,U32.from_nat(DenseSources.image_size(~Logical,context)),depth,input,tiles,bias>) -> Buffer.Model<F32>:
@@ -750,7 +750,7 @@ def image_result(~Logical: Data,~original: Logical -> U32 -> F32,~custom: F32 ->
   result
 
 def steps_with_copy(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+images: U32,+image: U32,+depth: U32,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Sized<F32,output>,
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool},
   sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias>,
@@ -782,7 +782,7 @@ def steps_with_copy(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
     copied_prefix(~custom,~Logical,~original,context,limits,images,image,result,output,before,image_valid,image_supported,result_values,result_ready,output_ready,result_length,output_length,inside)}
 
 def with_image(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+images: U32,+image: U32,+depth: U32,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Sized<F32,output>,
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool},
   +sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias>,
@@ -792,7 +792,7 @@ def with_image(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F
     DenseSources.copied(PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))),0,(image * PreparedOutputReadback.count(DenseSources.image_problem(~Logical,~original,context,U32.to_nat(image))) : U32),result,output,result_ready,output_ready))
 
 def steps_step(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+images: U32,+image: U32,+depth: U32,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(image),reference_volume(~Logical,context))),+output_ready: Buffer.Sized<F32,output>,
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +inside: {Nat.is_lt(U32.to_nat(image),U32.to_nat(images)) == True{} : Bool},
   +sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias>) -> Step<Logical,original,custom,context,image,depth,input,tiles,bias,output>:
@@ -806,7 +806,7 @@ def values_procedure(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U3
 
 type Completed<-Logical: Data,-original: Logical -> U32 -> F32,-custom: F32 -> F32,-context: BandConvolutionValues.Context<Logical>,-count: Nat,-index: U32,-depth: U32,-input: Buffer.Model<F32>,-tiles: Buffer.Model<Tile.Tile8>,-bias: Buffer.Model<F32>,-output: Buffer.Model<F32>> is Data:
   Completed{model: Buffer.Model<F32>,owner: {Buffer.pack(~F32,model) == values_procedure(~custom,~Logical,~original,context,count,index,depth,input,tiles,bias,output) : Storage.Buffer<F32>},
-    length_exact: {Buffer.length(~F32,model) == Buffer.length(~F32,output) : Nat},ready: Buffer.Ready<F32,model>,
+    length_exact: {Buffer.length(~F32,model) == Buffer.length(~F32,output) : Nat},ready: Buffer.Sized<F32,model>,
     values: Dense.Values(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Buffer.content(~F32,model))}
 
 def image_inside(+index: U32,+rest: Nat,+images: U32,+remaining: {Nat.add(U32.to_nat(index),1n+rest) == U32.to_nat(images) : Nat}) ->
@@ -834,7 +834,7 @@ def last_extent(+index: U32,+images: U32,+volume: Nat,+remaining: {Nat.add(U32.t
       Equal.trans(Nat,1n+U32.to_nat(index),Nat.add(U32.to_nat(index),1n),U32.to_nat(images),Equal.sym(Nat,Nat.add(U32.to_nat(index),1n),1n+U32.to_nat(index),Addition.successor_width(U32.to_nat(index))),remaining)))
 
 def empty(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+images: U32,+index: U32,+depth: U32,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Sized<F32,output>,
   +length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +remaining: {Nat.add(U32.to_nat(index),0n) == U32.to_nat(images) : Nat}) -> Completed<Logical,original,custom,context,0n,index,depth,input,tiles,bias,output>:
   +index_exact = Equal.trans(Nat,U32.to_nat(index),Nat.add(U32.to_nat(index),0n),U32.to_nat(images),Equal.sym(Nat,Nat.add(U32.to_nat(index),0n),U32.to_nat(index),Addition.zero_right(U32.to_nat(index))),remaining)
@@ -857,7 +857,7 @@ def Continue(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32
   @+input: Buffer.Model<F32> -> @+tiles: Buffer.Model<Tile.Tile8> -> @+bias: Buffer.Model<F32> -> @+output: Buffer.Model<F32> ->
   @+sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias> ->
   @+before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))) ->
-  @+ready: Buffer.Ready<F32,output> ->
+  @+ready: Buffer.Sized<F32,output> ->
   @+length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat} ->
   @+remaining: {Nat.add(U32.to_nat(index),1n+rest) == U32.to_nat(images) : Nat} ->
   Completed<Logical,original,custom,context,1n+rest,index,depth,input,tiles,bias,output>
@@ -907,7 +907,7 @@ def many_stepped(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 ->
 
 def many_prepared(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+images: U32,+rest: Nat,+index: U32,+depth: U32,
   +input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Sized<F32,output>,
   +length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +remaining: {Nat.add(U32.to_nat(index),2n+rest) == U32.to_nat(images) : Nat},
   +copies: Copies<Logical,original,context,limits,images,input,tiles,weights,bias>,
@@ -918,7 +918,7 @@ def many_prepared(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -
 
 def loop(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+limits: Machine.Limits,+images: U32,count: Nat,+index: U32,+depth: U32,+input: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+output: Buffer.Model<F32>,
   +sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias>,
-  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Ready<F32,output>,
+  +before: Values(~custom,~Logical,~original,context,Buffer.content(~F32,output),Nat.mul(U32.to_nat(index),reference_volume(~Logical,context))),+ready: Buffer.Sized<F32,output>,
   +length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +remaining: {Nat.add(U32.to_nat(index),count) == U32.to_nat(images) : Nat}) -> Completed<Logical,original,custom,context,count,index,depth,input,tiles,bias,output>:
   match count:
@@ -969,9 +969,9 @@ def completed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F3
   +output_length: {Buffer.length(~F32,output) == Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)) : Nat},
   +valid: {ConvSpec.valid(DenseSources.image_problem(~Logical,~original,context,0n)) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,DenseSources.image_problem(~Logical,~original,context,0n)) == True{} : Bool},
   result: Completed<Logical,original,custom,context,U32.to_nat(images),0,depth,input,tiles,bias,output>) ->
-  Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{values_procedure(~custom,~Logical,~original,context,U32.to_nat(images),0,depth,input,tiles,bias,output),extents(~Logical,~original,context,images),0.0,Tensors.Ready{},workers}):
+  Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{values_procedure(~custom,~Logical,~original,context,U32.to_nat(images),0,depth,input,tiles,bias,output),extents(~Logical,~original,context,images),0.0,Tensors.Usable{},workers}):
   Completed{+model,+owner,+length_exact,+ready,+values} = result
-  %owner : Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{_,extents(~Logical,~original,context,images),0.0,Tensors.Ready{},workers})
+  %owner : Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{_,extents(~Logical,~original,context,images),0.0,Tensors.Usable{},workers})
   Shape.Both{Shape.Both{
     %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,Buffer.pack(~F32,model)),Buffer.content(~F32,model),Buffer.packed_contents(~F32,model)) : Dense.WellFormed<F32,extents(~Logical,~original,context,images),_>
     Dense.WellFormed{Equal.trans(Nat,Buffer.content_length(~F32,Buffer.content(~F32,model)),Buffer.length(~F32,model),ShapeLaws.elements(extents(~Logical,~original,context,images)),DenseSources.image_copy_model_length(model),
@@ -986,11 +986,11 @@ def allocated(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F3
   +room: {Nat.is_le(Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)),U32.to_nat(Machine.capacity(limits))) == True{} : Bool},
   allocation: DenseSources.ImageSourceAllocated<(images * size(~Logical,~original,context) : U32)>) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{
-    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * size(~Logical,~original,context) : U32))),extents(~Logical,~original,context,images),0.0,Tensors.Ready{},workers}):
+    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * size(~Logical,~original,context) : U32))),extents(~Logical,~original,context,images),0.0,Tensors.Usable{},workers}):
   DenseSources.ImageSourceAllocated{+model,+owner,+ready,+length_exact} = allocation
   +output_length = Equal.trans(Nat,Buffer.length(~F32,model),U32.to_nat((images * size(~Logical,~original,context) : U32)),Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)),length_exact,allocation_count(~Logical,~original,context,limits,images,valid,supported,room))
   %owner : Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{
-    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),_),extents(~Logical,~original,context,images),0.0,Tensors.Ready{},workers})
+    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),_),extents(~Logical,~original,context,images),0.0,Tensors.Usable{},workers})
   completed(~custom,~Logical,~original,context,limits,images,depth,input,tiles,bias,model,workers,output_length,valid,supported,
     loop(~custom,~Logical,~original,context,limits,images,U32.to_nat(images),0,depth,input,tiles,weights,bias,model,sources,Unit{},ready,output_length,{==}))
 
@@ -998,6 +998,6 @@ def batch(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+c
   +sources: Sources<Logical,original,context,limits,images,input,tiles,weights,bias>,
   +room: {Nat.is_le(Nat.mul(U32.to_nat(images),reference_volume(~Logical,context)),U32.to_nat(Machine.capacity(limits))) == True{} : Bool}) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,Tensors.Tensor{
-    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * size(~Logical,~original,context) : U32))),extents(~Logical,~original,context,images),0.0,Tensors.Ready{},workers}):
+    TensorConvolution.batch(~custom,image_activation(~Logical,context),U32.to_nat(images),0,depth,Inference.work(DenseSources.image_problem(~Logical,~original,context,0n)),U32.from_nat(DenseSources.image_size(~Logical,context)),size(~Logical,~original,context),Buffer.pack(~F32,input),Buffer.pack(~Tile.Tile8,tiles),Buffer.pack(~F32,bias),Tensors.buffer(~F32,0.0,(images * size(~Logical,~original,context) : U32))),extents(~Logical,~original,context,images),0.0,Tensors.Usable{},workers}):
   Sources{length,whole_room,source_values,source_ready,weight_values,bias_values,weight_room,bias_room,reordered,+valid,+supported} = sources
   allocated(~custom,~Logical,~original,context,limits,images,depth,input,tiles,weights,bias,workers,sources,valid,supported,room,target(~Logical,~original,context,limits,images,valid,supported,room))

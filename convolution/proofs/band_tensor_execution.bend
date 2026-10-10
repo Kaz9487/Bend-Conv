@@ -47,7 +47,7 @@ def band_output(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> 
   values: BandValues.Values(~F32,~Logical,~original,PipelineExecution.convolution_logical(~Logical,frame),PipelineExecution.input_geometry(~Logical,frame),Model.content(~F32,source)),
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
-  TensorValues(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
+  TensorValues(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
   PipelineExecution.Frame{+logical,+execution_activation,KernelShape.Dimensions{+ci,+co,+height,+width,+kernel,+stride,+padding},+images,+execution_parallel,+limits,+capacity,+weight_list,+bias_list,+we,+be,+domain,+valid,+supported,+room,+eligible} = frame
   +frame = {PipelineExecution.Frame{logical,execution_activation,KernelShape.Dimensions{ci,co,height,width,kernel,stride,padding},images,execution_parallel,limits,capacity,weight_list,bias_list,we,be,domain,valid,supported,room,eligible} : PipelineExecution.Frame<Logical>}
   PipelineExecution.execute(~custom,~Logical,~original,frame,source,weights,bias,shape,values,weight_exact,bias_exact)
@@ -56,7 +56,7 @@ def band_output_well_formed(~custom: F32 -> F32,~Logical: Data,~original: Logica
   +source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   shape: BandShape.WellFormed<F32,PipelineExecution.input_geometry(~Logical,frame),Model.content(~F32,source)>,
   values: BandValues.Values(~F32,~Logical,~original,PipelineExecution.convolution_logical(~Logical,frame),PipelineExecution.input_geometry(~Logical,frame),Model.content(~F32,source))) ->
-  BandMap.WellFormed(~F32,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
+  BandMap.WellFormed(~F32,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
   PipelineExecution.Frame{+logical,+execution_activation,KernelShape.Dimensions{+ci,+co,+height,+width,+kernel,+stride,+padding},+images,+execution_parallel,+limits,+capacity,+weight_list,+bias_list,+we,+be,+domain,+valid,+supported,+room,+eligible} = frame
   +frame = {PipelineExecution.Frame{logical,execution_activation,KernelShape.Dimensions{ci,co,height,width,kernel,stride,padding},images,execution_parallel,limits,capacity,weight_list,bias_list,we,be,domain,valid,supported,room,eligible} : PipelineExecution.Frame<Logical>}
   PipelineWellFormed.formed_execute(~custom,~Logical,~original,frame,source,weights,bias,shape,values)
@@ -67,8 +67,8 @@ def band_output_contract(~custom: F32 -> F32,~Logical: Data,~original: Logical -
   +values: BandValues.Values(~F32,~Logical,~original,PipelineExecution.convolution_logical(~Logical,frame),PipelineExecution.input_geometry(~Logical,frame),Model.content(~F32,source)),
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
-  Shape.Both<TensorValues(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)),
-    BandMap.WellFormed(~F32,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers))>:
+  Shape.Both<TensorValues(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)),
+    BandMap.WellFormed(~F32,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers))>:
   Shape.Both{band_output(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,shape,values,weight_exact,bias_exact),
     band_output_well_formed(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,shape,values)}
 
@@ -107,13 +107,13 @@ def observed(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32
   values: BandValues.Values(~F32,~Logical,~original,PipelineExecution.convolution_logical(~Logical,frame),PipelineExecution.input_geometry(~Logical,frame),Model.contents(~F32,source)),
   weight_exact: {Buffer.content_tree(~F32,Buffer.contents(~F32,weights)) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.contents(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
-  OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),source,weights,bias,workers)):
+  OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),source,TensorConvolution.packed(execution_geometry(~Logical,frame,batched),weights),bias,workers)):
   Model.Observation{+source_model,+source_equal} = source_observation
   Buffer.Observation{+weight_model,+weights_equal} = weight_observation
   Buffer.Observation{+bias_model,+bias_equal} = bias_observation
-  %source_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),_,weights,bias,workers))
-  %weights_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source_model),_,bias,workers))
-  %bias_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source_model),Buffer.pack(~F32,weight_model),_,workers))
+  %source_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),_,TensorConvolution.packed(execution_geometry(~Logical,frame,batched),weights),bias,workers))
+  %weights_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source_model),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),_),bias,workers))
+  %bias_equal : OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),Model.pack(~F32,source_model),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weight_model)),_,workers))
   band_output_contract(~custom,~Logical,~original,frame,batched,workers,source_model,weight_model,bias_model,
     PipelineWellFormed.source_shape(~Logical,frame,source_model,source,source_equal,shape),source_values(~Logical,~original,frame,source_model,source,source_equal,values),
     Equal.trans(Tree.Tree<F32>,Buffer.tree(~F32,weight_model),Buffer.content_tree(~F32,Buffer.contents(~F32,weights)),PipelineExecution.source_tree(~Logical,frame),
@@ -127,7 +127,7 @@ def owners(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+
   values: BandValues.Values(~F32,~Logical,~original,PipelineExecution.convolution_logical(~Logical,frame),PipelineExecution.input_geometry(~Logical,frame),Model.contents(~F32,source)),
   weight_exact: {Buffer.content_tree(~F32,Buffer.contents(~F32,weights)) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.contents(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
-  OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),source,weights,bias,workers)):
+  OwnersContract(~custom,~Logical,~original,frame,TensorConvolution.band_output(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),execution_parallel(~Logical,frame),source,TensorConvolution.packed(execution_geometry(~Logical,frame,batched),weights),bias,workers)):
   observed(~custom,~Logical,~original,frame,batched,workers,source,weights,bias,Model.observe(~F32,source),Buffer.observe(~F32,weights),Buffer.observe(~F32,bias),shape,values,weight_exact,bias_exact)
 
 # Aligning a selected layout preserves the source contract.
@@ -152,7 +152,7 @@ def selected(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>},
   facts: KernelBandPlanningRefinement.SelectedFacts(PipelineExecution.input_geometry(~Logical,frame),PipelineExecution.convolution_limits(~Logical,frame),PipelineExecution.convolution_capacity(~Logical,frame),selection)) ->
-  AlignmentContract(~custom,~Logical,~original,frame,selection,TensorConvolution.replanned(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),selection,Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
+  AlignmentContract(~custom,~Logical,~original,frame,selection,TensorConvolution.replanned(~custom,execution_activation(~Logical,frame),execution_geometry(~Logical,frame,batched),selection,Model.pack(~F32,source),TensorConvolution.packed(execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
   PipelineExecution.Frame{+logical,+activation,KernelShape.Dimensions{+ci,+co,+h,+w,+k,+s,+p},+images,previous,+limits,+capacity,+sw,+sb,+we,+be,+domain,+valid,+supported,+room,+eligible} = frame
   BandPlanning.LayoutPlan{+layout,+alignment_parallel,+time,+copies} = selection
   Shape.Both{+target,+coverage} = facts

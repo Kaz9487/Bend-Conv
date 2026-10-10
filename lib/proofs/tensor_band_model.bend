@@ -27,7 +27,7 @@ def content(~Element: Data,model: Model<Element>) -> Content<Element>:
 
 def Ready(~Element: Data,model: Model<Element>) -> Data:
   match model:
-    case Leaf{input,first,rows}: Buffer.Ready<Element,input>
+    case Leaf{input,first,rows}: Buffer.Sized<Element,input>
     case Fork{left,right}: Shape.Both<Ready(~Element,left),Ready(~Element,right)>
 
 def ContentReady(~Element: Data,content: Content<Element>) -> Data:

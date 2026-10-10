@@ -29,7 +29,7 @@ def parameter_tree(-buffer: Storage.Buffer<F32>,+parameter: Parameters.Parameter
 def initial_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+plan: BandPlanning.Plan,
   +source: Buffer.Model<F32>,-weights: Storage.Buffer<F32>,-bias: Storage.Buffer<F32>,+weight_parameter: Parameters.Parameter<weights>,+bias_parameter: Parameters.Parameter<bias>,
   +fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +validated: {PublicFrame.frame_valid(input,Parameters.parameter_values(weights,weight_parameter),Parameters.parameter_values(bias,bias_parameter)) == True{} : Bool},
   +supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
@@ -37,15 +37,15 @@ def initial_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 
   values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,source))) ->
   InitialLayout.LayoutContract(~custom,~Logical,~original,
     DenseNativeContract.sources_context(~Logical,logical,activation,input,Parameters.parameter_values(weights,weight_parameter),Parameters.parameter_values(bias,bias_parameter)),
-    TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),weights,bias,workers)):
+    TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),weights),bias,workers)):
   %Parameters.parameter_equation(weights,weight_parameter) :
     InitialLayout.LayoutContract(~custom,~Logical,~original,
       DenseNativeContract.sources_context(~Logical,logical,activation,input,Parameters.parameter_values(weights,weight_parameter),Parameters.parameter_values(bias,bias_parameter)),
-      TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),_,bias,workers))
+      TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),_),bias,workers))
   %Parameters.parameter_equation(bias,bias_parameter) :
     InitialLayout.LayoutContract(~custom,~Logical,~original,
       DenseNativeContract.sources_context(~Logical,logical,activation,input,Parameters.parameter_values(weights,weight_parameter),Parameters.parameter_values(bias,bias_parameter)),
-      TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,Parameters.parameter_model(weights,weight_parameter)),_,workers))
+      TensorConvolution.initial_layout(~custom,activation,plan,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,Parameters.parameter_model(weights,weight_parameter))),_,workers))
   DenseNativePublic.initial_layout(~custom,~Logical,~original,logical,activation,input,plan,
     Parameters.parameter_values(weights,weight_parameter),Parameters.parameter_values(bias,bias_parameter),
     Parameters.parameter_evidence(weights,weight_parameter),Parameters.parameter_evidence(bias,bias_parameter),

@@ -220,11 +220,11 @@ def shaped_slice(~Element: Data,~Before: Data,~Part: Data,~before_value: Before 
   GatherValues.Shaped<Element,Placed<Before,Part>,placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,target,axis,start,part_tensor)>:
   GatherValues.Shaped{+target_model,+target_fill,+target_workers,+target_equation,target_facts} = target_shaped
   GatherValues.Shaped{+part_model,+part_fill,+part_workers,+part_equation,part_facts} = part_shaped
-  %Equal.sym(Tensors.Tensor<Element>,target,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Ready{},target_workers},target_equation) : GatherValues.Shaped<Element,Placed<Before,Part>,placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,_,axis,start,part_tensor)>
-  %Equal.sym(Tensors.Tensor<Element>,part_tensor,Tensors.Tensor{Buffer.pack(~Element,part_model),part_shape,part_fill,Tensors.Ready{},part_workers},part_equation) : GatherValues.Shaped<Element,Placed<Before,Part>,placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Ready{},target_workers},axis,start,_)>
+  %Equal.sym(Tensors.Tensor<Element>,target,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Usable{},target_workers},target_equation) : GatherValues.Shaped<Element,Placed<Before,Part>,placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,_,axis,start,part_tensor)>
+  %Equal.sym(Tensors.Tensor<Element>,part_tensor,Tensors.Tensor{Buffer.pack(~Element,part_model),part_shape,part_fill,Tensors.Usable{},part_workers},part_equation) : GatherValues.Shaped<Element,Placed<Before,Part>,placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Usable{},target_workers},axis,start,_)>
   place(~Element,~Before,~Part,~before_value,~part_value,Shapes.has_zero(part_shape),Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1),Tensors.view_of(part_shape),before,part,"set_slice",
     target_model,target_shape,target_fill,part_model,part_shape,part_fill,U32.max(target_workers,part_workers),target_facts,part_facts,{==},{==},
-    %part_equation : {Dense.tensor_ready(~Element,Layout.set_slice(~Element,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Ready{},target_workers},axis,start,_)) == True{} : Bool}
+    %part_equation : {Dense.tensor_ready(~Element,Layout.set_slice(~Element,Tensors.Tensor{Buffer.pack(~Element,target_model),target_shape,target_fill,Tensors.Usable{},target_workers},axis,start,_)) == True{} : Bool}
     %target_equation : {Dense.tensor_ready(~Element,Layout.set_slice(~Element,_,axis,start,part_tensor)) == True{} : Bool}
     accepted)
 
@@ -234,14 +234,14 @@ def shaped_slice(~Element: Data,~Before: Data,~Part: Data,~before_value: Before 
 # reach it.
 def set_slice(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> U32 -> Element,~part_value: Part -> U32 -> Element,+before: Before,+part: Part,+axis: U32,+start: U32,target: Storage.Buffer<Element>,+target_shape: List<&2,U32>,+target_fill: Element,+target_workers: U32,
   part_storage: Storage.Buffer<Element>,+part_shape: List<&2,U32>,+part_fill: Element,+part_workers: U32,
-  target_contract: Dense.Contract(~Element,~Before,~before_value,before,Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},target_workers}),
-  part_contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Ready{},part_workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Ready{},part_workers})) == True{} : Bool}) ->
-  Dense.Contract(~Element,~Placed<Before,Part>,~placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Ready{},part_workers})):
+  target_contract: Dense.Contract(~Element,~Before,~before_value,before,Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},target_workers}),
+  part_contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Usable{},part_workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Usable{},part_workers})) == True{} : Bool}) ->
+  Dense.Contract(~Element,~Placed<Before,Part>,~placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Usable{},part_workers})):
   Shape.Both{Shape.Both{target_well_formed,target_status},target_values} = target_contract
   Shape.Both{Shape.Both{part_well_formed,part_status},part_values} = part_contract
-  GatherValues.shaped_contract(~Element,~Placed<Before,Part>,~placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Ready{},part_workers}),
-    shaped_slice(~Element,~Before,~Part,~before_value,~part_value,Tensors.Tensor{target,target_shape,target_fill,Tensors.Ready{},target_workers},Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Ready{},part_workers},before,part,axis,start,target_shape,part_shape,
+  GatherValues.shaped_contract(~Element,~Placed<Before,Part>,~placed_value(~Element,~Before,~Part,~before_value,~part_value),Placed{before,part,Layout.sliced(Tensors.view_of(target_shape),axis,start,Layout.extent_at(part_shape,U32.to_nat(axis)),1)},target_shape,Layout.set_slice(~Element,Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},target_workers},axis,start,Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Usable{},part_workers}),
+    shaped_slice(~Element,~Before,~Part,~before_value,~part_value,Tensors.Tensor{target,target_shape,target_fill,Tensors.Usable{},target_workers},Tensors.Tensor{part_storage,part_shape,part_fill,Tensors.Usable{},part_workers},before,part,axis,start,target_shape,part_shape,
       GatherValues.shaped_observed(~Element,~Before,~before_value,target,before,target_shape,target_fill,target_workers,Buffer.observe(~Element,target),
         Shape.Both{target_well_formed,target_values}),
       GatherValues.shaped_observed(~Element,~Part,~part_value,part_storage,part,part_shape,part_fill,part_workers,Buffer.observe(~Element,part_storage),
@@ -252,7 +252,7 @@ def set_slice(~Element: Data,~Before: Data,~Part: Data,~before_value: Before -> 
 # of the padded extents that holds the value everywhere.
 def padded_into(~Element: Data,target: Tensors.Tensor<Element>,+before: List<&2,U32>,+padded: List<&2,U32>,part: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   Tensors.with_dense(~Element,~Tensors.Tensor<Element>,target,target => target_shape => target_fill => target_status => target_workers =>
-    Layout.result_of(~Element,Layout.place_status(~Element,"pad",target_status,Tensors.Ready{},Layout.interior(before,shape,Tensors.view_of(padded),0),target,padded,target_fill,part,shape,fill,workers)))
+    Layout.result_of(~Element,Layout.place_status(~Element,"pad",target_status,Tensors.Usable{},Layout.interior(before,shape,Tensors.view_of(padded),0),target,padded,target_fill,part,shape,fill,workers)))
 
 def pad_target(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,-target: Storage.Buffer<Element>,observation: Buffer.Observation<Element,target>,+part: Part,+value: Element,+before: List<&2,U32>,+padded: List<&2,U32>,+part_model: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   target_facts: GatherValues.Facts(~Element,~Element,~ReduceAxisValues.constant(~Element),value,padded,Buffer.contents(~Element,target)),
@@ -287,7 +287,7 @@ def pad_shaped(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,-t
   accepted: {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,False{},value,tensor,before,padded)) == True{} : Bool}) ->
   GatherValues.Shaped<Element,Placed<Element,Part>,placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},padded,Layout.pad_constant(~Element,False{},value,tensor,before,padded)>:
   GatherValues.Shaped{+part_model,+fill,+workers,+equation,part_facts} = part_shaped
-  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,part_model),shape,fill,Tensors.Ready{},workers},equation) : GatherValues.Shaped<Element,Placed<Element,Part>,placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},padded,Layout.pad_constant(~Element,False{},value,_,before,padded)>
+  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,part_model),shape,fill,Tensors.Usable{},workers},equation) : GatherValues.Shaped<Element,Placed<Element,Part>,placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},padded,Layout.pad_constant(~Element,False{},value,_,before,padded)>
   pad_counted(~Element,~Part,~part_value,Tensors.count_of(padded),part,value,before,padded,part_model,shape,fill,workers,part_facts,{==},
     %equation : {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,False{},value,_,before,padded)) == True{} : Bool}
     accepted)
@@ -296,12 +296,12 @@ def pad_shaped(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,-t
 # result is well formed in the padded extents, and every index holds the
 # tensor element that the interior view stores there, or the value.
 def pad_constant(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,+part: Part,+value: Element,+before: List<&2,U32>,+padded: List<&2,U32>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},before,padded)) == True{} : Bool}) ->
-  Dense.Contract(~Element,~Placed<Element,Part>,~placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},before,padded)):
+  contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},before,padded)) == True{} : Bool}) ->
+  Dense.Contract(~Element,~Placed<Element,Part>,~placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},before,padded)):
   Shape.Both{Shape.Both{well_formed,status},values} = contract
-  GatherValues.shaped_contract(~Element,~Placed<Element,Part>,~placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},padded,Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},before,padded),
-    pad_shaped(~Element,~Part,~part_value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},part,value,before,padded,shape,
+  GatherValues.shaped_contract(~Element,~Placed<Element,Part>,~placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},padded,Layout.pad_constant(~Element,False{},value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},before,padded),
+    pad_shaped(~Element,~Part,~part_value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},part,value,before,padded,shape,
       GatherValues.shaped_observed(~Element,~Part,~part_value,storage,part,shape,fill,workers,Buffer.observe(~Element,storage),Shape.Both{well_formed,values}),
       accepted))
 
@@ -313,9 +313,9 @@ def Padded(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,unchan
     case False{}: Dense.Contract(~Element,~Placed<Element,Part>,~placed_value(~Element,~Element,~Part,~ReduceAxisValues.constant(~Element),~part_value),Placed{value,part,Layout.interior(before,shape,Tensors.view_of(padded),0)},tensor)
 
 def pad_selected(~Element: Data,~Part: Data,~part_value: Part -> U32 -> Element,unchanged: Bool,+part: Part,+value: Element,+before: List<&2,U32>,+padded: List<&2,U32>,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,unchanged,value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},before,padded)) == True{} : Bool}) ->
-  Padded(~Element,~Part,~part_value,unchanged,part,value,before,padded,shape,Layout.pad_constant(~Element,unchanged,value,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},before,padded)):
+  contract: Dense.Contract(~Element,~Part,~part_value,part,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.pad_constant(~Element,unchanged,value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},before,padded)) == True{} : Bool}) ->
+  Padded(~Element,~Part,~part_value,unchanged,part,value,before,padded,shape,Layout.pad_constant(~Element,unchanged,value,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},before,padded)):
   match unchanged:
     case True{}: contract
     case False{}: pad_constant(~Element,~Part,~part_value,part,value,before,padded,storage,shape,fill,workers,contract,accepted)

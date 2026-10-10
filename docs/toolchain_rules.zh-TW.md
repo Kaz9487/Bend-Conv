@@ -2,7 +2,7 @@
 
 [English](toolchain_rules.md) | [繁體中文](toolchain_rules.zh-TW.md)
 
-這裡整理本專案的程式與證明所依賴的官方 checker、編譯器與 runtime 規則。規則是從未修改的官方 Bend 原始碼讀出來的（`.tools/bend/bend2/` 下的 `bend.ts`、`comp.ts`、`main.ts`、`base.bend`），並以小程式確認。最近一次核對的版本是 **Bend v2.0.35**。
+這裡整理本專案的程式與證明所依賴的官方 checker、編譯器與 runtime 規則。規則是從未修改的官方 Bend 原始碼讀出來的（`.tools/bend/bend2/` 下的 `bend.ts`、`comp.ts`、`main.ts`、`base.bend`），並以小程式確認。最近一次核對的版本是 **Bend v2.0.36**。
 
 每條規則最多有三種依據：
 
@@ -31,7 +31,7 @@
 - **A2** let（包括 `+x = ...`）之後，外層的參數都不能再 match。所有對參數的 match 要寫在第一個 let 之前。*（probe：`match_after_let`）*
 - **A3** 不能 match 計算出來的值：`a match cannot scrutinize a computed value`。寫一個以該值為參數的輔助 def。*（probe：`match_computed`）*
 - **A4** 不能 match let 綁定的區域變數：`cannot scrutinize a local binder`。做法同 A3。*（probe：`match_local`）*
-- **A5** 已經是建構子的值不能再 match：`an undestructed scrutinee`。直接綁它的欄位，或把 pattern 併進外層的 case。
+- **A5** 已經是建構子的值不能再 match：`can't be matched (this value is already a constructor: bind its fields directly)`。直接綁它的欄位，或把 pattern 併進外層的 case。
 - **A6** live 的程式不能 match erased（`-`）參數：`a live scrutinee`。把參數改成 live，或改 match 一個能決定它的 live 值。*（probe：`erased_scrutinee`）*
 - **A7** list 的 pattern 寫成 `Con{head,tail}` 與 `Nil{}`。`tail []` 會被解析成讀取陣列元素。
 
@@ -107,7 +107,7 @@
 
 - **G1** 版面（`lay_of`）。非遞迴的資料型別攤平成機器字，不配置記憶體；U32 與 F32 佔 32 位元，Nat 佔 64 位元。`Array`、`IO.OP` 與遞迴型別（list、樹）是 heap 上的 box。寬度超過 `WIDE = 247` 個字的型別變成 box；參數合計超過時，多字的參數變成 box。
 - **G2** 共享（`facts_hot`）。一個值被使用超過一次，它的型別就被標成 hot。該型別的建構子變成共享的，對它的 match 改走會檢查引用計數的 `ctr_take`，而且 hot 會傳到欄位的型別。*（probe：`share_none` 沒有共享；`share_list` 把一個 list 用兩次，部分建構子變成共享）*本專案在 `Views.View` 上遇過：一個定義把同一個 view 交給另外兩個定義，以及迴圈把 view 當參數帶過每次迭代，都讓所有 `View` 建構子變成共享。前者使四執行緒模型在兩次交替量測中為 136.7 對 143.2 ms、132.1 對 145.3 ms（四分位距約 25 ms）；改成每次使用各建一次 view 後為 130.5 對 130.9 ms。`scripts/check_generated_c.py` 對模型、benchmark 與整合入口會拒絕共享的 `View`；launcher 對每次編譯做的檢查不含這一項，因為程式自己的定義可能共享 view。
-- **G3** 全域共享。原始碼裡有一個把所有建構子都標成共享的分支（`fl.hot.add("*")`）。專案遇過一次，當時卷積慢了 16–24%；`scripts/check_generated_c.py` 就是用來擋它的。**probe 沒有重現它**：共享一個型別是型別參數的值（`share_live_parameter`、`share_template_parameter`），或型別是「以 match 定義的型別函式套用在執行期索引上」的值（`share_family_match_live_index`），都只讓部分建構子變成共享。最小的觸發條件還不知道。在找到之前，依靠 `check_generated_c.py` 與每次建置印出的 `N of M constructors shared`。
+- **G3** 全域共享。原始碼裡有一個把所有建構子都標成共享的分支（`FL.hot.add("*")`）。專案遇過一次，當時卷積慢了 16–24%；`scripts/check_generated_c.py` 就是用來擋它的。**probe 沒有重現它**：共享一個型別是型別參數的值（`share_live_parameter`、`share_template_parameter`），或型別是「以 match 定義的型別函式套用在執行期索引上」的值（`share_family_match_live_index`），都只讓部分建構子變成共享。最小的觸發條件還不知道。在找到之前，依靠 `check_generated_c.py` 與每次建置印出的 `N of M constructors shared`。
 - **G4** 綁定會計算自己的使用次數：最後一次使用取走值，之前的使用是共享。攤平的值被共享時，複製的是字，不是節點。
 - **G5** 樣板與閉包。`~` 樣板引數由 checker 實例化，所以編譯器看到的是直接呼叫。*（probe：`call_template`：整條鏈都是 `spin`）* 當成一般參數傳入的函式是閉包，而且**呼叫閉包的 def 不是 flat**。*（probe：`call_closure`）* 存在 record 裡的函式，量測結果比樣板慢 5.85–6.5 倍。
 - **G6** 泛型的 `~Context: Data` 配 `+context`，只會把實例化後的那個型別標成 hot。*（probe：`share_template_parameter`）*

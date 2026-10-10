@@ -2,7 +2,7 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-Times single convolution shapes on Bend-Conv, a packed C reference and NumPy.
+Times single convolution shapes on Stelliferous, a packed C reference and NumPy.
 
 ```sh
 python run.py benchmark

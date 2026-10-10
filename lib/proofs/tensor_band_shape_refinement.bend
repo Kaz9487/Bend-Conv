@@ -34,11 +34,11 @@ type Count<-geometry: Bands.Geometry,-rows: U32,-length: Nat> is Data:
     allocatable: {U32.is_le(Bands.local_count(geometry,rows),1073741824) == True{} : Bool}}
 
 def count(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  width_positive: {width_positive(geometry) == True{} : Bool},metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>) ->
+  width_positive: {width_positive(geometry) == True{} : Bool},metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>) ->
   Count<geometry,rows,Buffer.length(~Element,input)>:
   Bands.Geometry{images,+channels,height,+width} = geometry
   Fields{local,rows_fit,+length_exact} = metadata
-  Buffer.Ready{+depth_ok,+room} = ready
+  Buffer.Sized{+depth_ok,+room} = ready
   +capacity = Tree.capacity(Element,Buffer.tree(~Element,input))
   +expected = Nat.mul(U32.to_nat(channels),Nat.mul(U32.to_nat(rows),U32.to_nat(width)))
   +exact = Equal.trans(Nat,U32.to_nat(Bands.local_count(geometry,rows)),expected,Buffer.length(~Element,input),
@@ -55,12 +55,12 @@ def Contents(~Element: Data,+geometry: Bands.Geometry,content: Model.Content<Ele
     case Model.Joined{left,right}: Shape.Both<Contents(~Element,geometry,left),Contents(~Element,geometry,right)>
 
 def leaf_valid(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>) ->
+  metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>) ->
   {Inspection.valid(Inspection.leaf(~Element,geometry,input,first,rows)) == True{} : Bool}:
   Bands.Geometry{+images,+channels,+height,+width} = geometry
   Buffer.Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = input
   Fields{local,rows_fit,length_exact} = metadata
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   +shape_length = Nat.mul(U32.to_nat(channels),Nat.mul(U32.to_nat(rows),U32.to_nat(width)))
   +counted = {
     %length_exact : {Nat.is_eq(length,_) == True{} : Bool} Order.equal_reflexive(length) : {Nat.is_eq(length,shape_length) == True{} : Bool}}
@@ -101,7 +101,7 @@ def joined(+left: Bands.Inspection,+right: Bands.Inspection,+first: Nat,+left_ro
 
 def leaf_accepted(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+start: Nat,+count: Nat,+capacity: U32,
   capacity_ok: {U32.is_le(capacity,2147483648) == True{} : Bool},total_room: {Nat.is_le(Inspection.total_rows(geometry),U32.to_nat(capacity)) == True{} : Bool},
-  +metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  +metadata: Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   covered: BandPlan.LeafCoverage<first,rows,start,count>) -> Accepted<Inspection.leaf(~Element,geometry,input,first,rows),start,count>:
   Bands.Geometry{+images,+channels,+height,+width} = geometry
   Buffer.Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = input

@@ -3,15 +3,12 @@
 import Base
 import ./tensor_band.bend as Bands
 import ./tensor_band_window.bend as BandWindow
-import ./kernel_spatial_packing.bend as Packing
-import ./kernel_packing_buffer.bend as PackingBuffer
 import ./kernel_window.bend as KernelWindow
 import ./kernel_pipeline.bend as Pipeline
 import ./kernel_gemm_buffer.bend as GemmBuffer
 import ./kernel_tile.bend as Tile
 import ./storage_buffer.bend as Storage
 import ./storage_clone.bend as Clone
-import ./tensor.bend as Tensors
 import ./traversal_partition.bend as Partition
 import ./math_activation.bend as Activations
 
@@ -27,15 +24,10 @@ def windowed(~custom: F32 -> F32,activation: Activations.Activation,+geometry: B
   BandWindow.RowWindow{BandWindow.Rows{+output_first,+output_rows},+above_range,+below_range,+window} = rows_read
   BandWindow.Rows{+window_first,+window_rows} = window
   +positions = (output_rows * output_width : U32)
-  +padded = KernelWindow.padded(positions)
-  +count = (padded / 8 * inner : U32)
-  Partition.Leaf{Pipeline.finish_leaf(U32.is_eq(positions,padded),
-    Pipeline.computed(~custom,activation,channels,padded,inner,weights,bias,
-      PackingBuffer.run(Packing.Call{U32.to_nat(count),
-        KernelWindow.start(((output_first - first / height * output_height) * output_width : U32),stride,output_width,(window_first - first / height * height : U32)),
-        window_rows,width,kernel,stride,padding,output_width,inner},
-        BandWindow.assemble(~F32,0.0,BandWindow.input_geometry(geometry),window,BandWindow.Rows{first,rows},above_range,below_range,core,above,below),
-        Tensors.buffer(~Tile.Tile8,Tile.filled(0.0),count))),channels,0,padded,positions),output_first,output_rows,Unit{}}
+  Partition.Leaf{Pipeline.blocked(~custom,activation,
+    Pipeline.Work{channels,window_rows,width,kernel,stride,padding,output_width,positions,inner},
+    KernelWindow.start(((output_first - first / height * output_height) * output_width : U32),stride,output_width,(window_first - first / height * height : U32)),
+    BandWindow.assemble(~F32,0.0,BandWindow.input_geometry(geometry),window,BandWindow.Rows{first,rows},above_range,below_range,core,above,below),weights,bias),output_first,output_rows,Unit{}}
 
 def leaf(~custom: F32 -> F32,context: Context,+first: U32,+rows: U32,core: Storage.Buffer<F32>,halo: BandWindow.Halo<F32>,
   weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Bands.Bands(~F32):
@@ -87,11 +79,12 @@ def prepared(~custom: F32 -> F32,+context: Context,+plan: Bands.Plan,weights: St
   (bands,halos) = owners
   run(~custom,plan,parallel_plan(context,plan),context,bands,halos,weights,bias)
 
-def planned(~custom: F32 -> F32,+context: Context,weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>,
+def planned(~custom: F32 -> F32,+context: Context,weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>,
   owners: Bands.Bands(~F32) & Bands.Plan) -> Bands.Bands(~F32):
   Context{window,channels,inner,parallel,activation} = context
   (bands,+plan) = owners
-  prepared(~custom,context,plan,GemmBuffer.reorder(channels,inner,weights),bias,BandWindow.prepare(~F32,window,0.0,plan,bands))
+  prepared(~custom,context,plan,weights,bias,BandWindow.prepare(~F32,window,0.0,plan,bands))
 
-def execute(~custom: F32 -> F32,context: Context,bands: Bands.Bands(~F32),weights: Storage.Buffer<F32>,bias: Storage.Buffer<F32>) -> Bands.Bands(~F32):
+# The weights arrive in the order the kernel reads them.
+def execute(~custom: F32 -> F32,context: Context,bands: Bands.Bands(~F32),weights: Storage.Buffer<Tile.Tile8>,bias: Storage.Buffer<F32>) -> Bands.Bands(~F32):
   planned(~custom,context,weights,bias,Bands.plan(~F32,bands))

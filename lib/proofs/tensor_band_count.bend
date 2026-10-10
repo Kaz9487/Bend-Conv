@@ -40,9 +40,9 @@ def fresh_capacity(~Element: Data,+depth: Nat,+fill: Element) ->
     {Tree.capacity(Element,_) == U32.shln(1,depth) : U32}
   Shape.capacity(Element,depth,Tree.fresh(Element,depth,fill),Shape.fresh(Element,depth,fill))
 
-def allocated_ready(~Element: Data,+count: U32,+fill: Element,ready: Depth.Ready<count>) ->
+def allocated_ready(~Element: Data,+count: U32,+fill: Element,ready: Depth.Sized<count>) ->
   Buffer.NativeReady(~Element,Bands.allocate(~Element,fill,count)):
-  Depth.Ready{depth_ok,room} = ready
+  Depth.Sized{depth_ok,room} = ready
   %Equal.sym(Storage.Buffer<Element>,Allocation.allocate(~Element,Storage.depth_for(count),fill,U32.to_nat(count)),Storage.allocate(~Element,Storage.depth_for(count),fill,U32.to_nat(count)),
     AllocationLaws.dispatch_same(Element,Allocation.allocated(~Element),Storage.depth_for(count),fill,U32.to_nat(count))) : Buffer.NativeReady(~Element,_)
   Shape.Both{depth_ok,
@@ -56,11 +56,11 @@ def allocated(~Element: Data,+count: U32,+fill: Element,within: {U32.is_le(count
 def model(~Element: Data,+count: U32,fill: Element) -> Buffer.Model<Element>:
   Buffer.fresh(~Element,Storage.depth_for(count),fill,U32.to_nat(count))
 
-def model_ready(~Element: Data,+count: U32,+fill: Element,ready: Depth.Ready<count>) -> Buffer.Ready<Element,model(~Element,count,fill)>:
-  Depth.Ready{depth_ok,room} = ready
+def model_ready(~Element: Data,+count: U32,+fill: Element,ready: Depth.Sized<count>) -> Buffer.Sized<Element,model(~Element,count,fill)>:
+  Depth.Sized{depth_ok,room} = ready
   Buffer.fresh_ready(~Element,Storage.depth_for(count),fill,U32.to_nat(count),depth_ok,room)
 
-def bounded_model(~Element: Data,+count: U32,+fill: Element,within: {U32.is_le(count,1073741824) == True{} : Bool}) -> Buffer.Ready<Element,model(~Element,count,fill)>:
+def bounded_model(~Element: Data,+count: U32,+fill: Element,within: {U32.is_le(count,1073741824) == True{} : Bool}) -> Buffer.Sized<Element,model(~Element,count,fill)>:
   model_ready(~Element,count,fill,Depth.bounded(count,within))
 
 # Public shape counting discharges the whole-tensor machine envelope used by
