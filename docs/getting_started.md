@@ -2,6 +2,8 @@
 
 [English](getting_started.md) | [繁體中文](getting_started.zh-TW.md)
 
+The examples import the published package `stelliferous@0.0.2.0` from BendHub. A program of your own needs only Bend, Clang and those import lines. The steps below set up this repository, with the library source in [lib](../lib/README.md), its proofs and its benchmarks.
+
 ## Install
 
 Requires Git, Node.js, [Bun](https://bun.sh), Python 3 and Clang (or the C compiler named by `CC`), on Linux, macOS or WSL.
@@ -19,8 +21,8 @@ On Windows the launcher runs itself inside WSL, so the commands below also work 
 
 ```python
 import Base
-import ../lib/tensor_f32.bend as F
-import ../lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 
 def main() -> List<&2,F32>:
   # 1.0 .. 16.0 as [batch, channels, height, width]

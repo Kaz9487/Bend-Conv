@@ -1,6 +1,6 @@
 # Save a tensor as a raw FP32 file and load it again.
 import Base
-import ../lib/tensor_f32.bend as F
+import stelliferous@0.0.2.0/tensor_f32.bend as F
 
 def text(value: F32) -> String:
   +value = value
