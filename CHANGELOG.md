@@ -6,7 +6,7 @@ This file records the notable changes in each version of Stelliferous. The forma
 
 Before 1.0.0, the public API may still change between minor versions.
 
-## [0.0.2] - 2026-10-11
+## [0.0.2] - 2026-10-10
 
 Stelliferous 0.0.2 adds file reading and writing and model weight loading, and improves YOLOv5n inference performance. The main changes are
 
