@@ -155,6 +155,21 @@ def execute_matches(+job: Gemm.Job,+buffers: Buffers) ->
   Gemm.Job{+context,+upper,+count} = job
   executed(upper,count,context,buffers)
 
+def zero_offset_job(+rows: U32,+columns: U32,+inner: U32,+index: U32) ->
+  {Gemm.job(Gemm.Layout{rows,columns,inner,0,columns},index) ==
+    Gemm.Job{Gemm.Context{((index % Gemm.row_units(rows)) * 4 : U32),((index / Gemm.row_units(rows)) * 8 : U32),rows,columns,
+      ((index / Gemm.row_units(rows)) * inner : U32),((index % Gemm.row_units(rows)) / 2 * inner : U32)},
+      U32.is_eq(((index % Gemm.row_units(rows)) % 2 : U32),1),U32.to_nat(inner)} : Gemm.Job}:
+  %Equal.sym(U32,(0 + (index / Gemm.row_units(rows)) * 8 : U32),((index / Gemm.row_units(rows)) * 8 : U32),
+    Arithmetic.add_zero_left(((index / Gemm.row_units(rows)) * 8 : U32))) :
+    {Gemm.Job{Gemm.Context{((index % Gemm.row_units(rows)) * 4 : U32),_,rows,columns,
+      ((index / Gemm.row_units(rows)) * inner : U32),((index % Gemm.row_units(rows)) / 2 * inner : U32)},
+      U32.is_eq(((index % Gemm.row_units(rows)) % 2 : U32),1),U32.to_nat(inner)} ==
+      Gemm.Job{Gemm.Context{((index % Gemm.row_units(rows)) * 4 : U32),((index / Gemm.row_units(rows)) * 8 : U32),rows,columns,
+      ((index / Gemm.row_units(rows)) * inner : U32),((index % Gemm.row_units(rows)) / 2 * inner : U32)},
+      U32.is_eq(((index % Gemm.row_units(rows)) % 2 : U32),1),U32.to_nat(inner)} : Gemm.Job}
+  {==}
+
 def step(index: U32,layout: Gemm.Layout,buffers: Buffers) -> Buffers:
   execute(Gemm.job(layout,index),buffers)
 
@@ -171,18 +186,32 @@ def result_matches(+buffers: Buffers) ->
   Buffers{input,weights,bias,output} = buffers
   {==}
 
-def run(+rows: U32,input: Tree.Tree<Tile.Tile8>,weights: Tree.Tree<Tile.Tile8>,bias: Tree.Tree<F32>,output: Tree.Tree<F32>,+columns: U32,inner: U32) -> Tree.Tree<F32>:
+def run_at(+rows: U32,input: Tree.Tree<Tile.Tile8>,weights: Tree.Tree<Tile.Tile8>,bias: Tree.Tree<F32>,output: Tree.Tree<F32>,+columns: U32,inner: U32,start: U32,output_columns: U32) -> Tree.Tree<F32>:
   result(Traversal.indexed_fold(~Buffers,~Gemm.Layout,~step,U32.to_nat(Gemm.job_count(rows,columns)),0,
-    Gemm.Layout{rows,columns,inner},Buffers{input,weights,bias,Writes.Initial{output}}))
+    Gemm.Layout{rows,columns,inner,start,output_columns},Buffers{input,weights,bias,Writes.Initial{output}}))
 
-def run_matches(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,+output: Tree.Tree<F32>,+columns: U32,+inner: U32) ->
-  {Gemm.run(rows,Tree.pack(Tile.Tile8,input),Tree.pack(Tile.Tile8,weights),Tree.pack(F32,bias),Tree.pack(F32,output),columns,inner) ==
-    Tree.pack(F32,run(rows,input,weights,bias,output,columns,inner)) : Array<F32>}:
+def run_at_matches(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,+output: Tree.Tree<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32) ->
+  {Gemm.run_at(rows,Tree.pack(Tile.Tile8,input),Tree.pack(Tile.Tile8,weights),Tree.pack(F32,bias),Tree.pack(F32,output),columns,inner,start,output_columns) ==
+    Tree.pack(F32,run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)) : Array<F32>}:
   +count = U32.to_nat(Gemm.job_count(rows,columns))
-  +layout = {Gemm.Layout{rows,columns,inner} : Gemm.Layout}
+  +layout = {Gemm.Layout{rows,columns,inner,start,output_columns} : Gemm.Layout}
   +buffers = {Buffers{input,weights,bias,Writes.Initial{output}} : Buffers}
   +final = Traversal.indexed_fold(~Buffers,~Gemm.Layout,~step,count,0,layout,buffers)
   %Equal.sym(Gemm.Buffers,Traversal.indexed_fold(~Gemm.Buffers,~Gemm.Layout,~Gemm.step_job,count,0,layout,represent(buffers)),
     represent(final),ArrayLaws.indexed_fold_refines_model(~Gemm.Buffers,~Buffers,~Gemm.Layout,~Gemm.step_job,~step,~represent,~step_job_matches,count,0,layout,buffers)) :
     {Gemm.result(_) == Tree.pack(F32,result(final)) : Array<F32>}
   result_matches(final)
+
+def run(+rows: U32,input: Tree.Tree<Tile.Tile8>,weights: Tree.Tree<Tile.Tile8>,bias: Tree.Tree<F32>,output: Tree.Tree<F32>,+columns: U32,inner: U32) -> Tree.Tree<F32>:
+  run_at(rows,input,weights,bias,output,columns,inner,0,columns)
+
+def run_matches(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,+output: Tree.Tree<F32>,+columns: U32,+inner: U32) ->
+  {Gemm.run(rows,Tree.pack(Tile.Tile8,input),Tree.pack(Tile.Tile8,weights),Tree.pack(F32,bias),Tree.pack(F32,output),columns,inner) ==
+    Tree.pack(F32,run(rows,input,weights,bias,output,columns,inner)) : Array<F32>}:
+  run_at_matches(rows,input,weights,bias,output,columns,inner,0,columns)
+
+def keeping_matches(+rows: U32,+input: Tree.Tree<Tile.Tile8>,+weights: Tree.Tree<Tile.Tile8>,+bias: Tree.Tree<F32>,+output: Tree.Tree<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32) ->
+  {Gemm.run_keeping(rows,Tree.pack(Tile.Tile8,input),Tree.pack(Tile.Tile8,weights),Tree.pack(F32,bias),Tree.pack(F32,output),columns,inner,start,output_columns) ==
+    represent(Traversal.indexed_fold(~Buffers,~Gemm.Layout,~step,U32.to_nat(Gemm.job_count(rows,columns)),0,Gemm.Layout{rows,columns,inner,start,output_columns},Buffers{input,weights,bias,Writes.Initial{output}})) : Gemm.Buffers}:
+  ArrayLaws.indexed_fold_refines_model(~Gemm.Buffers,~Buffers,~Gemm.Layout,~Gemm.step_job,~step,~represent,~step_job_matches,
+    U32.to_nat(Gemm.job_count(rows,columns)),0,Gemm.Layout{rows,columns,inner,start,output_columns},Buffers{input,weights,bias,Writes.Initial{output}})

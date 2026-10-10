@@ -689,7 +689,7 @@ def execution_planned(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U
   weight_exact: {Buffer.tree(~F32,weights) == source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == values_bias(~Frame<Logical>,settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   PipelineValues(~custom,~Logical,~original,frame,BandPipeline.planned(~custom,context(~Frame<Logical>,settings(~Logical,~original,frame)),
-    Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),(Model.pack(~F32,source),Model.layout(~F32,source)))):
+    GemmBuffer.reorder(channels(~Logical,frame),inner(~Logical,frame),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),(Model.pack(~F32,source),Model.layout(~F32,source)))):
   Frame{+logical,+activation,KernelShape.Dimensions{+ci,+co,+height,+width,+kernel,+stride,+padding},+images,+parallel,+limits,+capacity,+weight_list,+bias_list,+we,+be,+domain,+valid,+supported,+room,+eligible} = frame
   +frame = {Frame{logical,activation,KernelShape.Dimensions{ci,co,height,width,kernel,stride,padding},images,parallel,limits,capacity,weight_list,bias_list,we,be,domain,valid,supported,room,eligible} : Frame<Logical>}
   execution_prepared(~custom,~Logical,~original,frame,Model.layout(~F32,source),GemmBuffer.reorder(channels(~Logical,frame),inner(~Logical,frame),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),
@@ -702,9 +702,9 @@ def execute(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,
   values: BandValues.Values(~F32,~Logical,~original,convolution_logical(~Logical,frame),input_geometry(~Logical,frame),Model.content(~F32,source)),
   weight_exact: {Buffer.tree(~F32,weights) == source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == values_bias(~Frame<Logical>,settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
-  PipelineValues(~custom,~Logical,~original,frame,BandPipeline.execute(~custom,context(~Frame<Logical>,settings(~Logical,~original,frame)),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias))):
+  PipelineValues(~custom,~Logical,~original,frame,BandPipeline.execute(~custom,context(~Frame<Logical>,settings(~Logical,~original,frame)),Model.pack(~F32,source),GemmBuffer.reorder(channels(~Logical,frame),inner(~Logical,frame),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias))):
   %Equal.sym(Bands.Bands(~F32) & Bands.Plan,Bands.plan(~F32,Model.pack(~F32,source)),(Model.pack(~F32,source),Model.layout(~F32,source)),Model.plan(~F32,source)) :
-    PipelineValues(~custom,~Logical,~original,frame,BandPipeline.planned(~custom,context(~Frame<Logical>,settings(~Logical,~original,frame)),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),_))
+    PipelineValues(~custom,~Logical,~original,frame,BandPipeline.planned(~custom,context(~Frame<Logical>,settings(~Logical,~original,frame)),GemmBuffer.reorder(channels(~Logical,frame),inner(~Logical,frame),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),_))
   execution_planned(~custom,~Logical,~original,frame,source,weights,bias,shape,values,weight_exact,bias_exact)
 
 # The actual schedule's output partition is exactly the halo window's output

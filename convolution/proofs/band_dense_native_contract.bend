@@ -56,14 +56,14 @@ def sources_context(~Logical: Data,+logical: Logical,activation: Activations.Act
   BandConvolutionValues.Context{logical,activation,U32.to_nat(ci),U32.to_nat(co),U32.to_nat(h),U32.to_nat(w),U32.to_nat(k),U32.to_nat(s),U32.to_nat(p),weights,bias}
 
 def whole_length(~Logical: Data,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+source: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),matched: {Native.input_matched(input) == True{} : Bool}) ->
+  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),matched: {Native.input_matched(input) == True{} : Bool}) ->
   {Buffer.length(~F32,source) == Nat.mul(U32.to_nat(PublicFrame.input_images(input)),DenseSources.image_size(~Logical,sources_context(~Logical,logical,activation,input,weights,bias))) : Nat}:
   PublicFrame.NativeInput{+images,+batched,+ci,+co,+h,+w,+k,+s,+p} = input
   DensePublic.length(input,source,fill,workers,normal,matched)
 
 def whole_room(~Logical: Data,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+source: Buffer.Model<F32>,+fill: F32,+workers: U32,+limits: Machine.Limits,
   +capacity_actual: {Machine.capacity(limits) == Machine.capacity(Default.limits()) : U32},
-  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),matched: {Native.input_matched(input) == True{} : Bool}) ->
+  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),matched: {Native.input_matched(input) == True{} : Bool}) ->
   {Nat.is_le(Nat.mul(U32.to_nat(PublicFrame.input_images(input)),DenseSources.image_size(~Logical,sources_context(~Logical,logical,activation,input,weights,bias))),U32.to_nat(Machine.capacity(limits))) == True{} : Bool}:
   PublicFrame.NativeInput{+images,+batched,+ci,+co,+h,+w,+k,+s,+p} = input
   DensePublic.room(input,source,fill,workers,Machine.capacity(limits),capacity_actual,normal,matched)
@@ -105,7 +105,7 @@ def source_logical(~Logical: Data,+logical: Logical,+activation: Activations.Act
 def sources(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+limits: Machine.Limits,
   +capacity_actual: {Machine.capacity(limits) == Machine.capacity(Default.limits()) : U32},
   +source: Buffer.Model<F32>,+tiles: Buffer.Model<Tile.Tile8>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   +bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
@@ -127,7 +127,7 @@ type PreparedSources<-Logical: Data,-original: Logical -> U32 -> F32,-sources_co
 def prepared_reorder(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+limits: Machine.Limits,
   +capacity_actual: {Machine.capacity(limits) == Machine.capacity(Default.limits()) : U32},
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   +bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
@@ -145,7 +145,7 @@ def default_limits() -> LimitsReceipt:
 
 def prepared_limits(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
@@ -159,7 +159,7 @@ def prepared_limits(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Lo
 
 def sources_prepared(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
@@ -189,7 +189,7 @@ def prefix(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+so
         prefix(~Logical,~original,logical,source,rest,1n+start,values,Order.advance_room(start,rest,Buffer.length(~F32,source),room)))
 
 def single_length(~Logical: Data,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+source: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),matched: {Native.input_matched(input) == True{} : Bool},one: {PublicFrame.input_images(input) == 1 : U32}) ->
+  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),matched: {Native.input_matched(input) == True{} : Bool},one: {PublicFrame.input_images(input) == 1 : U32}) ->
   {Buffer.length(~F32,source) == DenseSources.image_size(~Logical,sources_context(~Logical,logical,activation,input,weights,bias)) : Nat}:
   +size = DenseSources.image_size(~Logical,sources_context(~Logical,logical,activation,input,weights,bias))
   Equal.trans(Nat,Buffer.length(~F32,source),Nat.mul(U32.to_nat(PublicFrame.input_images(input)),size),size,
@@ -198,9 +198,9 @@ def single_length(~Logical: Data,+logical: Logical,+activation: Activations.Acti
     Addition.zero_right(size))
 
 def input_room(~Logical: Data,~original: Logical -> U32 -> F32,+sources_context: BandConvolutionValues.Context<Logical>,+source: Buffer.Model<F32>,
-  +length_exact: {Buffer.length(~F32,source) == DenseSources.image_size(~Logical,sources_context) : Nat},ready: Buffer.Ready<F32,source>) ->
+  +length_exact: {Buffer.length(~F32,source) == DenseSources.image_size(~Logical,sources_context) : Nat},ready: Buffer.Sized<F32,source>) ->
   {Nat.is_le(ConvSpec.length(Guards.input(DenseSources.image_problem(~Logical,~original,sources_context,0n))),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,source)))) == True{} : Bool}:
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   %Equal.sym(Nat,ConvSpec.length(Guards.input(DenseSources.image_problem(~Logical,~original,sources_context,0n))),DenseSources.image_size(~Logical,sources_context),DenseSources.image_length(~Logical,~original,sources_context,0n)) :
     {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,source)))) == True{} : Bool}
   %length_exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,source)))) == True{} : Bool}
@@ -208,7 +208,7 @@ def input_room(~Logical: Data,~original: Logical -> U32 -> F32,+sources_context:
 
 def single(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   +bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
@@ -286,14 +286,14 @@ def batch_public_input(~Logical: Data,+logical: Logical,+activation: Activations
   DensePublic.Input{sources_context(~Logical,logical,activation,input,weights,bias),PublicFrame.input_images(input),source,weight_model,bias_model,workers}
 
 def result(~custom: F32 -> F32,+activation: Activations.Activation,+input: PublicFrame.NativeInput,source: Buffer.Model<F32>,weight_model: Buffer.Model<F32>,bias_model: Buffer.Model<F32>,workers: U32) -> Tensors.Tensor<F32>:
-  TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers)
+  TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers)
 
 def batch_empty(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+workers: U32,
   +matched: {Native.input_matched(input) == True{} : Bool},+batch_empty: {PublicFrame.input_images(input) == 0 : U32}) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),sources_context(~Logical,logical,activation,input,weights,bias),result(~custom,activation,input,source,weight_model,bias_model,workers)):
-  %Equal.sym(Tensors.Tensor<F32>,result(~custom,activation,input,source,weight_model,bias_model,workers),TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},PublicFrame.frame_dimensions(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
-    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,geometry => TensorConvolution.execute_dense(~custom,activation,geometry,Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),PublicFrame.geometry(input),TensorConvolution.Geometry{0,True{},PublicFrame.frame_dimensions(input)},empty_geometry(input,matched,batch_empty))) :
+  %Equal.sym(Tensors.Tensor<F32>,result(~custom,activation,input,source,weight_model,bias_model,workers),TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},PublicFrame.frame_dimensions(input)},Buffer.pack(~F32,source),TensorConvolution.packed(TensorConvolution.Geometry{0,True{},PublicFrame.frame_dimensions(input)},Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
+    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,geometry => TensorConvolution.execute_dense(~custom,activation,geometry,Buffer.pack(~F32,source),TensorConvolution.packed(geometry,Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),PublicFrame.geometry(input),TensorConvolution.Geometry{0,True{},PublicFrame.frame_dimensions(input)},empty_geometry(input,matched,batch_empty))) :
     Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),sources_context(~Logical,logical,activation,input,weights,bias),_)
   Batch.empty_dense(~custom,~Logical,~original,sources_context(~Logical,logical,activation,input,weights,bias),activation,PublicFrame.frame_dimensions(input),Buffer.pack(~F32,source),weight_model,bias_model,workers)
 
@@ -303,9 +303,9 @@ def header(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+
   {result(~custom,activation,input,source,weight_model,bias_model,workers) == DensePublic.batch_result(~custom,~Logical,~original,batch_public_input(~Logical,logical,activation,input,weights,bias,source,weight_model,bias_model,workers)) : Tensors.Tensor<F32>}:
   +context = sources_context(~Logical,logical,activation,input,weights,bias)
   +geometry = {TensorConvolution.Geometry{PublicFrame.input_images(input),True{},DenseSingle.dimensions(DenseSources.image_problem(~Logical,~original,context,0n))} : TensorConvolution.Geometry}
-  Equal.trans(Tensors.Tensor<F32>,result(~custom,activation,input,source,weight_model,bias_model,workers),TensorConvolution.execute_dense(~custom,activation,geometry,Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),DensePublic.batch_result(~custom,~Logical,~original,batch_public_input(~Logical,logical,activation,input,weights,bias,source,weight_model,bias_model,workers)),
-    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,shape => TensorConvolution.execute_dense(~custom,activation,shape,Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),PublicFrame.geometry(input),geometry,geometry_field(~Logical,~original,logical,activation,input,weights,bias,matched,batch_many)),
-    Equal.cong(Activations.Activation,Tensors.Tensor<F32>,operation => TensorConvolution.execute_dense(~custom,operation,geometry,Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),activation,DenseBatchExecution.image_activation(~Logical,context),Equal.sym(Activations.Activation,DenseBatchExecution.image_activation(~Logical,context),activation,activation_field(~Logical,logical,activation,input,weights,bias))))
+  Equal.trans(Tensors.Tensor<F32>,result(~custom,activation,input,source,weight_model,bias_model,workers),TensorConvolution.execute_dense(~custom,activation,geometry,Buffer.pack(~F32,source),TensorConvolution.packed(geometry,Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),DensePublic.batch_result(~custom,~Logical,~original,batch_public_input(~Logical,logical,activation,input,weights,bias,source,weight_model,bias_model,workers)),
+    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,shape => TensorConvolution.execute_dense(~custom,activation,shape,Buffer.pack(~F32,source),TensorConvolution.packed(shape,Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),PublicFrame.geometry(input),geometry,geometry_field(~Logical,~original,logical,activation,input,weights,bias,matched,batch_many)),
+    Equal.cong(Activations.Activation,Tensors.Tensor<F32>,operation => TensorConvolution.execute_dense(~custom,operation,geometry,Buffer.pack(~F32,source),TensorConvolution.packed(geometry,Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),activation,DenseBatchExecution.image_activation(~Logical,context),Equal.sym(Activations.Activation,DenseBatchExecution.image_activation(~Logical,context),activation,activation_field(~Logical,logical,activation,input,weights,bias))))
 
 def batch_prepared(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+limits: Machine.Limits,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+workers: U32,
@@ -321,7 +321,7 @@ def batch_prepared(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 
 def batch_many(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+limits: Machine.Limits,
   +capacity_actual: {Machine.capacity(limits) == Machine.capacity(Default.limits()) : U32},
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -354,7 +354,7 @@ def parameters_valid(+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bia
   validated
 
 def source_equal(+input: PublicFrame.NativeInput,+source: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),
   matched: {Native.input_matched(input) == True{} : Bool}) ->
   {Nat.is_eq(Buffer.length(~F32,source),BandGather.elements(PublicFrame.source_geometry(input))) == True{} : Bool}:
   %Equal.sym(Nat,Buffer.length(~F32,source),BandGather.elements(PublicFrame.source_geometry(input)),DensePublic.length(input,source,fill,workers,normal,matched)) :
@@ -369,10 +369,10 @@ def guard(+input: PublicFrame.NativeInput,+source: Buffer.Model<F32>,+weights: B
     Nat.is_le(Buffer.length(~F32,bias),U32.to_nat(U32.shln(1,Buffer.depth(~F32,bias))))
 
 def accepted(+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},+validated: {PublicFrame.frame_valid(input,weights,bias) == True{} : Bool},
   +weight_length: {Buffer.length(~F32,weight_model) == ConvSpec.length(weights) : Nat},+bias_length: {Buffer.length(~F32,bias_model) == ConvSpec.length(bias) : Nat},
-  weight_ready: Buffer.Ready<F32,weight_model>,bias_ready: Buffer.Ready<F32,bias_model>) ->
+  weight_ready: Buffer.Sized<F32,weight_model>,bias_ready: Buffer.Sized<F32,bias_model>) ->
   {guard(input,source,weight_model,bias_model) == True{} : Bool}:
   Boolean.all_hold([
       Nat.is_le(Buffer.length(~F32,bias_model),U32.to_nat(U32.shln(1,Buffer.depth(~F32,bias_model)))),
@@ -396,63 +396,63 @@ def checked_header(~custom: F32 -> F32,+activation: Activations.Activation,+inpu
 def supported(~custom: F32 -> F32,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+source: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+shape: List<&2,U32>,+fill: F32,+workers: U32,
   support: {PublicFrame.machine(input,Default.limits()) == True{} : Bool}) ->
   {TensorConvolution.supported(~custom,activation,True{},PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),shape,fill,workers) ==
-    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}:
+    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}:
   %Equal.sym(Bool,MachineCaller.predicate(PublicFrame.geometry(input),Default.limits()),True{},
     %Equal.sym(Bool,MachineCaller.predicate(PublicFrame.geometry(input),Default.limits()),PublicFrame.machine(input,Default.limits()),machine_matches(input,Default.limits())) : {_ == True{} : Bool}
     support) :
     {TensorConvolution.machine(~custom,activation,_,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),shape,fill,workers) ==
-      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}
+      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}
   {==}
 
 def checked(~custom: F32 -> F32,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},+validated: {PublicFrame.frame_valid(input,weights,bias) == True{} : Bool},+support: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +weight_length: {Buffer.length(~F32,weight_model) == ConvSpec.length(weights) : Nat},+bias_length: {Buffer.length(~F32,bias_model) == ConvSpec.length(bias) : Nat},
-  weight_ready: Buffer.Ready<F32,weight_model>,bias_ready: Buffer.Ready<F32,bias_model>) ->
+  weight_ready: Buffer.Sized<F32,weight_model>,bias_ready: Buffer.Sized<F32,bias_model>) ->
   {TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),Native.input_extents(input),fill,workers) ==
-    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}:
+    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}:
   Equal.trans(Tensors.Tensor<F32>,TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),Native.input_extents(input),fill,workers),
     TensorConvolution.supported(~custom,activation,guard(input,source,weight_model,bias_model),PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),Native.input_extents(input),fill,workers),
-    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),checked_header(~custom,activation,input,source,weight_model,bias_model,Native.input_extents(input),fill,workers),
+    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),checked_header(~custom,activation,input,source,weight_model,bias_model,Native.input_extents(input),fill,workers),
     %Equal.sym(Bool,guard(input,source,weight_model,bias_model),True{},accepted(input,weights,bias,source,weight_model,bias_model,fill,input_workers,normal,matched,validated,weight_length,bias_length,weight_ready,bias_ready)) :
       {TensorConvolution.supported(~custom,activation,_,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),Native.input_extents(input),fill,workers) ==
-        TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}
+        TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}
     supported(~custom,activation,input,source,weight_model,bias_model,Native.input_extents(input),fill,workers,support))
 
 def parameter_normal(+model: Buffer.Model<F32>,+shape: List<&2,U32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,model),shape,fill,Tensors.Ready{},workers})) -> Parameters.Parameter<Buffer.pack(~F32,model)>:
+  normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,model),shape,fill,Tensors.Usable{},workers})) -> Parameters.Parameter<Buffer.pack(~F32,model)>:
   Parameters.parameter(Buffer.pack(~F32,model),
     %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,Buffer.pack(~F32,model)),Buffer.content(~F32,model),Buffer.packed_contents(~F32,model)) : Buffer.ContentReady<F32,_>
     Buffer.content_ready(~F32,model,DensePublic.normal_ready(shape,model,fill,workers,normal)))
 
 def checked_parameters(~custom: F32 -> F32,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+source: Buffer.Model<F32>,+weight_owner: Buffer.Model<F32>,+bias_owner: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},+support: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +weight_parameter: Parameters.Parameter<Buffer.pack(~F32,weight_owner)>,+bias_parameter: Parameters.Parameter<Buffer.pack(~F32,bias_owner)>,
   validated: {PublicFrame.frame_valid(input,Parameters.parameter_values(Buffer.pack(~F32,weight_owner),weight_parameter),Parameters.parameter_values(Buffer.pack(~F32,bias_owner),bias_parameter)) == True{} : Bool}) ->
   {TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weight_owner),Buffer.pack(~F32,bias_owner),Native.input_extents(input),fill,workers) ==
-    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_owner),Buffer.pack(~F32,bias_owner),workers) : Tensors.Tensor<F32>}:
+    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_owner)),Buffer.pack(~F32,bias_owner),workers) : Tensors.Tensor<F32>}:
   Parameters.Parameter{+weights,+weight_equation,+weight_ready,+weight_values,+weight_length,weight_evidence,weight_exact} = weight_parameter
   Parameters.Parameter{+bias,+bias_equation,+bias_ready,+bias_values,+bias_length,bias_evidence,bias_exact} = bias_parameter
   %weight_equation :
     {TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),_,Buffer.pack(~F32,bias_owner),Native.input_extents(input),fill,workers) ==
-      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),_,Buffer.pack(~F32,bias_owner),workers) : Tensors.Tensor<F32>}
+      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),_),Buffer.pack(~F32,bias_owner),workers) : Tensors.Tensor<F32>}
   %bias_equation :
     {TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weights),_,Native.input_extents(input),fill,workers) ==
-      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),_,workers) : Tensors.Tensor<F32>}
+      TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weights)),_,workers) : Tensors.Tensor<F32>}
   checked(~custom,activation,input,weight_values,bias_values,source,weights,bias,fill,input_workers,workers,normal,matched,validated,support,
     Equal.sym(Nat,ConvSpec.length(weight_values),Buffer.length(~F32,weights),weight_length),Equal.sym(Nat,ConvSpec.length(bias_values),Buffer.length(~F32,bias),bias_length),weight_ready,bias_ready)
 
 def checked_normal(~custom: F32 -> F32,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+source: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+weight_workers: U32,+bias_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
-  +weight_normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Ready{},weight_workers}),
-  +bias_normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Ready{},bias_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
+  +weight_normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Usable{},weight_workers}),
+  +bias_normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Usable{},bias_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},+support: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   validated: {PublicFrame.frame_valid(input,
     Parameters.parameter_values(Buffer.pack(~F32,weights),parameter_normal(weights,Native.weight_extents(input),0.0,weight_workers,weight_normal)),
     Parameters.parameter_values(Buffer.pack(~F32,bias),parameter_normal(bias,Native.bias_extents(input),0.0,bias_workers,bias_normal))) == True{} : Bool}) ->
   {TensorConvolution.checked(~custom,activation,Some{PublicFrame.geometry(input)},Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),Native.input_extents(input),fill,workers) ==
-    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}:
+    TensorConvolution.execute(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) : Tensors.Tensor<F32>}:
   checked_parameters(~custom,activation,input,source,weights,bias,fill,input_workers,workers,normal,matched,support,
     parameter_normal(weights,Native.weight_extents(input),0.0,weight_workers,weight_normal),parameter_normal(bias,Native.bias_extents(input),0.0,bias_workers,bias_normal),validated)
 
@@ -488,26 +488,26 @@ def geometry_exact(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Log
 def result_matches(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+workers: U32,+one: {PublicFrame.input_images(input) == 1 : U32}) ->
   {DensePublic.image_result(~custom,~Logical,~original,single_public_input(~Logical,logical,activation,input,weights,bias,source,weight_model,bias_model,workers)) ==
-    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}:
+    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers) : Tensors.Tensor<F32>}:
   +context = {sources_context(~Logical,logical,activation,input,weights,bias) : BandConvolutionValues.Context<Logical>}
   Equal.trans(Tensors.Tensor<F32>,DensePublic.image_result(~custom,~Logical,~original,single_public_input(~Logical,logical,activation,input,weights,bias,source,weight_model,bias_model,workers)),
-    TensorConvolution.execute_dense(~custom,DensePublic.reference_activation(~Logical,context),PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
-    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
-    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,geometry => TensorConvolution.execute_dense(~custom,DensePublic.reference_activation(~Logical,context),geometry,Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
+    TensorConvolution.execute_dense(~custom,DensePublic.reference_activation(~Logical,context),PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
+    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
+    Equal.cong(TensorConvolution.Geometry,Tensors.Tensor<F32>,geometry => TensorConvolution.execute_dense(~custom,DensePublic.reference_activation(~Logical,context),geometry,Buffer.pack(~F32,source),TensorConvolution.packed(geometry,Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
       TensorConvolution.Geometry{1,Native.batched(input),DenseSingle.dimensions(DensePublic.reference_problem(~Logical,~original,context))},PublicFrame.geometry(input),geometry_exact(~Logical,~original,logical,activation,input,weights,bias,one)),
-    Equal.cong(Activations.Activation,Tensors.Tensor<F32>,activation => TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
+    Equal.cong(Activations.Activation,Tensors.Tensor<F32>,activation => TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
       DensePublic.reference_activation(~Logical,context),activation,Equal.trans(Activations.Activation,DensePublic.reference_activation(~Logical,context),DenseBatchExecution.image_activation(~Logical,context),activation,
         activation_exact(~Logical,context),activation_field(~Logical,logical,activation,input,weights,bias))))
 
 def single_contract(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
   values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,source)),+validated: {PublicFrame.frame_valid(input,weights,bias) == True{} : Bool},supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool}) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),sources_context(~Logical,logical,activation,input,weights,bias),
-    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers)):
+    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers)):
   +context = {sources_context(~Logical,logical,activation,input,weights,bias) : BandConvolutionValues.Context<Logical>}
   %result_matches(~custom,~Logical,~original,logical,activation,input,weights,bias,source,weight_model,bias_model,workers,one) :
     Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,_)
@@ -521,15 +521,15 @@ def single_contract(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
 
 def single_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),+matched: {Native.input_matched(input) == True{} : Bool},+one: {PublicFrame.input_images(input) == 1 : U32},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.tree(~F32,bias_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(bias),bias,bias_evidence) : Tree.Tree<F32>},
   values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,source)),+validated: {PublicFrame.frame_valid(input,weights,bias) == True{} : Bool},supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool}) ->
   InitialLayout.LayoutContract(~custom,~Logical,~original,sources_context(~Logical,logical,activation,input,weights,bias),
-    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers)):
+    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers)):
   InitialLayout.from_dense_header(~custom,~Logical,~original,sources_context(~Logical,logical,activation,input,weights,bias),
-    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers),
+    TensorConvolution.execute_dense(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers),
     InitialLayout.execute_dense_header(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),bias_model,workers),
     single_contract(~custom,~Logical,~original,logical,activation,input,weights,bias,source,weight_model,bias_model,fill,input_workers,workers,normal,matched,one,weight_evidence,bias_evidence,weight_exact,bias_exact,values,validated,supported))
 
@@ -539,7 +539,7 @@ def single_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -
 def classified(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+limits: Machine.Limits,
   +limits_exact: {limits == Default.limits() : Machine.Limits},
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -559,7 +559,7 @@ def classified(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F
 
 def observed_limits(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -575,7 +575,7 @@ def observed_limits(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
 
 def native_contract(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -587,7 +587,7 @@ def native_contract(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
 
 def contract_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -601,7 +601,7 @@ def contract_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
 
 def initial_zero(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+activation: Activations.Activation,+input: PublicFrame.NativeInput,+weights: List<&2,F32>,+bias: List<&2,F32>,+parallel: Bool,+time: F32,
   +source: Buffer.Model<F32>,+weight_model: Buffer.Model<F32>,+bias_model: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Tensor{Buffer.pack(~F32,source),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   +matched: {Native.input_matched(input) == True{} : Bool},
   +weight_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(weights),weights>,+bias_evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(bias),bias>,
   +weight_exact: {Buffer.tree(~F32,weight_model) == StorageLaws.sequence_storage(F32,ConvSpec.length(weights),weights,weight_evidence) : Tree.Tree<F32>},
@@ -609,7 +609,7 @@ def initial_zero(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 ->
   +values: Dense.Values(~F32,~Logical,~original,logical,Buffer.content(~F32,source)),
   +validated: {PublicFrame.frame_valid(input,weights,bias) == True{} : Bool},+supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool}) ->
   InitialLayout.LayoutContract(~custom,~Logical,~original,sources_context(~Logical,logical,activation,input,weights,bias),
-    TensorConvolution.initial_layout(~custom,activation,BandPlanning.Plan{0,parallel,time},PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),Buffer.pack(~F32,bias_model),workers)):
+    TensorConvolution.initial_layout(~custom,activation,BandPlanning.Plan{0,parallel,time},PublicFrame.geometry(input),Buffer.pack(~F32,source),TensorConvolution.packed(PublicFrame.geometry(input),Buffer.pack(~F32,weight_model)),Buffer.pack(~F32,bias_model),workers)):
   InitialLayout.dense_workers(~custom,~Logical,~original,sources_context(~Logical,logical,activation,input,weights,bias),workers,result(~custom,activation,input,source,weight_model,bias_model,1),
     InitialLayout.execute_dense_header(~custom,activation,PublicFrame.geometry(input),Buffer.pack(~F32,source),Buffer.pack(~F32,weight_model),bias_model,1),
     native_contract(~custom,~Logical,~original,logical,activation,input,weights,bias,source,weight_model,bias_model,fill,input_workers,1,normal,matched,weight_evidence,bias_evidence,weight_exact,bias_exact,values,validated,supported))

@@ -222,12 +222,12 @@ def repartitioned_well_formed(~Element: Data,+geometry: Bands.Geometry,+fill: El
   modeled_well_formed(~Element,geometry,fill,layout,Model.content(~Element,source),capacity,division_capacity,fits,coverage)
 
 def target_bounds(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+output: Buffer.Model<Element>,+limits: Machine.Limits,+capacity: U32,
-  +domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,output)),ready: Buffer.Ready<Element,output>) ->
+  +domain: BandGather.Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,output)),ready: Buffer.Sized<Element,output>) ->
   BandRange.Target(BandRange.Request{geometry,first,rows,0},Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))):
   Bands.Geometry{+images,+channels,+height,+width} = geometry
   BandGather.Domain{capacity_ok,channels_positive,height_positive,width_positive,machine_room,allocation_room} = domain
   BandShape.Fields{local,rows_fit,length_exact} = metadata
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   BandRange.TargetFields{Limits.capacity_fits(limits),Buffer.capacity_bound(~Element,output,depth_ok),channels_positive,width_positive,
     Order.transitive(Nat.add(U32.to_nat(first),U32.to_nat(rows)),Inspection.total_rows(geometry),U32.to_nat(Machine.capacity(limits)),rows_fit,BandGather.rows_room(geometry,limits,capacity,domain)),
     %length_exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,output)))) == True{} : Bool} room}

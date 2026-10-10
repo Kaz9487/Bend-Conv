@@ -2,7 +2,7 @@
 
 [English](toolchain_rules.md) | [繁體中文](toolchain_rules.zh-TW.md)
 
-These are the rules of the official checker, compiler and runtime that this project's code and proofs depend on. They were read from the unmodified official Bend sources (`bend.ts`, `comp.ts`, `main.ts` and `base.bend` under `.tools/bend/bend2/`) and are confirmed by small programs. They were last reviewed for **Bend v2.0.35**.
+These are the rules of the official checker, compiler and runtime that this project's code and proofs depend on. They were read from the unmodified official Bend sources (`bend.ts`, `comp.ts`, `main.ts` and `base.bend` under `.tools/bend/bend2/`) and are confirmed by small programs. They were last reviewed for **Bend v2.0.36**.
 
 Each rule is supported in up to three ways:
 
@@ -31,7 +31,7 @@ The body of a definition is compiled into a case tree (`match_flatten` in `bend.
 - **A2** After a let, including `+x = ...`, no outer parameter can be matched. Write all parameter matches before the first let. *(probe: `match_after_let`)*
 - **A3** A computed value cannot be matched: `a match cannot scrutinize a computed value`. Write a helper def that takes the value as a parameter. *(probe: `match_computed`)*
 - **A4** A let-bound local cannot be matched: `cannot scrutinize a local binder`. Use a helper def as in A3. *(probe: `match_local`)*
-- **A5** A value that is already a constructor cannot be matched again: `an undestructed scrutinee`. Bind its fields directly, or fold the pattern into the outer case.
+- **A5** A value that is already a constructor cannot be matched again: `can't be matched (this value is already a constructor: bind its fields directly)`. Bind its fields directly, or fold the pattern into the outer case.
 - **A6** Live code cannot match an erased (`-`) parameter: `a live scrutinee`. Make the parameter live, or match a live value that determines it. *(probe: `erased_scrutinee`)*
 - **A7** Write list patterns as `Con{head,tail}` and `Nil{}`. `tail []` parses as an array read.
 
@@ -107,7 +107,7 @@ Rules:
 
 - **G1** Layout (`lay_of`). A non-recursive data type is flattened into machine words and allocates nothing; U32 and F32 take 32 bits, Nat 64. `Array`, `IO.OP` and recursive types (lists, trees) are heap boxes. A type wider than `WIDE = 247` words becomes a box; when the parameters together exceed it, multi-word parameters become boxes.
 - **G2** Sharing (`facts_hot`). A value used more than once marks its type hot. That type's constructors become shared, a match on it goes through `ctr_take`, which checks the reference count, and the heat spreads to the field types. *(probes: `share_none` shares nothing; `share_list`, which uses a list twice, shares some constructors)* The project met this with `Views.View`: a view that one definition handed to two others, and a view carried through a loop as a parameter, each made every `View` constructor shared. With the first, the four-thread model measured 136.7 against 143.2 ms and 132.1 against 145.3 ms in two alternating comparisons (interquartile range about 25 ms); after building the view once per use it measured 130.5 against 130.9 ms. `scripts/check_generated_c.py` rejects a shared `View` in the model, the benchmarks and the integration entries; the check the launcher runs on every compilation leaves it out, because a program's own definitions may share a view.
-- **G3** Global sharing. The source has a branch that marks every constructor shared (`fl.hot.add("*")`). The project met it once, when convolution became 16–24% slower; `scripts/check_generated_c.py` guards against it. **The probes do not reproduce it**: sharing a value whose type is a type parameter (`share_live_parameter`, `share_template_parameter`), or a type function defined by match and applied to a runtime index (`share_family_match_live_index`), shares only some constructors. The smallest trigger is not known. Until it is, rely on `check_generated_c.py` and the `N of M constructors shared` line that every build prints.
+- **G3** Global sharing. The source has a branch that marks every constructor shared (`FL.hot.add("*")`). The project met it once, when convolution became 16–24% slower; `scripts/check_generated_c.py` guards against it. **The probes do not reproduce it**: sharing a value whose type is a type parameter (`share_live_parameter`, `share_template_parameter`), or a type function defined by match and applied to a runtime index (`share_family_match_live_index`), shares only some constructors. The smallest trigger is not known. Until it is, rely on `check_generated_c.py` and the `N of M constructors shared` line that every build prints.
 - **G4** A binding counts its uses: the last use takes the value and earlier uses share it. Sharing a flattened value copies words, not nodes.
 - **G5** Templates and closures. A `~` template argument is instantiated by the checker, so the compiler sees a direct call. *(probe: `call_template`: the whole chain is a `spin`)* A function passed as an ordinary parameter is a closure, and **the def that calls a closure is not flat**. *(probe: `call_closure`)* A function stored in a record was measured 5.85–6.5 times slower than a template.
 - **G6** A generic `~Context: Data` with `+context` heats only the instantiated type. *(probe: `share_template_parameter`)*

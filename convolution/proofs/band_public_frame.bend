@@ -187,10 +187,10 @@ def guard(+geometry: TensorConvolution.Geometry,layout: Bands.Geometry,weights: 
     KernelShape.valid(dimensions,Nat.mul(ci,Nat.mul(height,width)),weight_length,bias_length) &&
     Nat.is_le(weight_length,U32.to_nat(U32.shln(1,weight_depth))) && Nat.is_le(bias_length,U32.to_nat(U32.shln(1,bias_depth)))
 
-def allocation_room(~Element: Data,+model: Buffer.Model<Element>,ready: Buffer.Ready<Element,model>) ->
+def allocation_room(~Element: Data,+model: Buffer.Model<Element>,ready: Buffer.Sized<Element,model>) ->
   {Nat.is_le(Buffer.length(~Element,model),U32.to_nat(U32.shln(1,Buffer.depth(~Element,model)))) == True{} : Bool}:
   Buffer.Model{+tree,+length,Certificate.Certificate{+depth,equation}} = model
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   %Shape.capacity(Element,depth,tree,Buffer.balanced(~Element,model)) : {Nat.is_le(length,U32.to_nat(_)) == True{} : Bool}
   room
 
@@ -241,7 +241,7 @@ def parameters(~Logical: Data,+frame: PipelineExecution.Frame<Logical>,+weights:
 def frame(~Logical: Data,~original: Logical -> U32 -> F32,+frame: PipelineExecution.Frame<Logical>,+batched: Bool,+source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,
   shape: BandShape.WellFormed<F32,PipelineExecution.input_geometry(~Logical,frame),Model.content(~F32,source)>,
   weight_exact: {Buffer.length(~F32,weights) == weight_length(~Logical,frame) : Nat},bias_exact: {Buffer.length(~F32,bias) == bias_length(~Logical,frame) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>) ->
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>) ->
   {guard(TensorExecution.execution_geometry(~Logical,frame,batched),PipelineExecution.input_geometry(~Logical,frame),weights,bias,Inspection.model(~F32,PipelineExecution.input_geometry(~Logical,frame),source)) == True{} : Bool}:
   PipelineExecution.Frame{+logical,activation,KernelShape.Dimensions{+ci,+co,+h,+w,+k,+s,+p},+images,parallel,+limits,capacity,+weight_list,+bias_list,we,be,domain,+valid,+supported,room,eligible} = frame
   +dimensions = {KernelShape.Dimensions{ci,co,h,w,k,s,p} : KernelShape.Dimensions}

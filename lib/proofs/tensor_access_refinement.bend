@@ -704,16 +704,16 @@ def map_finished(~Element: Data,+state: Traversal.State<&2,&2,Unit,Tree.Tree<Ele
   {==}
 
 def apply_model(~Element: Data,~operation: Element -> Element,count: Nat,position: U32,input: Tree.Tree<Element>) -> Tree.Tree<Element>:
-  mapped_tree(~Element,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~Access.apply_element(~Element,~operation)),count,Traversal.State{Unit{},input,position,Unit{}}))
+  mapped_tree(~Element,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~ArrayLaws.unindexed(~Element,~Unit,~Access.apply_element(~Element,~operation))),count,Traversal.State{Unit{},input,position,Unit{}}))
 
 def apply(~Element: Data,~operation: Element -> Element,+count: Nat,+position: U32,+input: Tree.Tree<Element>) ->
   {Traversal.map_in_place(~Element,~Unit,~Access.apply_element(~Element,~operation),count,position,Unit{},Tree.pack(Element,input)) == Tree.pack(Element,apply_model(~Element,~operation,count,position,input)) : Array<Element>}:
   %Equal.sym(Traversal.State<&2,&1,Unit,Array<Element>,Unit>,
     Loop.run(~Traversal.State<&2,&1,Unit,Array<Element>,Unit>,~Traversal.map_step(~Element,~Unit,~Access.apply_element(~Element,~operation)),count,Traversal.State{Unit{},Tree.pack(Element,input),position,Unit{}}),
-    ArrayLaws.represent_map(~Element,~Unit,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~Access.apply_element(~Element,~operation)),count,Traversal.State{Unit{},input,position,Unit{}})),
+    ArrayLaws.represent_map(~Element,~Unit,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~ArrayLaws.unindexed(~Element,~Unit,~Access.apply_element(~Element,~operation))),count,Traversal.State{Unit{},input,position,Unit{}})),
     ArrayLaws.map_loop_refines_model(~Element,~Unit,~Access.apply_element(~Element,~operation),count,Traversal.State{Unit{},input,position,Unit{}})) :
     {Traversal.mapped_output(~Element,~Unit,_) == Tree.pack(Element,apply_model(~Element,~operation,count,position,input)) : Array<Element>}
-  map_finished(~Element,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~Access.apply_element(~Element,~operation)),count,Traversal.State{Unit{},input,position,Unit{}}))
+  map_finished(~Element,Loop.run(~Traversal.State<&2,&2,Unit,Tree.Tree<Element>,Unit>,~ArrayLaws.model_map_step(~Element,~Unit,~ArrayLaws.unindexed(~Element,~Unit,~Access.apply_element(~Element,~operation))),count,Traversal.State{Unit{},input,position,Unit{}}))
 
 def sample_indexed(~Element: Data,~operation: U32 -> Element -> Element,tree: Tree.Tree<Element>,context: Traversal.Offsets,position: U32) -> Element:
   +position = position

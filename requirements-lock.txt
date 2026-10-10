@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 asttokens==3.0.2
 certifi==2026.7.22
 charset-normalizer==3.5.1

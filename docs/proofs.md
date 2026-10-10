@@ -28,9 +28,9 @@ A problem holds a shape, an input, weights and a bias. The law puts no condition
 
 - The official checker and Base library.
 - The compiler, the runtime and its scheduler, the C compiler and the hardware. The theorem is about the Bend source.
-- The foreign file I/O of the YOLO example. Library and convolution proofs contain no `@unsafe` definition.
+- Bend's file I/O under `load` and `save`. Library and convolution proofs contain no `@unsafe` definition.
 
-Numerical checks cover what the proofs do not: generated code, model wiring, activation, I/O and detection decoding are compared with NumPy and PyTorch ([benchmarks](../benchmarks/README.md)).
+Numerical checks cover what the proofs do not: generated code, model wiring, activation, I/O and detection decoding are compared with NumPy and PyTorch, and the mathematical functions with MPFR over every FP32 input ([benchmarks](../benchmarks/README.md)).
 
 ## Following the convolution proof
 
@@ -58,16 +58,18 @@ The pattern is the same throughout: describe what a loop stores as a list of wri
 - **Dense path:** equal to the Array pipeline (`microkernel_storage_execution`).
 - **Band path:** for the plan the code selects, the output bands cover every row and stay inside their allocations ([band_pipeline_well_formed.bend](../convolution/proofs/band_pipeline_well_formed.bend)), and every stored value is the ordered matrix value of its output point ([convolution_leaf_contract.bend](../convolution/proofs/convolution_leaf_contract.bend), [band_pipeline_execution.bend](../convolution/proofs/band_pipeline_execution.bend)).
 
-These are separate from the unconditional root. Their premises are a Ready input in a well-formed layout with finite values, matching shapes, and the machine guards the code checks.
+These are separate from the unconditional root. Their premises are a Usable input in a well-formed layout with finite values, matching shapes, and the machine guards the code checks.
 
 ## Tensor operations
 
-Each theorem has one premise about the call: it returned a Ready result.
+Each theorem has one premise about the call: it returned a Usable result.
 
-| Operation | What a Ready result holds | Source |
+| Operation | What a Usable result holds | Source |
 |---|---|---|
 | `add`, `sub`, `mul`, `div`, `maximum`, `minimum`, with broadcasting | `operation(left, right)` at every index, in that argument order | [tensor_combine_dense_values.bend](../lib/proofs/tensor_combine_dense_values.bend) |
 | `add_scalar`, `mul_scalar`, ... | `operation(x, scalar)` | [tensor_scalar_values.bend](../lib/proofs/tensor_scalar_values.bend) |
+| `less`, `less_equal`, `greater`, `greater_equal`, `equal`, `not_equal` | 1.0 or 0.0 by the comparison of `left` and `right` at every index | [tensor_comparison_values.bend](../lib/proofs/tensor_comparison_values.bend) |
+| `sigmoid`, `silu`, `tanh`, `gelu_tanh`, `exp`, `log` | the ordered map of the scalar function in [math_fp32.bend](../lib/math_fp32.bend) | [tensor_function_values.bend](../lib/proofs/tensor_function_values.bend) |
 | `transpose`, `slice`, `broadcast_to`, dense upsample | the input at the address the view gives to that index | [tensor_gather_values.bend](../lib/proofs/tensor_gather_values.bend) |
 | `set_slice`, `pad`, dense `concat` | the part written through its view, the rest unchanged | [tensor_set_slice_values.bend](../lib/proofs/tensor_set_slice_values.bend), [tensor_concat_dense_values.bend](../lib/proofs/tensor_concat_dense_values.bend) |
 | `sum_axis`, `max_axis`, `min_axis`, `mean_axis` | the fold of the axis in increasing index, from the initial value | [tensor_reduce_axis_values.bend](../lib/proofs/tensor_reduce_axis_values.bend) |
@@ -87,7 +89,8 @@ Underneath:
 ## What is not proved
 
 - The planner's cost estimates, latency and workspace accounting. They cannot affect a result.
-- Real-number accuracy.
+- Real-number accuracy. [math_accuracy.py](../benchmarks/checks/math_accuracy.py) measures it.
+- `select` and `softmax`.
 - A closed form of which indices a slice view reaches; the statements follow the cursor's coordinates.
 - The YOLO example's graph, I/O and detection decoding.
 - Compiler and runtime behaviour.

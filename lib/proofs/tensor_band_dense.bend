@@ -51,7 +51,7 @@ def written(~Element: Data,+call: BandGather.Call,input: Tree.Tree<Element>,outp
   write_dense(~Element,BandGather.values_geometry(call),BandGather.values_first(call),BandGather.values_rows(call),input,output)
 
 def copied_cell(~Element: Data,+call: BandGather.Call,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,+channel: Nat,+row: Nat,+column: Nat,
-  facts: BandGather.Facts<call>,ready: Buffer.Ready<Element,output>,length_equal: {Buffer.length(~Element,output) == BandGather.length(call) : Nat},
+  facts: BandGather.Facts<call>,ready: Buffer.Sized<Element,output>,length_equal: {Buffer.length(~Element,output) == BandGather.length(call) : Nat},
   +channel_inside: {Nat.is_lt(channel,BandValues.channels(BandGather.values_geometry(call))) == True{} : Bool},
   +row_inside: {Nat.is_lt(row,U32.to_nat(BandGather.values_rows(call))) == True{} : Bool},
   +column_inside: {Nat.is_lt(column,BandValues.width(BandGather.values_geometry(call))) == True{} : Bool}) ->
@@ -59,7 +59,7 @@ def copied_cell(~Element: Data,+call: BandGather.Call,+input: Tree.Tree<Element>
     written(~Element,call,input,Buffer.tree(~Element,output)),BandGather.length(call),channel,row,column):
   BandGather.Call{Bands.Geometry{+images,+channels,+height,+width},+first,+rows,+length,+capacity,+division_capacity} = call
   BandGather.Facts{+valid,+stride_exact,+length_exact,+length_bound,+division_ok,+plane_bound,+height_positive,+width_positive,+count_exact,+height_bound,+row_span} = facts
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   +plane = (rows * width : U32)
   +index = Nat.add(Nat.mul(row,U32.to_nat(width)),column)
   +position = BandValues.position(Bands.Geometry{images,channels,height,width},rows,channel,row,column)
@@ -92,7 +92,7 @@ def copied_cell(~Element: Data,+call: BandGather.Call,+input: Tree.Tree<Element>
 
 # What one copied leaf supplies to every cell.
 type Cells<-Element: Data> is Data:
-  Cells{call: BandGather.Call,input: Tree.Tree<Element>,output: Buffer.Model<Element>,facts: BandGather.Facts<call>,ready: Buffer.Ready<Element,output>,
+  Cells{call: BandGather.Call,input: Tree.Tree<Element>,output: Buffer.Model<Element>,facts: BandGather.Facts<call>,ready: Buffer.Sized<Element,output>,
     length_equal: {Buffer.length(~Element,output) == BandGather.length(call) : Nat}}
 
 def cells_geometry(~Element: Data,evidence: Cells<Element>) -> Bands.Geometry:
@@ -116,7 +116,7 @@ def leaf_cell(~Element: Data,+evidence: Cells<Element>,+channel: Nat,+row: Nat,+
   copied_cell(~Element,call,input,output,channel,row,column,facts,ready,length_equal,channel_inside,row_inside,column_inside)
 
 def values(~Element: Data,+call: BandGather.Call,+input: Tree.Tree<Element>,+output: Buffer.Model<Element>,
-  facts: BandGather.Facts<call>,ready: Buffer.Ready<Element,output>,length_equal: {Buffer.length(~Element,output) == BandGather.length(call) : Nat}) ->
+  facts: BandGather.Facts<call>,ready: Buffer.Sized<Element,output>,length_equal: {Buffer.length(~Element,output) == BandGather.length(call) : Nat}) ->
   BandValues.Leaf(~Element,~Tree.Tree<Element>,~BandValues.dense_value(~Element),input,BandGather.values_geometry(call),BandGather.values_first(call),BandGather.values_rows(call),
     written(~Element,call,input,Buffer.tree(~Element,output)),BandGather.length(call)):
   BandValues.cells(~Cells<Element>,~Cell(~Element),~cells_geometry(~Element),~cells_rows(~Element),~leaf_cell(~Element),Cells{call,input,output,facts,ready,length_equal})
@@ -590,10 +590,10 @@ def split_well_formed(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.
 # Replace a whole-tensor allocation envelope with the actual dense owner's
 # capacity while retaining the independently proved machine envelope.
 def owned(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,+capacity: U32,+input: Buffer.Model<Element>,
-  expected_length: {BandGather.elements(geometry) == Buffer.length(~Element,input) : Nat},ready: Buffer.Ready<Element,input>,whole: BandGather.Domain<geometry,limits,capacity>) ->
+  expected_length: {BandGather.elements(geometry) == Buffer.length(~Element,input) : Nat},ready: Buffer.Sized<Element,input>,whole: BandGather.Domain<geometry,limits,capacity>) ->
   BandGather.Domain<geometry,limits,Tree.capacity(Element,Buffer.tree(~Element,input))>:
   match ready whole:
-    case Buffer.Ready{+depth_ok,room} BandGather.Domain{capacity_ok,channels_positive,height_positive,width_positive,machine_room,allocation_room}:
+    case Buffer.Sized{+depth_ok,room} BandGather.Domain{capacity_ok,channels_positive,height_positive,width_positive,machine_room,allocation_room}:
       BandGather.Domain{Buffer.capacity_bound(~Element,input,depth_ok),channels_positive,height_positive,width_positive,machine_room,
         %Equal.sym(Nat,BandGather.elements(geometry),Buffer.length(~Element,input),expected_length) :
           {Nat.is_le(_,U32.to_nat(Tree.capacity(Element,Buffer.tree(~Element,input)))) == True{} : Bool}
@@ -602,7 +602,7 @@ def owned(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,+capa
 # A checked existing owner supplies the target allocation and copy premises.
 # Empty row leaves require no address; positive leaves use actual metadata.
 def positive(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+capacity: U32,
-  +domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},counted: BandShape.Count<geometry,rows,Buffer.length(~Element,input)>) ->
   LeafFacts<geometry,first,rows,capacity,Machine.half_word(limits)>:
   BandShape.Count{+exact,allocatable} = counted
@@ -616,7 +616,7 @@ def positive(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,+f
 
 def selected(~Element: Data,empty: Bool,+geometry: Bands.Geometry,+limits: Machine.Limits,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+capacity: U32,
   compared: {U32.is_zero(rows) == empty : Bool},+domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),
-  +ready: Buffer.Ready<Element,input>) -> LeafFacts<geometry,first,rows,capacity,Machine.half_word(limits)>:
+  +ready: Buffer.Sized<Element,input>) -> LeafFacts<geometry,first,rows,capacity,Machine.half_word(limits)>:
   match empty geometry:
     case True{} Bands.Geometry{images,channels,height,width}:
       BandShape.Fields{local,rows_fit,length_exact} = metadata

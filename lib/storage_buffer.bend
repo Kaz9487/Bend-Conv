@@ -15,6 +15,11 @@ def from_list(~Element: Data,+values: List<&2,Element>,+depth: Nat,+fallback: El
   Buffer{Traversal.write_list(~Element,values,0,Array.new(Element,depth,fallback)),length,
     Certificate.write_list(~Element,values,0,Array.new(Element,depth,fallback),Certificate.allocated(Element,depth,fallback))}
 
+# The values written from the offset on; the certificate follows the storage.
+def write_at(~Element: Data,+values: List<&2,Element>,+offset: U32,buffer: Buffer<Element>) -> Buffer<Element>:
+  Buffer{storage,length,certificate} = buffer
+  Buffer{Traversal.write_list(~Element,values,offset,storage),length,Certificate.write_list(~Element,values,offset,storage,certificate)}
+
 def capacity(~Element: Data,-storage: Array<Element>,certificate: Certificate.Certificate<Element,storage>) -> U32:
   Certificate.Certificate{depth,equation} = certificate
   U32.shln(1,depth)

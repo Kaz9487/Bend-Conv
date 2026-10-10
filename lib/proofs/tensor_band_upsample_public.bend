@@ -116,11 +116,11 @@ def rejected_count_views(~Element: Data,+source: Views.View,target: Maybe<&2,Vie
 
 def rejected_repeated_count(~Element: Data,+input: Buffer.Model<Element>,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
   source: RepeatedSource<shape,scale>,rejected: {Tensors.count_of(Nearest.repeated_extents(shape,scale)) == None{} : Maybe<&2,U32>}) ->
-  FailedOutput<Element,Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale),
+  FailedOutput<Element,Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale),
     Layout.scaled_extents(shape,scale),Tensors.Problem{"upsample_nearest",Tensors.InvalidArgument{shape}}>:
   RepeatedSource{+view,+actual,+extents,offset} = source
   %Equal.sym(Maybe<&2,Views.View>,Layout.repeated(Tensors.view_of(shape),scale),Some{view},actual) :
-    FailedOutput<Element,Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Ready{},Buffer.pack(~Element,input),shape,scale,fill,workers)),Layout.scaled_extents(shape,scale),Tensors.Problem{"upsample_nearest",Tensors.InvalidArgument{shape}}>
+    FailedOutput<Element,Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Usable{},Buffer.pack(~Element,input),shape,scale,fill,workers)),Layout.scaled_extents(shape,scale),Tensors.Problem{"upsample_nearest",Tensors.InvalidArgument{shape}}>
   %Equal.sym(List<&2,U32>,Views.axis_extents_of(view),Nearest.repeated_extents(shape,scale),extents) :
     FailedOutput<Element,Layout.result_of(~Element,Layout.gather_views(~Element,"upsample_nearest",Some{view},Tensors.view_of(_),Tensors.count_of(_),Buffer.pack(~Element,input),shape,Layout.scaled_extents(shape,scale),fill,workers)),Layout.scaled_extents(shape,scale),Tensors.Problem{"upsample_nearest",Tensors.InvalidArgument{shape}}>
   %Equal.sym(Maybe<&2,U32>,Tensors.count_of(Nearest.repeated_extents(shape,scale)),None{},rejected) :
@@ -313,7 +313,7 @@ def scaled_empty(+extents: List<&2,U32>,+scale: U32,empty: {Shapes.has_zero(Near
 
 def empty_guard(~Element: Data,+input: Buffer.Model<Element>,+source: Views.View,+extents: List<&2,U32>,+count: U32,+fill: Element,
   +source_shape: {Views.axis_extents_of(source) == extents : List<&2,U32>},source_offset: {CopyValues.view_offset(source) == 0 : U32},
-  +empty: {Shapes.has_zero(extents) == True{} : Bool},input_exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},input_ready: Buffer.Ready<Element,input>) ->
+  +empty: {Shapes.has_zero(extents) == True{} : Bool},input_exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},input_ready: Buffer.Sized<Element,input>) ->
   {CopyValues.copy_guard(~Element,Buffer.pack(~Element,input),source,Tensors.buffer(~Element,fill,0),BandUpsampleExecution.canonical_view(extents,0)) == True{} : Bool}:
   +exact = ShapeLaws.empty_product(extents,empty)
   +target_shape = BandUpsampleExecution.canonical_shape(extents,0,exact)
@@ -331,7 +331,7 @@ def empty_guard(~Element: Data,+input: Buffer.Model<Element>,+source: Views.View
 # particular scale zero must not require the original tensor to be empty.
 def empty_dense_model(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+input: Buffer.Model<Element>,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
   counted: Global.Counted<shape>,well_formed: Dense.WellFormed<Element,shape,Buffer.content(~Element,input)>,source: RepeatedSource<shape,scale>,+empty: {Shapes.has_zero(Nearest.repeated_extents(shape,scale)) == True{} : Bool}) ->
-  Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale)):
+  Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale)):
   Buffer.Model{+input_tree,+input_size,+input_certificate} = input
   Global.Counted{+count,+source_count} = counted
   Dense.WellFormed{+input_length,input_content_ready} = well_formed
@@ -349,10 +349,10 @@ def empty_dense_model(~Element: Data,~Context: Data,~original: Context -> U32 ->
     OperationsLaws.observe_pair_outcome(~Element,Operations.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target)),
     OperationsLaws.copy_denotation(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target),OperationsLaws.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target))
   %Equal.sym(Maybe<&2,Views.View>,Layout.repeated(Tensors.view_of(shape),scale),Some{source_view},actual) :
-    Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Ready{},Buffer.pack(~Element,input),shape,scale,fill,workers)))
+    Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Usable{},Buffer.pack(~Element,input),shape,scale,fill,workers)))
   %Equal.sym(List<&2,U32>,Views.axis_extents_of(source_view),view_shape,extents) :
-    Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.gather_status(~Element,"upsample_nearest",Tensors.Ready{},Some{source_view},_,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,workers)))
-  %Equal.sym(Tensors.Tensor<Element> & Tensors.Tensor<Element>,Layout.gather_status(~Element,"upsample_nearest",Tensors.Ready{},Some{source_view},view_shape,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,workers),
+    Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,Layout.gather_status(~Element,"upsample_nearest",Tensors.Usable{},Some{source_view},_,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,workers)))
+  %Equal.sym(Tensors.Tensor<Element> & Tensors.Tensor<Element>,Layout.gather_status(~Element,"upsample_nearest",Tensors.Usable{},Some{source_view},view_shape,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,workers),
     Layout.copied(~Element,"upsample_nearest",shape,Layout.scaled_extents(shape,scale),fill,workers,Operations.copy(~Element,Buffer.pack(~Element,input),source_view,Tensors.buffer(~Element,fill,0),target)),
     Public.gathered(~Element,"upsample_nearest",source_view,view_shape,Layout.scaled_extents(shape,scale),Buffer.pack(~Element,input),shape,fill,target,0,workers,BandUpsampleExecution.view(view_shape,0,exact),CountCompletion.count_of(view_shape,0,exact,bounded))) :
     Nearest.UpsampleResult(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.result_of(~Element,_))
@@ -366,7 +366,7 @@ def empty_dense_model(~Element: Data,~Context: Data,~original: Context -> U32 ->
 
 def Readback(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,status: Tensors.Status,output: Tensors.Tensor<Element>) -> Data:
   match status:
-    case Tensors.Ready{}: Nearest.logical_values(~Element,~Context,~original,context,output)
+    case Tensors.Usable{}: Nearest.logical_values(~Element,~Context,~original,context,output)
     case Tensors.Failed{problem}: Unit
 
 def UpsampleContract(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+shape: List<&2,U32>,output: Tensors.Tensor<Element>) -> Data:
@@ -376,7 +376,7 @@ def ready_result(~Element: Data,~Context: Data,~original: Context -> U32 -> Elem
   receipt: Nearest.UpsampleResult(~Element,~Context,~original,context,shape,output)) -> UpsampleContract(~Element,~Context,~original,context,shape,output):
   Shape.Both{normal,Shape.Both{status_equal,Shape.Both{shape_equal,values}}} = receipt
   Shape.Both{normal,Shape.Both{shape_equal,
-    %Equal.sym(Tensors.Status,Nearest.tensor_status(~Element,output),Tensors.Ready{},status_equal) : Readback(~Element,~Context,~original,context,_,output) values}}
+    %Equal.sym(Tensors.Status,Nearest.tensor_status(~Element,output),Tensors.Usable{},status_equal) : Readback(~Element,~Context,~original,context,_,output) values}}
 
 def failed_result(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+shape: List<&2,U32>,+problem: Tensors.Problem,-output: Tensors.Tensor<Element>,receipt: FailedOutput<Element,output,shape,problem>) ->
   UpsampleContract(~Element,~Context,~original,context,shape,output):
@@ -396,18 +396,18 @@ def empty_of_zero(+extents: List<&2,U32>,zero: {ShapeLaws.elements(extents) == 0
 
 def fallback_positive(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+input: Buffer.Model<Element>,+fill: Element,+workers: U32,
   disabled: {BandUpsampleExecution.enabled(geometry,shape,scale) == False{} : Bool},active: Active<geometry,shape,scale>) ->
-  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale)):
+  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale)):
   Active{guard,enabled} = active
-  Empty.absurd(UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale)),WordEncoding.false_true(
+  Empty.absurd(UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale)),WordEncoding.false_true(
     Equal.trans(Bool,False{},BandUpsampleExecution.enabled(geometry,shape,scale),True{},Equal.sym(Bool,BandUpsampleExecution.enabled(geometry,shape,scale),False{},disabled),enabled)))
 
 def fallback_count_zero(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+input: Buffer.Model<Element>,+fill: Element,+workers: U32,+count: U32,zero: Bool,
   +classified: {U32.is_zero(count) == zero : Bool},+counted: {Tensors.count_of(Nearest.repeated_extents(shape,scale)) == Some{count} : Maybe<&2,U32>},+coherence: Nearest.ShapeCoherence<geometry,shape>,
   source_count: Global.Counted<shape>,well_formed: Dense.WellFormed<Element,shape,Buffer.content(~Element,input)>,source: RepeatedSource<shape,scale>,disabled: {BandUpsampleExecution.enabled(geometry,shape,scale) == False{} : Bool}) ->
-  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale)):
+  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale)):
   match zero:
     case True{}:
-      ready_result(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale),
+      ready_result(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale),
         empty_dense_model(~Element,~Context,~original,context,input,shape,scale,fill,workers,source_count,well_formed,source,
           empty_of_zero(Nearest.repeated_extents(shape,scale),Equal.trans(Nat,ShapeLaws.elements(Nearest.repeated_extents(shape,scale)),U32.to_nat(count),0n,
             BandUpsampleExecution.count_exact(ShapeLaws.elements(Nearest.repeated_extents(shape,scale)),count,Count.count_of(Nearest.repeated_extents(shape,scale),count,counted)),
@@ -418,64 +418,64 @@ def fallback_count_zero(~Element: Data,~Context: Data,~original: Context -> U32 
 def fallback_count(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+input: Buffer.Model<Element>,+fill: Element,+workers: U32,result: Maybe<&2,U32>,
   computed: {Tensors.count_of(Nearest.repeated_extents(shape,scale)) == result : Maybe<&2,U32>},+coherence: Nearest.ShapeCoherence<geometry,shape>,+source_count: Global.Counted<shape>,
   +well_formed: Dense.WellFormed<Element,shape,Buffer.content(~Element,input)>,+source: RepeatedSource<shape,scale>,+disabled: {BandUpsampleExecution.enabled(geometry,shape,scale) == False{} : Bool}) ->
-  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale)):
+  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale)):
   match result:
     case None{}:
       failed_result(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Tensors.Problem{"upsample_nearest",Tensors.InvalidArgument{shape}},
-        Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Ready{},workers},scale),rejected_repeated_count(~Element,input,shape,scale,fill,workers,source,computed))
+        Layout.upsample_nearest(~Element,Tensors.Tensor{Buffer.pack(~Element,input),shape,fill,Tensors.Usable{},workers},scale),rejected_repeated_count(~Element,input,shape,scale,fill,workers,source,computed))
     case Some{+count}:
       fallback_count_zero(~Element,~Context,~original,context,geometry,shape,scale,input,fill,workers,count,U32.is_zero(count),{==},computed,coherence,source_count,well_formed,source,disabled)
 
 def fallback_band_equation(~Element: Data,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
   disabled: {BandUpsampleExecution.enabled(geometry,shape,scale) == False{} : Bool}) ->
-  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale) ==
-    Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Ready{},workers},scale) : Tensors.Tensor<Element>}:
+  {Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale) ==
+    Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Usable{},workers},scale) : Tensors.Tensor<Element>}:
   Bands.Geometry{images,channels,height,width} = geometry
   %Equal.sym(Bool,BandUpsampleExecution.enabled(geometry,shape,scale),False{},disabled) :
     {Layout.upsample_supported(~Element,_,Model.pack(~Element,bands),geometry,shape,scale,fill,workers) ==
-      Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Ready{},workers},scale) : Tensors.Tensor<Element>}
+      Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Usable{},workers},scale) : Tensors.Tensor<Element>}
   {==}
 
 # One equation identifies the actual disabled selector with the existing
 # dense operation. Source preparation is shared across all dense fallbacks.
 def fallback_selected(~Element: Data,bands: Bands.Bands(~Element),+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32) ->
   {Layout.upsample_supported(~Element,False{},bands,geometry,shape,scale,fill,workers) ==
-    Layout.upsample_nearest(~Element,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers}),scale) : Tensors.Tensor<Element>}:
+    Layout.upsample_nearest(~Element,DenseObservation.dense_tensor(~Element,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers}),scale) : Tensors.Tensor<Element>}:
   {==}
 
 def fallback_selected_prepared(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
-  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers}),
-  values: Dense.TensorValues(~Element,~Context,~original,context,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers})) ->
+  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers}),
+  values: Dense.TensorValues(~Element,~Context,~original,context,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers})) ->
   Shape.Both<{Layout.upsample_supported(~Element,False{},Model.pack(~Element,bands),geometry,shape,scale,fill,workers) ==
-    Layout.upsample_nearest(~Element,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers}),scale) : Tensors.Tensor<Element>},
-    ReadyDensification.Prepared(~Element,~Context,~original,context,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers})>:
+    Layout.upsample_nearest(~Element,DenseObservation.dense_tensor(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers}),scale) : Tensors.Tensor<Element>},
+    ReadyDensification.Prepared(~Element,~Context,~original,context,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers})>:
   Shape.Both{fallback_selected(~Element,Model.pack(~Element,bands),geometry,shape,scale,fill,workers),
-    ReadyDensification.prepared_owner(~Element,~Context,~original,context,BandConcatExecution.BandedOwner{bands,geometry,shape,fill,Tensors.Ready{},workers},normal,{==},values)}
+    ReadyDensification.prepared_owner(~Element,~Context,~original,context,BandConcatExecution.BandedOwner{bands,geometry,shape,fill,Tensors.Usable{},workers},normal,{==},values)}
 
 def fallback_band_observed(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
   +counted: Global.Counted<shape>,+coherent: {Window.band_shape(shape,geometry) == True{} : Bool},+coherence: Nearest.ShapeCoherence<geometry,shape>,+disabled: {BandUpsampleExecution.enabled(geometry,shape,scale) == False{} : Bool},
   observation: Buffer.Observation<Element,Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry)))>) ->
-  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+  UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   Buffer.Observation{+input,+equation} = observation
   +well_formed = {%Buffer.packed_contents(~Element,input) : Dense.WellFormed<Element,shape,_>
     %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,input),Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),equation) : Dense.WellFormed<Element,shape,Buffer.contents(~Element,_)>
     Normal.gathered(~Element,geometry,bands,shape,fill,counted,coherent) : Dense.WellFormed<Element,shape,Buffer.content(~Element,input)>}
-  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale),
-    Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Ready{},workers},scale),fallback_band_equation(~Element,bands,geometry,shape,scale,fill,workers,disabled)) :
+  %Equal.sym(Tensors.Tensor<Element>,Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale),
+    Layout.upsample_nearest(~Element,Tensors.Tensor{Bands.gather(~Element,geometry,Model.pack(~Element,bands),Tensors.buffer(~Element,fill,Bands.elements(geometry))),shape,fill,Tensors.Usable{},workers},scale),fallback_band_equation(~Element,bands,geometry,shape,scale,fill,workers,disabled)) :
     UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),_)
-  %equation : UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{_,shape,fill,Tensors.Ready{},workers},scale))
+  %equation : UpsampleContract(~Element,~Context,~original,context,Layout.scaled_extents(shape,scale),Layout.upsample_nearest(~Element,Tensors.Tensor{_,shape,fill,Tensors.Usable{},workers},scale))
   fallback_count(~Element,~Context,~original,context,geometry,shape,scale,input,fill,workers,Tensors.count_of(Nearest.repeated_extents(shape,scale)),{==},coherence,counted,well_formed,repeated_counted(geometry,shape,scale,counted,coherence),disabled)
 
 def ready_band_when(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,enabled: Bool,
-  +classified: {BandUpsampleExecution.enabled(geometry,shape,scale) == enabled : Bool},normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers}),
+  +classified: {BandUpsampleExecution.enabled(geometry,shape,scale) == enabled : Bool},normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers}),
   values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands))) ->
   UpsampleContract(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   match enabled:
     case True{}:
       Shape.Both{metadata,Shape.Both{counted,+coherent}} = normal
       ready_result(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-        Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale),
+        Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale),
         Nearest.enabled_result(~Element,~Context,~original,context,geometry,shape,scale,fill,workers,bands,%Model.packed_contents(~Element,bands) : BandShape.WellFormed<Element,geometry,_> metadata,values,
           Nearest.coherence_from_decoded(shape,geometry,BandCount.decoded(shape,geometry,coherent)),classified))
     case False{}:
@@ -487,19 +487,19 @@ def ready_band_when(~Element: Data,~Context: Data,~original: Context -> U32 -> E
 # The selector and every fallback count are computed here from the actual
 # native call. Source invariants and finite source values are the premises.
 def ready_band(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,
-  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers}),values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands))) ->
+  normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers}),values: BandValues.Values(~Element,~Context,~original,context,geometry,Model.content(~Element,bands))) ->
   UpsampleContract(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),
-    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Ready{},workers},scale)):
+    Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,Tensors.Usable{},workers},scale)):
   ready_band_when(~Element,~Context,~original,context,bands,geometry,shape,scale,fill,workers,BandUpsampleExecution.enabled(geometry,shape,scale),{==},normal,values)
 
 def BandResult(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,status: Tensors.Status,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,output: Tensors.Tensor<Element>) -> Data:
   match status:
-    case Tensors.Ready{}: UpsampleContract(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),output)
+    case Tensors.Usable{}: UpsampleContract(~Element,~BandUpsampleExecution.Context<Context>,~BandUpsampleExecution.value(~Element,~Context,~original),BandUpsampleExecution.Context{context,geometry,scale},Layout.scaled_extents(shape,scale),output)
     case Tensors.Failed{problem}: FailedOutput<Element,output,Layout.scaled_extents(shape,scale),problem>
 
 def SourceValues(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,status: Tensors.Status,+geometry: Bands.Geometry,+content: Model.Content<Element>) -> Data:
   match status:
-    case Tensors.Ready{}: BandValues.Values(~Element,~Context,~original,context,geometry,content)
+    case Tensors.Usable{}: BandValues.Values(~Element,~Context,~original,context,geometry,content)
     case Tensors.Failed{problem}: Unit
 
 def band_status(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+bands: Model.Model<Element>,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+workers: U32,status: Tensors.Status,
@@ -507,7 +507,7 @@ def band_status(~Element: Data,~Context: Data,~original: Context -> U32 -> Eleme
   BandResult(~Element,~Context,~original,context,status,geometry,shape,scale,
     Layout.upsample_nearest(~Element,Tensors.Banded{Model.pack(~Element,bands),geometry,shape,fill,status,workers},scale)):
   match status:
-    case Tensors.Ready{}: ready_band(~Element,~Context,~original,context,bands,geometry,shape,scale,fill,workers,normal,values)
+    case Tensors.Usable{}: ready_band(~Element,~Context,~original,context,bands,geometry,shape,scale,fill,workers,normal,values)
     case Tensors.Failed{+problem}:
       failed_band(~Element,bands,geometry,shape,scale,fill,workers,problem)
 
@@ -642,9 +642,9 @@ def dense_elements(+shape: List<&2,U32>,+scale: U32,+view: Views.View,+extents: 
 
 def dense_selected(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,source: Maybe<&2,Views.View>,+logical: Logical,+scale: U32,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
   actual: {Layout.repeated(Tensors.view_of(shape),scale) == source : Maybe<&2,Views.View>},
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.upsample_view(~Element,source,Tensors.Ready{},storage,shape,scale,fill,workers))) == True{} : Bool}) ->
-  GatherValues.Viewed(~Element,~Logical,~original,logical,source,Layout.result_of(~Element,Layout.upsample_view(~Element,source,Tensors.Ready{},storage,shape,scale,fill,workers))):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.result_of(~Element,Layout.upsample_view(~Element,source,Tensors.Usable{},storage,shape,scale,fill,workers))) == True{} : Bool}) ->
+  GatherValues.Viewed(~Element,~Logical,~original,logical,source,Layout.result_of(~Element,Layout.upsample_view(~Element,source,Tensors.Usable{},storage,shape,scale,fill,workers))):
   match source:
     case Some{+view}:
       +extents = repeated_view_extents(Tensors.view_of(shape),shape,scale,view,{==},actual)
@@ -657,7 +657,7 @@ def dense_selected(~Element: Data,~Logical: Data,~original: Logical -> U32 -> El
 # index, the logical input at the address of that index in the repeated view
 # (the two scale axes have stride zero).
 def dense(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+scale: U32,storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32,
-  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers}),
-  accepted: {Dense.tensor_ready(~Element,Layout.upsample_nearest(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},scale)) == True{} : Bool}) ->
-  GatherValues.Viewed(~Element,~Logical,~original,logical,Layout.repeated(Tensors.view_of(shape),scale),Layout.upsample_nearest(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Ready{},workers},scale)):
+  contract: Dense.Contract(~Element,~Logical,~original,logical,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers}),
+  accepted: {Dense.tensor_ready(~Element,Layout.upsample_nearest(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},scale)) == True{} : Bool}) ->
+  GatherValues.Viewed(~Element,~Logical,~original,logical,Layout.repeated(Tensors.view_of(shape),scale),Layout.upsample_nearest(~Element,Tensors.Tensor{storage,shape,fill,Tensors.Usable{},workers},scale)):
   dense_selected(~Element,~Logical,~original,Layout.repeated(Tensors.view_of(shape),scale),logical,scale,storage,shape,fill,workers,{==},contract,accepted)

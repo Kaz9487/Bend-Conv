@@ -1,6 +1,7 @@
 import ../../lib/proofs/storage_shape.bend as Shape
 # Every leaf of actual prepare has the frozen sample.
 import Base
+import ./tile_array_projection.bend as ArrayProjection
 import ./input_storage.bend as Inputs
 import ../../lib/traversal_partition.bend as Partition
 import ../../lib/storage_buffer.bend as Storage
@@ -33,10 +34,13 @@ import ../../lib/proofs/nat_division_order.bend as DivisionOrder
 def original_input(+p: ConvSpec.Problem,storage_contract: Inputs.Contract<p>) -> Tree.Tree<F32>:
   Inputs.input_tree(p,storage_contract)
 
-def allocated_pack(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32) -> PackingStorage.Packed:
-  PackingStorage.packing(U32.to_nat(PackingBounds.count(span,p)),offset,original_input(p,storage_contract),PackingReadback.allocated(PackingBounds.count(span,p)),
+def workspace_pack(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,workspace: Tree.Tree<Tile.Tile8>) -> PackingStorage.Packed:
+  PackingStorage.packing(U32.to_nat(PackingBounds.count(span,p)),offset,original_input(p,storage_contract),workspace,
     U32.from_nat(Guards.height(p)),U32.from_nat(Guards.width(p)),U32.from_nat(Guards.kernel(p)),U32.from_nat(Guards.stride(p)),
     U32.from_nat(Guards.pad(p)),U32.from_nat(ConvSpec.out_width(p)),Coordinates.native_inner(p))
+
+def allocated_pack(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32) -> PackingStorage.Packed:
+  workspace_pack(p,storage_contract,offset,span,PackingReadback.allocated(PackingBounds.count(span,p)))
 
 def packed_output(pair: PackingStorage.Packed) -> Tree.Tree<Tile.Tile8>:
   PackingStorage.Packed{input,output} = pair
@@ -76,19 +80,19 @@ def PreparedCertificates(+p: ConvSpec.Problem,result: PackingStorage.Prepared) -
   PackingStorage.Prepared{input,tiles} = result
   AllCertificates(p,tiles)
 
-def tabulated(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32) -> Tree.Tree<Tile.Tile8>:
-  PackingTabulation.fill(U32.to_nat(PackingBounds.count(span,p)),0,offset,original_input(p,storage_contract),PackingReadback.allocated(PackingBounds.count(span,p)),
+def workspace_tabulated(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,workspace: Tree.Tree<Tile.Tile8>) -> Tree.Tree<Tile.Tile8>:
+  PackingTabulation.fill(U32.to_nat(PackingBounds.count(span,p)),0,offset,original_input(p,storage_contract),workspace,
     U32.from_nat(Guards.height(p)),U32.from_nat(Guards.width(p)),U32.from_nat(Guards.kernel(p)),U32.from_nat(Guards.stride(p)),
     U32.from_nat(Guards.pad(p)),U32.from_nat(ConvSpec.out_width(p)),Coordinates.native_inner(p))
 
 # The packed buffer of a leaf is the flat tabulation of its entries.
-def allocated_contents(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
+def workspace_contents(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,+workspace: Tree.Tree<Tile.Tile8>,
   +valid: Guards.Valid<p>,+support: Support.FastSupported<limits,p>,+span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(p)) == True{} : Bool},
   +range: {Nat.is_le(Nat.add(U32.to_nat(offset),Nat.mul(PackingBounds.groups(span),8n)),Nat.add(PackingContents.grid(p),7n)) == True{} : Bool}) ->
-  {packed_output(allocated_pack(p,storage_contract,offset,span)) == tabulated(p,storage_contract,offset,span) : Tree.Tree<Tile.Tile8>}:
+  {packed_output(workspace_pack(p,storage_contract,offset,span,workspace)) == workspace_tabulated(p,storage_contract,offset,span,workspace) : Tree.Tree<Tile.Tile8>}:
   +count = PackingBounds.count(span,p)
   +input = original_input(p,storage_contract)
-  +buffer = PackingReadback.allocated(count)
+  +buffer = workspace
   +entries = Nat.mul(PackingBounds.groups(span),Coordinates.inner(p))
   %Equal.sym(Nat,U32.to_nat(count),entries,PackingBounds.count_exact(limits,p,span,valid,support,span_bound)) :
     {packed_output(PackingStorage.packing(_,offset,input,buffer,U32.from_nat(Guards.height(p)),U32.from_nat(Guards.width(p)),U32.from_nat(Guards.kernel(p)),U32.from_nat(Guards.stride(p)),
@@ -101,6 +105,25 @@ def allocated_contents(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_con
     U32.from_nat(Guards.pad(p)),U32.from_nat(ConvSpec.out_width(p)),Coordinates.native_inner(p))},
     PackingContents.packing_contents(limits,p,PackingBounds.groups(span),offset,input,buffer,valid,Padded.scalar(limits,p,support),
       PackingBounds.elements_bound(limits,p,span,support,span_bound),range))
+
+def tabulated(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32) -> Tree.Tree<Tile.Tile8>:
+  workspace_tabulated(p,storage_contract,offset,span,PackingReadback.allocated(PackingBounds.count(span,p)))
+
+def allocated_contents(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
+  +valid: Guards.Valid<p>,+support: Support.FastSupported<limits,p>,+span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(p)) == True{} : Bool},
+  +range: {Nat.is_le(Nat.add(U32.to_nat(offset),Nat.mul(PackingBounds.groups(span),8n)),Nat.add(PackingContents.grid(p),7n)) == True{} : Bool}) ->
+  {packed_output(allocated_pack(p,storage_contract,offset,span)) == tabulated(p,storage_contract,offset,span) : Tree.Tree<Tile.Tile8>}:
+  workspace_contents(limits,p,storage_contract,offset,span,PackingReadback.allocated(PackingBounds.count(span,p)),valid,support,span_bound,range)
+
+def sample_inside(+limits: Machine.Limits,+p: ConvSpec.Problem,+span: U32,+valid: Guards.Valid<p>,+support: Support.FastSupported<limits,p>,
+  +span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(p)) == True{} : Bool},+group: Nat,+input_channel: Nat,+kernel_row: Nat,+kernel_column: Nat,
+  group_inside: {Nat.is_lt(group,PackingBounds.groups(span)) == True{} : Bool},channel_inside: {Nat.is_lt(input_channel,Guards.input_channel_count(p)) == True{} : Bool},
+  row_inside: {Nat.is_lt(kernel_row,Guards.kernel(p)) == True{} : Bool},column_inside: {Nat.is_lt(kernel_column,Guards.kernel(p)) == True{} : Bool}) ->
+  {Nat.is_lt(PackingSampleRefinement.packing_index(p,group,input_channel,kernel_row,kernel_column),U32.to_nat(PackingBounds.count(span,p))) == True{} : Bool}:
+  %Equal.sym(Nat,U32.to_nat(PackingBounds.count(span,p)),Nat.mul(PackingBounds.groups(span),Coordinates.inner(p)),PackingBounds.count_exact(limits,p,span,valid,support,span_bound)) :
+    {Nat.is_lt(PackingSampleRefinement.packing_index(p,group,input_channel,kernel_row,kernel_column),_) == True{} : Bool}
+  RowMajor.radix(group,PackingBounds.groups(span),Coordinates.reduction(input_channel,kernel_row,kernel_column,Guards.kernel(p)),Coordinates.inner(p),group_inside,
+    Coordinates.reduction_inside(p,input_channel,kernel_row,kernel_column,channel_inside,row_inside,column_inside))
 
 def leaf_lane(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
   +valid: {ConvSpec.valid(p) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,p) == True{} : Bool},
@@ -120,11 +143,48 @@ def leaf_lane(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: In
   +count = PackingBounds.count(span,p)
   PackingSampleRefinement.logical_packing_lane_matches_sample(limits,p,storage_contract,count,offset,lane,group,input_channel_index,output_row_index,output_column_index,kernel_row_index,kernel_column_index,
     valid,Support.scalar_guard(limits,p,supported),PackingBounds.count_bound(limits,p,span,valid_facts,support_facts,span_bound),
-    %Equal.sym(Nat,U32.to_nat(count),Nat.mul(PackingBounds.groups(span),Coordinates.inner(p)),PackingBounds.count_exact(limits,p,span,valid_facts,support_facts,span_bound)) :
-      {Nat.is_lt(PackingSampleRefinement.packing_index(p,group,input_channel_index,kernel_row_index,kernel_column_index),_) == True{} : Bool}
-    RowMajor.radix(group,PackingBounds.groups(span),Coordinates.reduction(input_channel_index,kernel_row_index,kernel_column_index,Guards.kernel(p)),Coordinates.inner(p),group_inside,
-      Coordinates.reduction_inside(p,input_channel_index,kernel_row_index,kernel_column_index,input_channel_in_bounds,kernel_row_in_bounds,kernel_column_in_bounds)),
+    sample_inside(limits,p,span,valid_facts,support_facts,span_bound,group,input_channel_index,kernel_row_index,kernel_column_index,group_inside,input_channel_in_bounds,kernel_row_in_bounds,kernel_column_in_bounds),
     position,input_channel_in_bounds,output_row_in_bounds,output_column_in_bounds,kernel_row_in_bounds,kernel_column_in_bounds)
+
+def workspace_lane(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
+  +workspace: Tree.Tree<Tile.Tile8>,+depth: Nat,+balanced: Shape.Balanced(Tile.Tile8,depth,workspace),+depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
+  +room: {Nat.is_le(U32.to_nat(PackingBounds.count(span,p)),U32.to_nat(Tree.capacity(Tile.Tile8,workspace))) == True{} : Bool},
+  +valid: {ConvSpec.valid(p) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,p) == True{} : Bool},
+  +span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(p)) == True{} : Bool},+lane: Sequence.Index(8n),
+  +group: Nat,+input_channel: Nat,+output_row: Nat,+output_column: Nat,+kernel_row: Nat,+kernel_column: Nat,
+  +group_inside: {Nat.is_lt(group,PackingBounds.groups(span)) == True{} : Bool},
+  +position: {PackingReadback.logical_position(offset,group,lane) == Coordinates.position(p,output_row,output_column) : Nat},
+  +channel_inside: {Nat.is_lt(input_channel,Guards.input_channel_count(p)) == True{} : Bool},
+  +row_inside: {Nat.is_lt(output_row,ConvSpec.out_height(p)) == True{} : Bool},+column_inside: {Nat.is_lt(output_column,ConvSpec.out_width(p)) == True{} : Bool},
+  +kernel_row_inside: {Nat.is_lt(kernel_row,Guards.kernel(p)) == True{} : Bool},+kernel_column_inside: {Nat.is_lt(kernel_column,Guards.kernel(p)) == True{} : Bool}) ->
+  {ReductionSamples.select(lane,Tree.read(Tile.Tile8,workspace_tabulated(p,storage_contract,offset,span,workspace),U32.from_nat(PackingSampleRefinement.packing_index(p,group,input_channel,kernel_row,kernel_column)))) ==
+    ConvSpec.sample(p,input_channel,output_row,output_column,kernel_row,kernel_column) : F32}:
+  +count = PackingBounds.count(span,p)
+  +index = PackingSampleRefinement.packing_index(p,group,input_channel,kernel_row,kernel_column)
+  +query = U32.from_nat(index)
+  +bounded = PackingBounds.count_bound(limits,p,span,Guards.valid(p,valid),Support.fast(limits,p,supported),span_bound)
+  +inside = sample_inside(limits,p,span,Guards.valid(p,valid),Support.fast(limits,p,supported),span_bound,group,input_channel,kernel_row,kernel_column,group_inside,channel_inside,kernel_row_inside,kernel_column_inside)
+  +query_exact = PackingSampleRefinement.packing_index_exact(limits,p,count,group,input_channel,kernel_row,kernel_column,bounded,inside)
+  Equal.trans(F32,ReductionSamples.select(lane,Tree.read(Tile.Tile8,workspace_tabulated(p,storage_contract,offset,span,workspace),query)),
+    ReductionSamples.select(lane,Tree.read(Tile.Tile8,tabulated(p,storage_contract,offset,span),query)),ConvSpec.sample(p,input_channel,output_row,output_column,kernel_row,kernel_column),
+    PackingReadback.workspace_readback(limits,count,offset,original_input(p,storage_contract),workspace,U32.from_nat(Guards.height(p)),U32.from_nat(Guards.width(p)),U32.from_nat(Guards.kernel(p)),U32.from_nat(Guards.stride(p)),U32.from_nat(Guards.pad(p)),U32.from_nat(ConvSpec.out_width(p)),Coordinates.native_inner(p),lane,query,depth,
+      ArrayProjection.balanced(depth,workspace,lane,balanced),depth_ok,
+      %Equal.sym(U32,Tree.capacity(F32,ArrayProjection.project(workspace,lane)),Tree.capacity(Tile.Tile8,workspace),ArrayProjection.capacity(workspace,lane)) : {Nat.is_le(U32.to_nat(count),U32.to_nat(_)) == True{} : Bool} room,
+      Order.le_lt_trans(0n,index,U32.to_nat(count),Order.zero_le(index),inside),bounded,
+      %Equal.sym(Nat,U32.to_nat(query),index,query_exact) : {Nat.is_lt(_,U32.to_nat(count)) == True{} : Bool} inside),
+    leaf_lane(limits,p,storage_contract,offset,span,valid,supported,span_bound,lane,group,input_channel,output_row,output_column,kernel_row,kernel_column,group_inside,position,channel_inside,row_inside,column_inside,kernel_row_inside,kernel_column_inside))
+
+def workspace_samples(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
+  +workspace: Tree.Tree<Tile.Tile8>,+depth: Nat,+balanced: Shape.Balanced(Tile.Tile8,depth,workspace),+depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
+  +room: {Nat.is_le(U32.to_nat(PackingBounds.count(span,p)),U32.to_nat(Tree.capacity(Tile.Tile8,workspace))) == True{} : Bool},
+  +valid: {ConvSpec.valid(p) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,p) == True{} : Bool},
+  +span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(p)) == True{} : Bool},
+  +range: {Nat.is_le(Nat.add(U32.to_nat(offset),Nat.mul(PackingBounds.groups(span),8n)),Nat.add(PackingContents.grid(p),7n)) == True{} : Bool}) ->
+  LeafSamples(p,offset,span,packed_output(workspace_pack(p,storage_contract,offset,span,workspace))):
+  %Equal.sym(Tree.Tree<Tile.Tile8>,packed_output(workspace_pack(p,storage_contract,offset,span,workspace)),workspace_tabulated(p,storage_contract,offset,span,workspace),
+    workspace_contents(limits,p,storage_contract,offset,span,workspace,Guards.valid(p,valid),Support.fast(limits,p,supported),span_bound,range)) : LeafSamples(p,offset,span,_)
+  lane => group => input_channel => output_row => output_column => kernel_row => kernel_column => group_inside => position => channel_inside => row_inside => column_inside => kernel_row_inside => kernel_column_inside =>
+    workspace_lane(limits,p,storage_contract,offset,span,workspace,depth,balanced,depth_ok,room,valid,supported,span_bound,lane,group,input_channel,output_row,output_column,kernel_row,kernel_column,group_inside,position,channel_inside,row_inside,column_inside,kernel_row_inside,kernel_column_inside)
 
 # Every leaf of prepare, at any offset and output width, has the frozen sample.
 def leaf_samples(+limits: Machine.Limits,+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,
@@ -209,3 +269,17 @@ def certified_leaf_samples(+limits: Machine.Limits,+p: ConvSpec.Problem,+offset:
   LeafEvidence{+storage_contract,span_bound,alignment,span_alignment,range_bound,exact_contents} = certificate
   %Equal.sym(Tree.Tree<Tile.Tile8>,data,packed_output(allocated_pack(p,storage_contract,offset,span)),exact_contents) : LeafSamples(p,offset,span,_)
   leaf_samples(limits,p,storage_contract,offset,span,valid,supported,span_bound,padded_range(p,offset,span,range_bound))
+
+# A packed pair exposes the unchanged input and the written workspace.
+def packed_pair(+pair: PackingStorage.Packed) ->
+  {pair == PackingStorage.Packed{PackingStorage.packed_input(pair),packed_output(pair)} : PackingStorage.Packed}:
+  PackingStorage.Packed{input,output} = pair
+  {==}
+
+def workspace_pair(+p: ConvSpec.Problem,+storage_contract: Inputs.Contract<p>,+offset: U32,+span: U32,+workspace: Tree.Tree<Tile.Tile8>) ->
+  {workspace_pack(p,storage_contract,offset,span,workspace) ==
+    PackingStorage.Packed{original_input(p,storage_contract),packed_output(workspace_pack(p,storage_contract,offset,span,workspace))} : PackingStorage.Packed}:
+  %PackingStorage.packing_preserves_input(U32.to_nat(PackingBounds.count(span,p)),offset,original_input(p,storage_contract),workspace,
+    U32.from_nat(Guards.height(p)),U32.from_nat(Guards.width(p)),U32.from_nat(Guards.kernel(p)),U32.from_nat(Guards.stride(p)),U32.from_nat(Guards.pad(p)),U32.from_nat(ConvSpec.out_width(p)),Coordinates.native_inner(p)) :
+    {workspace_pack(p,storage_contract,offset,span,workspace) == PackingStorage.Packed{_,packed_output(workspace_pack(p,storage_contract,offset,span,workspace))} : PackingStorage.Packed}
+  packed_pair(workspace_pack(p,storage_contract,offset,span,workspace))

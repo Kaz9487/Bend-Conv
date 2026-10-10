@@ -71,12 +71,12 @@ Term lab_save(Env e, Term *f, IoWork *w) {
   return term_pak(CID(Unit), 0);
 }
 static void __attribute__((constructor)) lab_register(void) {
-  io_eff(CID(Lab.reps), lab_reps, 0);
-  io_eff(CID(Lab.param), lab_param, 0);
-  io_eff(CID(Lab.load), lab_load, 0);
-  io_eff(CID(Lab.start), lab_start, 0);
-  io_eff(CID(Lab.reordered), lab_reordered, 0);
-  io_eff(CID(Lab.computed), lab_computed, 0);
-  io_eff(CID(Lab.finish), lab_finish, 0);
-  io_eff(CID(Lab.save), lab_save, 0);
+  io_eff(CID(Lab.reps), lab_reps);
+  io_eff(CID(Lab.param), lab_param);
+  io_eff(CID(Lab.load), lab_load);
+  io_eff(CID(Lab.start), lab_start);
+  io_eff(CID(Lab.reordered), lab_reordered);
+  io_eff(CID(Lab.computed), lab_computed);
+  io_eff(CID(Lab.finish), lab_finish);
+  io_eff(CID(Lab.save), lab_save);
 }

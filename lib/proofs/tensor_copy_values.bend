@@ -227,9 +227,9 @@ def valid_owned(~Element: Data,buffer: Storage.Buffer<Element>,view: Views.View)
   Operations.valid_buffer(length,Storage.capacity(~Element,storage,certificate),view)
 
 def valid_model(~Element: Data,+input: Buffer.Model<Element>,+view: Views.View,+count: U32,exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},
-  ready: Buffer.Ready<Element,input>,fits: {Views.fits(view,count) == True{} : Bool}) -> {valid_owned(~Element,Buffer.pack(~Element,input),view) == True{} : Bool}:
+  ready: Buffer.Sized<Element,input>,fits: {Views.fits(view,count) == True{} : Bool}) -> {valid_owned(~Element,Buffer.pack(~Element,input),view) == True{} : Bool}:
   Buffer.Model{+tree,+length,Certificate.Certificate{+depth,+equation}} = input
-  Buffer.Ready{depth_ok,+room} = ready
+  Buffer.Sized{depth_ok,+room} = ready
   +model = {Buffer.Model{tree,length,Certificate.Certificate{depth,equation}} : Buffer.Model<Element>}
   %Shape.capacity(Element,depth,tree,Buffer.balanced(~Element,model)) : {Operations.valid_buffer(length,_,view) == True{} : Bool}
   %Equal.sym(U32,U32.from_nat(length),count,BandCombineLeaf.native_length(count,length,exact)) :
@@ -237,9 +237,9 @@ def valid_model(~Element: Data,+input: Buffer.Model<Element>,+view: Views.View,+
   %Equal.sym(Bool,Nat.is_le(length,U32.to_nat(Tree.capacity(Element,tree))),True{},room) : {_ && Views.fits(view,count) == True{} : Bool}
   fits
 
-def valid_allocated(~Element: Data,+count: U32,+fill: Element,+view: Views.View,ready: Depth.Ready<count>,fits: {Views.fits(view,count) == True{} : Bool}) ->
+def valid_allocated(~Element: Data,+count: U32,+fill: Element,+view: Views.View,ready: Depth.Sized<count>,fits: {Views.fits(view,count) == True{} : Bool}) ->
   {valid_owned(~Element,Tensors.buffer(~Element,fill,count),view) == True{} : Bool}:
-  Depth.Ready{depth_ok,+room} = ready
+  Depth.Sized{depth_ok,+room} = ready
   %Equal.sym(Storage.Buffer<Element>,Allocation.allocate(~Element,Tensors.depth_for(count),fill,U32.to_nat(count)),Storage.allocate(~Element,Tensors.depth_for(count),fill,U32.to_nat(count)),
     AllocationLaws.dispatch_same(Element,Allocation.allocated(~Element),Tensors.depth_for(count),fill,U32.to_nat(count))) : {valid_owned(~Element,_,view) == True{} : Bool}
   %Equal.sym(U32,U32.from_nat(U32.to_nat(count)),count,Arithmetic.native_roundtrip(count)) :
@@ -391,9 +391,9 @@ def finite_point(~Element: Data,+fast: Bool,+count: Nat,+source: Views.View,+inp
   Members.all_member(Nat,{position => StorePoint(~Element,fast,count,source,input,capacity,position) : Nat -> Data},index,Ranges.range(count,0n),points,Members.range_member(count,0n,index,inside))
 
 def owned_finite(~Element: Data,+fast: Bool,+count: Nat,+source: Views.View,+input: Tree.Tree<Element>,output: Buffer.Model<Element>,
-  +exact: {Buffer.length(~Element,output) == count : Nat},ready: Buffer.Ready<Element,output>) -> Finite<Element,fast,count,source,input,Tree.capacity(Element,Buffer.tree(~Element,output))>:
+  +exact: {Buffer.length(~Element,output) == count : Nat},ready: Buffer.Sized<Element,output>) -> Finite<Element,fast,count,source,input,Tree.capacity(Element,Buffer.tree(~Element,output))>:
   Buffer.Model{+tree,+length,+certificate} = output
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   +output = {Buffer.Model{tree,length,certificate} : Buffer.Model<Element>}
   finite(~Element,fast,count,source,input,Tree.capacity(Element,tree),Buffer.capacity_bound(~Element,output,depth_ok),
     %exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(Element,tree))) == True{} : Bool} room)

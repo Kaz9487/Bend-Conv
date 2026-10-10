@@ -33,13 +33,16 @@ for folder in sorted(base.iterdir()):
     checks = []
     for name, shape in ref['outputs'].items():
         path = folder / f'{name}.bin'
-        if not path.exists():
+        saved = folder / f'{name}.npy'
+        if not path.exists() and not saved.exists():
             # NumPy's public runner returns 24 layers and predictions, not raw heads.
             assert folder.name.startswith('numpy') and name.startswith('head_'), path
             continue
-        actual = np.fromfile(path, dtype='<f4').reshape(shape)
+        actual = np.load(saved) if saved.exists() else np.fromfile(path, dtype='<f4').reshape(shape)
+        assert list(actual.shape) == shape, name
         expected = np.fromfile(refdir / 'torch' / f'{name}.bin', dtype='<f4').reshape(shape)
-        old = np.fromfile(refdir / 'native' / f'{name}.bin', dtype='<f4').reshape(shape)
+        old = np.load(refdir / 'native' / f'{name}.npy')
+        assert list(old.shape) == shape, name
         checks.append(
             dict(
                 name=name,
@@ -53,7 +56,7 @@ for folder in sorted(base.iterdir()):
                 native_bitwise=actual.tobytes() == old.tobytes(),
             )
         )
-    pred = np.fromfile(folder / 'pred.bin', dtype='<f4').reshape(ref['outputs']['pred'])
+    pred = np.load(folder / 'pred.npy') if (folder / 'pred.npy').exists() else np.fromfile(folder / 'pred.bin', dtype='<f4').reshape(ref['outputs']['pred'])
     det = nms(pred)
     expected = np.array(
         json.loads((refdir / 'torch/nms.json').read_text()), dtype=np.float32

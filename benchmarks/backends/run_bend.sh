@@ -11,11 +11,9 @@ label=$backend
 set --
 case "$backend" in
   cpu)
-    source=out/models/bus_640.c
-    if [ "$threads" -ne 1 ]; then
-      label="cpu_${threads}t"
-      source="out/models/bus_640_$label.c"
-    fi
+    # The example's own program; one build serves every thread count.
+    source=out/models/yolov5n.c
+    if [ "$threads" -ne 1 ]; then label="cpu_${threads}t"; fi
     gpu=off
     ;;
   cuda)
@@ -36,6 +34,9 @@ cp "$source.build.json" "$BEND_OUTDIR/bend_build.json"
 rm -f "$BEND_OUTDIR/timing.json"
 export BEND_DUMP=1
 export BEND_REPETITIONS=1
+export YOLO_INPUT=out/results/bus_640/input.bin
+export YOLO_OUTPUT="$BEND_OUTDIR"
+export YOLO_LAYERS=1
 set +e
 "$binary" --threads "$threads" --gpu "$gpu" > "$BEND_OUTDIR/validation.log" 2> "$BEND_OUTDIR/stderr.log"
 status=$?
@@ -49,5 +50,7 @@ if [ "$status" -ne 0 ]; then
 fi
 export BEND_DUMP=0
 export BEND_REPETITIONS=9
+unset YOLO_LAYERS
+export YOLO_EXTRA=8
 "$binary" --threads "$threads" --gpu "$gpu" > "$BEND_OUTDIR/samples.log"
 "$py" benchmarks/backends/collect_bend.py --backend "$backend" --threads "$threads"

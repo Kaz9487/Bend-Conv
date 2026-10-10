@@ -112,7 +112,7 @@ def query_inside_count(+problem: ConvSpec.Problem,+channel: Nat,+output_row_inde
 def allocated(+limits: Machine.Limits,+problem: ConvSpec.Problem,+channel: Nat,+output_row_index: Nat,+output_column_index: Nat,
   +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},
   channel_inside: {Nat.is_lt(channel,Guards.output_channel_count(problem)) == True{} : Bool},row_inside: {Nat.is_lt(output_row_index,ConvSpec.out_height(problem)) == True{} : Bool},column_inside: {Nat.is_lt(output_column_index,ConvSpec.out_width(problem)) == True{} : Bool}) ->
-  PackedOutputAllocation.Ready<count(problem),Storage.allocation_depth(count(problem))>:
+  PackedOutputAllocation.Sized<count(problem),Storage.allocation_depth(count(problem))>:
   +exact = count_exact(limits,problem,valid,supported)
   PackedOutputAllocation.from_allocation(count(problem),ArrayAllocation.allocated(count(problem),Machine.capacity(limits),Limits.capacity_fits(limits),Limits.capacity_allocatable(limits),
     %Equal.sym(Nat,U32.to_nat(count(problem)),Nat.mul(Guards.output_channel_count(problem),GatherCopyCoordinates.spatial(problem)),exact) : {Nat.is_lt(0n,_) == True{} : Bool}
@@ -124,9 +124,9 @@ def allocated_gather_readback(+limits: Machine.Limits,+problem: ConvSpec.Problem
   +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},+certificates: Prepared.AllCertificates(problem,packed),
   member: Members.Member(Nat,Coordinates.position(problem,output_row_index,output_column_index),TilePartitionCoverage.positions(TileLayout.tiles(packed))),
   +channel_inside: {Nat.is_lt(channel,Guards.output_channel_count(problem)) == True{} : Bool},+row_inside: {Nat.is_lt(output_row_index,ConvSpec.out_height(problem)) == True{} : Bool},+column_inside: {Nat.is_lt(output_column_index,ConvSpec.out_width(problem)) == True{} : Bool},
-  allocation: PackedOutputAllocation.Ready<count(problem),Storage.allocation_depth(count(problem))>) ->
+  allocation: PackedOutputAllocation.Sized<count(problem),Storage.allocation_depth(count(problem))>) ->
   {Tree.read(F32,GatherModel.gather(GatherTreeReadback.result(problem,storage_contract,packed),initial(problem),Padded.spatial(problem)),U32.from_nat(GatherLeafWrites.query(problem,channel,output_row_index,output_column_index))) == Values.matrix_value(problem,channel,output_row_index,output_column_index) : F32}:
-  PackedOutputAllocation.Ready{depth_bound,room} = allocation
+  PackedOutputAllocation.Sized{depth_bound,room} = allocation
   +room = {%count_exact(limits,problem,valid,supported) : {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,initial(problem)))) == True{} : Bool}
     room : {Nat.is_le(Nat.mul(Guards.output_channel_count(problem),GatherCopyCoordinates.spatial(problem)),U32.to_nat(Tree.capacity(F32,initial(problem)))) == True{} : Bool}}
   +inside = query_inside_count(problem,channel,output_row_index,output_column_index,channel_inside,row_inside,column_inside)

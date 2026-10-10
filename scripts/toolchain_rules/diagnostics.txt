@@ -99,7 +99,6 @@ an import cycle through
 an import of a .bend file
 an import path of plain names (letters, digits, _ and -; the hub's files import the hub's)
 an unambiguous name (the alias 
-an undestructed scrutinee (this value is already a constructor: bind its fields directly; if an outer match destructed it, fold the pattern into the outer case)
 cases for 
 duplicate declaration: 
 no such file: 

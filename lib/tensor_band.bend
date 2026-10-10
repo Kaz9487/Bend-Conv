@@ -208,33 +208,32 @@ def each(~Block: Type,~Output: Type,~Resource: Type,~Context: Data,
 type Indexed is Data:
   Indexed{geometry: Geometry,first: U32,rows: U32}
 
-def mapped_value(~Element: Data,~operation: Element -> Element,context: Unit,value: Element) -> Element:
-  operation(value)
-
 def map_leaf(~Element: Data,~Context: Data,~operation: Context -> Element -> Element,+context: Context,buffer: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
   Storage.Buffer{storage,+length,certificate} = buffer
   Storage.Buffer{Traversal.map_in_place(~Element,~Context,~operation,length,0,context,storage),length,
     TraversalCertificate.map_in_place(~Element,~Context,~operation,length,0,context,storage,certificate)}
 
-def map_band(~Element: Data,~Context: Data,~operation: Context -> Element -> Element,context: Context,first: U32,rows: U32,
+# A mapper over the whole of one band.
+def map_whole_context(~Element: Data,~Context: Data,~mapper: @+count: Nat -> @+position: U32 -> @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,+context: Context,buffer: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
+  Storage.Buffer{storage,+length,certificate} = buffer
+  mapper(length,0,context,Storage.Buffer{storage,length,certificate})
+
+def map_band(~Element: Data,~Context: Data,~leaf: @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,context: Context,first: U32,rows: U32,
   buffer: Storage.Buffer<Element>,resource: Unit) -> Bands(~Element):
-  Partition.Leaf{map_leaf(~Element,~Context,~operation,context,buffer),first,rows,Unit{}}
+  Partition.Leaf{leaf(context,buffer),first,rows,Unit{}}
 
 # Parallelism is a planner decision. Sequential execution keeps the bands and
 # their owners: a small operation need not pay either a fork or a gather.
-def map_with(~Element: Data,~Context: Data,~operation: Context -> Element -> Element,+layout: Plan,+parallel: Bool,+geometry: Geometry,
+def map_with(~Element: Data,~Context: Data,~leaf: @+context: Context -> Storage.Buffer<Element> -> Storage.Buffer<Element>,+layout: Plan,+parallel: Bool,+geometry: Geometry,
   context: Context,bands: Bands(~Element)) -> Bands(~Element):
-  each(~Storage.Buffer<Element>,~Storage.Buffer<Element>,~Unit,~Context,~unshared,~map_band(~Element,~Context,~operation),~same(~Storage.Buffer<Element>),
+  each(~Storage.Buffer<Element>,~Storage.Buffer<Element>,~Unit,~Context,~unshared,~map_band(~Element,~Context,~leaf),~same(~Storage.Buffer<Element>),
     layout,parallel && same_image(geometry,layout),parallel,geometry,context,bands,Unit{})
-
-def map(~Element: Data,~operation: Element -> Element,layout: Plan,parallel: Bool,geometry: Geometry,bands: Bands(~Element)) -> Bands(~Element):
-  map_with(~Element,~Unit,~mapped_value(~Element,~operation),layout,parallel,geometry,Unit{},bands)
 
 def scalar_value(~Element: Data,~operation: Element -> Element -> Element,value: Element,element: Element) -> Element:
   operation(element,value)
 
 def scalar(~Element: Data,~operation: Element -> Element -> Element,layout: Plan,parallel: Bool,geometry: Geometry,value: Element,bands: Bands(~Element)) -> Bands(~Element):
-  map_with(~Element,~Element,~scalar_value(~Element,~operation),layout,parallel,geometry,value,bands)
+  map_with(~Element,~Element,~map_leaf(~Element,~Element,~scalar_value(~Element,~operation)),layout,parallel,geometry,value,bands)
 
 def result(~Element: Data,owners: Storage.Buffer<Element> & Bands(~Element)) -> Bands(~Element):
   (source,bands) = owners
@@ -400,25 +399,25 @@ def combined(~Element: Data,result: Operations.Outcome<(Storage.Buffer<Element> 
     case Operations.Accepted{(left,right)}: left
     case Operations.Rejected{(left,right)}: left
 
-def combine_leaf(~Element: Data,~operation: Element -> Element -> Element,+count: U32,left: Storage.Buffer<Element>,right: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
-  combined(~Element,Operations.combine(~Element,~operation,left,Views.View{[Views.Axis{count,1}],0},right,Views.View{[Views.Axis{count,1}],0}))
+def combine_leaf_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,+count: U32,left: Storage.Buffer<Element>,right: Storage.Buffer<Element>) -> Storage.Buffer<Element>:
+  combined(~Element,Operations.combine_with(~Element,~kernel,left,Views.View{[Views.Axis{count,1}],0},right,Views.View{[Views.Axis{count,1}],0}))
 
-def combine_band(~Element: Data,~operation: Element -> Element -> Element,geometry: Geometry,first: U32,rows: U32,
+def combine_band_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,geometry: Geometry,first: U32,rows: U32,
   left: Storage.Buffer<Element>,right: Storage.Buffer<Element>,resource: Unit) -> Bands(~Element):
   +rows = rows
-  Partition.Leaf{combine_leaf(~Element,~operation,local_count(geometry,rows),left,right),first,rows,Unit{}}
+  Partition.Leaf{combine_leaf_with(~Element,~kernel,local_count(geometry,rows),left,right),first,rows,Unit{}}
 
-def combine_planned(~Element: Data,~operation: Element -> Element -> Element,+geometry: Geometry,+parallel: Bool,planned: Bands(~Element) & Plan,right: Bands(~Element)) -> Bands(~Element):
+def combine_planned_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,+geometry: Geometry,+parallel: Bool,planned: Bands(~Element) & Plan,right: Bands(~Element)) -> Bands(~Element):
   (left,+layout) = planned
   each(~Paired<Storage.Buffer<Element>,Storage.Buffer<Element>>,~Storage.Buffer<Element>,~Unit,~Geometry,~unshared,
-    ~paired(~Storage.Buffer<Element>,~Storage.Buffer<Element>,~Unit,~Geometry,~combine_band(~Element,~operation)),
+    ~paired(~Storage.Buffer<Element>,~Storage.Buffer<Element>,~Unit,~Geometry,~combine_band_with(~Element,~kernel)),
     ~left_of(~Storage.Buffer<Element>,~Storage.Buffer<Element>),
     layout,parallel && same_image(geometry,layout),parallel,geometry,geometry,zip(~Storage.Buffer<Element>,~Storage.Buffer<Element>,left,right),Unit{})
 
 # The caller supplies the same plan on both sides, after shape and status
 # checks; the plan is read from the left. Trees of another shape keep the left owner.
-def combine(~Element: Data,~operation: Element -> Element -> Element,geometry: Geometry,parallel: Bool,left: Bands(~Element),right: Bands(~Element)) -> Bands(~Element):
-  combine_planned(~Element,~operation,geometry,parallel,plan(~Element,left),right)
+def combine_with(~Element: Data,~kernel: @+count: Nat -> @+right_view: Views.View -> @+offset: U32 -> Storage.Buffer<Element> -> Storage.Buffer<Element> -> Storage.Buffer<Element> & Storage.Buffer<Element>,geometry: Geometry,parallel: Bool,left: Bands(~Element),right: Bands(~Element)) -> Bands(~Element):
+  combine_planned_with(~Element,~kernel,geometry,parallel,plan(~Element,left),right)
 
 def transform_band(~Element: Data,~Context: Data,~leaf: Context -> U32 -> U32 -> Storage.Buffer<Element> -> Bands(~Element),
   context: Context,first: U32,rows: U32,input: Storage.Buffer<Element>,resource: Unit) -> Bands(~Element):

@@ -79,7 +79,7 @@ def from_well_formed(~Element: Data,storage: Storage.Buffer<Element>,+shape: Lis
   well_formed: Dense.WellFormed<Element,shape,Buffer.contents(~Element,storage)>) ->
   Global.Normal(~Element,Tensors.Tensor{storage,shape,fill,status,workers}):
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       Dense.WellFormed{+length_exact,+ready} = well_formed
       Shape.Both{ready,Shape.Both{counted(~Element,shape,Buffer.contents(~Element,storage),Dense.WellFormed{length_exact,ready}),length_exact}}
     case Tensors.Failed{problem}:
@@ -99,10 +99,10 @@ def from_shaped(~Element: Data,~Context: Data,~reader: Context -> U32 -> Element
   evidence: GatherValues.Shaped<Element,Context,reader,context,shape,tensor>) ->
   Shape.Both<Global.Normal(~Element,tensor),Shape.Both<{Dense.tensor_ready(~Element,tensor) == True{} : Bool},Dense.TensorValues(~Element,~Context,~reader,context,tensor)>>:
   GatherValues.Shaped{+model,+fill,+workers,+equation,Shape.Both{well_formed,values}} = evidence
-  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Ready{},workers},equation) :
+  %Equal.sym(Tensors.Tensor<Element>,tensor,Tensors.Tensor{Buffer.pack(~Element,model),shape,fill,Tensors.Usable{},workers},equation) :
     Shape.Both<Global.Normal(~Element,_),Shape.Both<{Dense.tensor_ready(~Element,_) == True{} : Bool},Dense.TensorValues(~Element,~Context,~reader,context,_)>>
   Shape.Both{
-    from_well_formed(~Element,Buffer.pack(~Element,model),shape,fill,Tensors.Ready{},workers,
+    from_well_formed(~Element,Buffer.pack(~Element,model),shape,fill,Tensors.Usable{},workers,
       %Equal.sym(Buffer.Content<Element>,Buffer.contents(~Element,Buffer.pack(~Element,model)),Buffer.content(~Element,model),Buffer.packed_contents(~Element,model)) : Dense.WellFormed<Element,shape,_>
       well_formed),
     Shape.Both{{==},

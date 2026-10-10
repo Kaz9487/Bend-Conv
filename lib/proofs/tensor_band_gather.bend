@@ -727,9 +727,9 @@ def from_slice(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,
 
 def from_metadata(~Element: Data,+geometry: Bands.Geometry,+limits: Machine.Limits,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+capacity: U32,
   domain: Domain<geometry,limits,capacity>,metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),
-  rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},ready: Buffer.Ready<Element,input>) ->
+  rows_positive: {Nat.is_lt(0n,U32.to_nat(rows)) == True{} : Bool},ready: Buffer.Sized<Element,input>) ->
   Facts<Call{geometry,first,rows,Buffer.length(~Element,input),capacity,Machine.half_word(limits)}>:
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   from_slice(~Element,geometry,limits,first,rows,Buffer.length(~Element,input),input,capacity,domain,metadata,rows_positive,room)
 
 # Halo preparation exposes content and readiness, without an affine owner.

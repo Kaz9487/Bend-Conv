@@ -178,4 +178,4 @@ def append_parts(~Element: Data,parts: Tensors.Parts<Element>,+geometry: Bands.G
     case Tensors.Cons{input,rest}: append_parts(~Element,rest,geometry,workers,append_part(~Element,geometry,workers,input,state))
 
 def join(~Element: Data,layout: Bands.Plan,+geometry: Bands.Geometry,parts: Tensors.Parts<Element>,shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
-  Tensors.Banded{append_parts(~Element,parts,geometry,workers,(allocate(~Element,layout,geometry,fill),0)),geometry,shape,fill,Tensors.Ready{},workers}
+  Tensors.Banded{append_parts(~Element,parts,geometry,workers,(allocate(~Element,layout,geometry,fill),0)),geometry,shape,fill,Tensors.Usable{},workers}

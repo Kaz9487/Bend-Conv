@@ -318,3 +318,25 @@ def native_allocatable(+depth: Nat,bound: {Nat.is_le(depth,30n) == True{} : Bool
   {U32.is_le(U32.shln(1,depth),1073741824) == True{} : Bool}:
   %Equal.sym(U32,U32.shln(1,depth),U32{power(32n,depth)},native_power(depth)) : {U32.is_le(_,1073741824) == True{} : Bool}
   power_monotone(32n,depth,30n,{==},bound)
+
+def positive_double(value: Nat,positive: {Nat.is_lt(0n,Nat.double(value)) == True{} : Bool}) -> {Nat.is_lt(0n,value) == True{} : Bool}:
+  match value:
+    case 0n: Empty.absurd({False{} == True{} : Bool},WordEncoding.false_true(positive))
+    case 1n+rest: {==}
+
+# A nonempty checked owner cannot have a power-of-two capacity truncated to
+# zero. This recovers the full machine-depth bound from its existing guard.
+def nonempty_power_depth(+width: Nat,+depth: Nat,positive: {Nat.is_lt(0n,Word.to_nat(width,power(width,depth))) == True{} : Bool}) ->
+  {Nat.is_lt(depth,width) == True{} : Bool}:
+  match width:
+    case 0n: Empty.absurd({Nat.is_lt(depth,0n) == True{} : Bool},WordEncoding.false_true(positive))
+    case 1n+ +rest:
+      match depth:
+        case 0n: {==}
+        case 1n+ +previous:
+          nonempty_power_depth(rest,previous,positive_double(Word.to_nat(rest,power(rest,previous)),positive))
+
+def native_nonempty_depth(+depth: Nat,positive: {Nat.is_lt(0n,U32.to_nat(U32.shln(1,depth))) == True{} : Bool}) ->
+  {Nat.is_lt(depth,32n) == True{} : Bool}:
+  nonempty_power_depth(32n,depth,
+    %native_power(depth) : {Nat.is_lt(0n,U32.to_nat(_)) == True{} : Bool} positive)

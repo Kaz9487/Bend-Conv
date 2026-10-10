@@ -1,3 +1,10 @@
+import ../lib/proofs/kernel_pipeline_activation.bend as KernelPipelineActivation
+import ../convolution/proofs/blocked_pipeline_initial.bend as BlockedPipelineInitial
+import ../convolution/proofs/blocked_pipeline_bounds.bend as BlockedPipelineBounds
+import ../convolution/proofs/blocked_convolution_readback.bend as BlockedConvolutionReadback
+import ../convolution/proofs/gemm_output_relocation.bend as GemmOutputRelocation
+import ../convolution/proofs/blocked_pipeline_model.bend as BlockedPipelineModel
+import ../convolution/proofs/blocked_pipeline_projection.bend as BlockedPipelineProjection
 import ../lib/proofs/tensor_view_metadata_refinement.bend as Metadata
 import ../lib/proofs/tensor_dense_observation.bend as DenseObservation
 import ../lib/proofs/tensor_band_concat_execution.bend as BandConcatExecution
@@ -12,6 +19,7 @@ import ../convolution/proofs/band_dense_native_public.bend as DenseNativePublic
 import ../convolution/proofs/band_dense_native_contract.bend as DenseNativeContract
 import ../lib/proofs/tensor_operations_refinement.bend as OperationsLaws
 import ../lib/proofs/tensor_public_refinement.bend as Public
+import ../lib/proofs/tensor_file_bits.bend as FileBits
 import ../lib/proofs/tensor_broadcast.bend as TensorBroadcast
 import ../lib/proofs/tensor_indexed_refinement.bend as IndexedTensorLaws
 import ../lib/proofs/tensor_band_coordinates.bend as BandCoordinates
@@ -202,3 +210,6 @@ import ../lib/proofs/kernel_band_planning_refinement.bend as KernelBandPlanningR
 import ../lib/proofs/tensor_band_upsample_public.bend as BandUpsamplePublic
 import ../lib/proofs/tensor_band_pool_public.bend as BandPoolPublic
 import ../lib/proofs/tensor_band_concat_semantics.bend as BandConcatSemantics
+import ../lib/proofs/tensor_lanes_refinement.bend as TensorLanesRefinement
+import ../lib/proofs/tensor_comparison_values.bend as TensorComparisonValues
+import ../lib/proofs/tensor_function_values.bend as TensorFunctionValues

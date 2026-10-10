@@ -3,6 +3,7 @@
 # and apply the activation to its matrix value. Band Values of the output use
 # this function, so "computed on bands" means "the dense result, split".
 import Base
+import ../../lib/proofs/kernel_pipeline_activation.bend as ActivationProofs
 import ../specification.bend as ConvSpec
 import ../../lib/math_activation.bend as Activations
 import ../../lib/proofs/tensor_band_coordinates.bend as BandCoordinates
@@ -10,7 +11,6 @@ import ../../lib/proofs/row_major_index.bend as RowMajor
 import ../../lib/proofs/nat_order.bend as Order
 import ./output_values.bend as Values
 import ./band_window_contents.bend as WindowContents
-import ./band_leaf_execution.bend as LeafExecution
 
 type Context<-Logical: Data> is Data:
   Context{logical: Logical,activation: Activations.Activation,channels: Nat,outputs: Nat,height: Nat,width: Nat,kernel: Nat,stride: Nat,padding: Nat,
@@ -27,7 +27,7 @@ def at_position(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> 
   +channels: Nat,+outputs: Nat,+height: Nat,+width: Nat,+kernel: Nat,+stride: Nat,+padding: Nat,+weights: List<&2,F32>,+bias: List<&2,F32>,
   +image: Nat,+channel: Nat,+position: Nat) -> F32:
   +output_width = ConvSpec.axis_size(width,kernel,stride,padding)
-  LeafExecution.activation_value(~custom,activation,
+  ActivationProofs.activation_value(~custom,activation,
     Values.matrix_value(problem(~Logical,~original,logical,channels,outputs,height,width,kernel,stride,padding,weights,bias,image),channel,
       Nat.div(position,output_width),Nat.mod(position,output_width)))
 

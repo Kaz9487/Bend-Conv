@@ -359,7 +359,7 @@ def program_range(~Element: Data,+request: Request,+bands: Model.Model<Element>,
     %Buffer.packed_contents(~Element,output) : {contents(~Element,run(~Element,request,Model.pack(~Element,bands),Buffer.pack(~Element,output))) == refinement_model(~Element,request,bands,_) : Content<Element>}
     refinement_range(~Element,request,bands,Buffer.pack(~Element,output)),program_model(~Element,request,bands,tree,length))
 
-def output_ready(~Element: Data,+request: Request,+bands: Model.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Ready<Element,output>) ->
+def output_ready(~Element: Data,+request: Request,+bands: Model.Model<Element>,+output: Buffer.Model<Element>,ready: Buffer.Sized<Element,output>) ->
   Buffer.ContentReady<Element,result(~Element,contents(~Element,run(~Element,request,Model.pack(~Element,bands),Buffer.pack(~Element,output))))>:
   Buffer.Model{+tree,+length,+certificate} = output
   %Equal.sym(Content<Element>,contents(~Element,run(~Element,request,Model.pack(~Element,bands),Buffer.pack(~Element,output))),
@@ -441,13 +441,13 @@ type TargetFields<-channels: U32,-width: U32,-first: U32,-rows: U32,-offset: U32
     storage_room: {Nat.is_le(Nat.add(U32.to_nat(offset),Nat.mul(U32.to_nat(channels),Nat.mul(U32.to_nat(rows),U32.to_nat(width)))),U32.to_nat(output_capacity)) == True{} : Bool}}
 
 def selected(~Element: Data,+request: Request,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+row_capacity: U32,+output_capacity: U32,
-  target: Target(request,row_capacity,output_capacity),metadata: BandShape.Leaf(request_geometry(request),first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  target: Target(request,row_capacity,output_capacity),metadata: BandShape.Leaf(request_geometry(request),first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   intersection: WordInterval.Intersection<first,rows,request_first(request),request_rows(request),bounds_begin(request,first),bounds_end(request,first,rows)>) ->
   Facts<request,first,rows,Tree.capacity(Element,Buffer.tree(~Element,input)),output_capacity>:
   Request{Bands.Geometry{+images,+channels,+height,+width},+target_first,+target_rows,+offset} = request
   TargetFields{row_capacity_ok,+output_capacity_ok,+channels_positive,+width_positive,rows_room,+storage_room} = target
   BandShape.Fields{local,rows_fit,length_exact} = metadata
-  Buffer.Ready{+depth_ok,room} = ready
+  Buffer.Sized{+depth_ok,room} = ready
   match intersection:
     case WordInterval.EmptyIntersection{empty}:
       BoundsEmpty{
@@ -466,7 +466,7 @@ def selected(~Element: Data,+request: Request,+first: U32,+rows: U32,+input: Buf
           WordInterval.rows_positive(target_first,target_rows,bounds_begin,bounds_end,positive,target_span),width_positive,target_fits,storage_room),source_span,target_span,positive}
 
 def bounds_leaf(~Element: Data,+request: Request,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+row_capacity: U32,+output_capacity: U32,
-  +target: Target(request,row_capacity,output_capacity),+metadata: BandShape.Leaf(request_geometry(request),first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  +target: Target(request,row_capacity,output_capacity),+metadata: BandShape.Leaf(request_geometry(request),first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   total_room: {Nat.is_le(Inspection.total_rows(request_geometry(request)),U32.to_nat(row_capacity)) == True{} : Bool}) ->
   Facts<request,first,rows,Tree.capacity(Element,Buffer.tree(~Element,input)),output_capacity>:
   Request{Bands.Geometry{+images,+channels,+height,+width},+target_first,+target_rows,+offset} = request
@@ -919,14 +919,14 @@ def located_point(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
   +target: Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   metadata: BandShape.Contents(~Element,request_geometry(request),Model.content(~Element,bands)),source_ready: Model.Ready(~Element,bands),
   +target_metadata: BandShape.Leaf(request_geometry(request),request_first(request),request_rows(request),target_length),
-  ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
+  ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
   +channel: Nat,+row: Nat,+column: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(channel_count(request))) == True{} : Bool},
   +row_inside: {Nat.is_lt(row,U32.to_nat(request_rows(request))) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(row_width(request))) == True{} : Bool},
   within: BandPlan.Within(Model.layout(~Element,bands),0n,U32.to_nat(Machine.capacity(limits))),
   location: BandPlan.Located(Model.layout(~Element,bands),global_row(request,row))) ->
   {Buffer.value(~Element,coverage_query(request,channel,row,column),result(~Element,contents(~Element,run(~Element,request,Model.pack(~Element,bands),Buffer.pack(~Element,output))))) == original(logical,U32.from_nat(BandValues.pixel(request_geometry(request),channel,global_row(request,row),column))) : Element}:
   Request{Bands.Geometry{+images,+channels,+height,+width},+target_first,+target_rows,+offset} = request
-  Buffer.Ready{depth_ok,output_room} = ready
+  Buffer.Sized{depth_ok,output_room} = ready
   +row_capacity = Machine.capacity(limits)
   +output_capacity = Tree.capacity(Element,Buffer.tree(~Element,output))
   +total_room = BandGather.rows_room(request_geometry(request),limits,capacity,domain)
@@ -952,7 +952,7 @@ def semantics_point(~Element: Data,~Logical: Data,~original: Logical -> U32 -> E
   +target: Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   source: BandShape.WellFormed<Element,request_geometry(request),Model.content(~Element,bands)>,
   +target_metadata: BandShape.Leaf(request_geometry(request),request_first(request),request_rows(request),target_length),
-  ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
+  ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
   +channel: Nat,+row: Nat,+column: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(channel_count(request))) == True{} : Bool},
   +row_inside: {Nat.is_lt(row,U32.to_nat(request_rows(request))) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(row_width(request))) == True{} : Bool}) ->
   {Buffer.value(~Element,coverage_query(request,channel,row,column),result(~Element,contents(~Element,run(~Element,request,Model.pack(~Element,bands),Buffer.pack(~Element,output))))) == original(logical,U32.from_nat(BandValues.pixel(request_geometry(request),channel,global_row(request,row),column))) : Element}:
@@ -977,7 +977,7 @@ def written_point(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Ele
   target: Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   source: BandShape.WellFormed<Element,request_geometry(request),Model.content(~Element,bands)>,
   target_metadata: BandShape.Leaf(request_geometry(request),request_first(request),request_rows(request),target_length),
-  ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
+  ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
   +channel: Nat,+row: Nat,+column: Nat,channel_inside: {Nat.is_lt(channel,U32.to_nat(channel_count(request))) == True{} : Bool},
   row_inside: {Nat.is_lt(row,U32.to_nat(request_rows(request))) == True{} : Bool},column_inside: {Nat.is_lt(column,U32.to_nat(row_width(request))) == True{} : Bool}) ->
   {Buffer.value(~Element,coverage_query(request,channel,row,column),result(~Element,written(~Element,request,Model.content(~Element,bands),Buffer.content(~Element,output)))) == original(logical,U32.from_nat(BandValues.pixel(request_geometry(request),channel,global_row(request,row),column))) : Element}:
@@ -996,7 +996,7 @@ def located_written_point(~Element: Data,~Logical: Data,~original: Logical -> U3
   target: Target(request,Machine.capacity(limits),Tree.capacity(Element,Buffer.tree(~Element,output))),
   metadata: BandShape.Contents(~Element,request_geometry(request),Model.content(~Element,bands)),source_ready: Model.Ready(~Element,bands),
   target_metadata: BandShape.Leaf(request_geometry(request),request_first(request),request_rows(request),target_length),
-  ready: Buffer.Ready<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
+  ready: Buffer.Sized<Element,output>,values: BandValues.Values(~Element,~Logical,~original,logical,request_geometry(request),Model.content(~Element,bands)),
   within: BandPlan.Within(Model.layout(~Element,bands),0n,U32.to_nat(Machine.capacity(limits))),locations: RowLocations(~Element,request,bands),
   +channel: Nat,+row: Nat,+column: Nat,+channel_inside: {Nat.is_lt(channel,U32.to_nat(channel_count(request))) == True{} : Bool},
   +row_inside: {Nat.is_lt(row,U32.to_nat(request_rows(request))) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(row_width(request))) == True{} : Bool}) ->

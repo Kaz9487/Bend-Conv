@@ -28,18 +28,18 @@ def empty_shape(dimensions: KernelShape.Dimensions) -> {ShapeLaws.elements(Dense
 def empty_dense(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+activation: Activations.Activation,+dimensions: KernelShape.Dimensions,
   -input: Storage.Buffer<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,
-    TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},dimensions},input,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
-  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},dimensions},input,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),DenseSingle.empty_output_shape(True{},dimensions),0.0,Tensors.Ready{},workers},DenseSingle.empty_dense(~custom,activation,True{},dimensions,input,weights,bias,workers)) :
+    TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},dimensions},input,TensorConvolution.packed(TensorConvolution.Geometry{0,True{},dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
+  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,True{},dimensions},input,TensorConvolution.packed(TensorConvolution.Geometry{0,True{},dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
+    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),DenseSingle.empty_output_shape(True{},dimensions),0.0,Tensors.Usable{},workers},DenseSingle.empty_dense(~custom,activation,True{},dimensions,input,weights,bias,workers)) :
     Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,_)
   Dense.empty_tensor(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,DenseSingle.empty_output_shape(True{},dimensions),0.0,workers,empty_shape(dimensions))
 
 def empty_existing_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+context: BandConvolutionValues.Context<Logical>,+activation: Activations.Activation,+dimensions: KernelShape.Dimensions,+layout: Bands.Geometry,
   -source: Bands.Bands(~F32),+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
   Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,
-    TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,True{},dimensions}),TensorConvolution.Geometry{0,True{},dimensions},layout,source,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
-  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,True{},dimensions}),TensorConvolution.Geometry{0,True{},dimensions},layout,source,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),DenseSingle.empty_output_shape(True{},dimensions),0.0,Tensors.Ready{},workers},DenseSingle.empty_existing_layout(~custom,activation,True{},dimensions,layout,source,weights,bias,workers)) :
+    TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,True{},dimensions}),TensorConvolution.Geometry{0,True{},dimensions},layout,source,TensorConvolution.packed(TensorConvolution.Geometry{0,True{},dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers)):
+  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,True{},dimensions}),TensorConvolution.Geometry{0,True{},dimensions},layout,source,TensorConvolution.packed(TensorConvolution.Geometry{0,True{},dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
+    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),DenseSingle.empty_output_shape(True{},dimensions),0.0,Tensors.Usable{},workers},DenseSingle.empty_existing_layout(~custom,activation,True{},dimensions,layout,source,weights,bias,workers)) :
     Dense.Contract(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,_)
   Dense.empty_tensor(~F32,~BandConvolutionValues.Context<Logical>,~BandConvolutionValues.value(~custom,~Logical,~original),context,DenseSingle.empty_output_shape(True{},dimensions),0.0,workers,empty_shape(dimensions))
 
@@ -80,7 +80,7 @@ def copy_output_contents(+count: U32,+source: U32,+destination: U32,+input: Buff
         Equal.cong(StorageCopyLaws.Owners<F32>,StorageCopyLaws.Owners<F32>,owners => StorageCopyLaws.model(~F32,count,source,destination,owners),
           StorageCopyLaws.observe(~F32,(Buffer.pack(~F32,input),Buffer.pack(~F32,output))),StorageCopyLaws.Owners{Buffer.tree(~F32,input),Buffer.length(~F32,input),Buffer.tree(~F32,output),Buffer.length(~F32,output)},packed_owners(input,output)))))
 
-def copy_output_ready(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,ready: Buffer.Ready<F32,output>) ->
+def copy_output_ready(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,ready: Buffer.Sized<F32,output>) ->
   Buffer.ContentReady<F32,Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output))))>:
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output)))),copied_content(count,source,destination,input,output),copy_output_contents(count,source,destination,input,output)) : Buffer.ContentReady<F32,_>
   Writes.content_ready(~F32,Contiguous.writes(~F32,U32.to_nat(count),Buffer.tree(~F32,input),0,source,destination),Buffer.tree(~F32,output),Buffer.length(~F32,output),
@@ -88,11 +88,11 @@ def copy_output_ready(+count: U32,+source: U32,+destination: U32,+input: Buffer.
     Buffer.content_ready(~F32,output,ready))
 
 def copy_inside(+count: U32,+source: U32,+destination: U32,+input: Buffer.Model<F32>,+output: Buffer.Model<F32>,+index: Nat,
-  ready: Buffer.Ready<F32,output>,room: {Nat.is_le(Nat.add(U32.to_nat(destination),U32.to_nat(count)),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
+  ready: Buffer.Sized<F32,output>,room: {Nat.is_le(Nat.add(U32.to_nat(destination),U32.to_nat(count)),U32.to_nat(Tree.capacity(F32,Buffer.tree(~F32,output)))) == True{} : Bool},
   inside: {Nat.is_lt(index,U32.to_nat(count)) == True{} : Bool}) ->
   {Buffer.value(~F32,(destination + U32.from_nat(index) : U32),Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output))))) ==
     Tree.read(F32,Buffer.tree(~F32,input),(source + U32.from_nat(index) : U32)) : F32}:
-  Buffer.Ready{+depth_ok,allocation_room} = ready
+  Buffer.Sized{+depth_ok,allocation_room} = ready
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,TensorConvolution.copied_output(Copy.range(~F32,count,source,destination,Buffer.pack(~F32,input),Buffer.pack(~F32,output)))),copied_content(count,source,destination,input,output),copy_output_contents(count,source,destination,input,output)) :
     {Buffer.value(~F32,(destination + U32.from_nat(index) : U32),_) == Tree.read(F32,Buffer.tree(~F32,input),(source + U32.from_nat(index) : U32)) : F32}
   CopyReadback.read_inside(~F32,U32.to_nat(count),0n,index,Buffer.tree(~F32,input),Buffer.tree(~F32,output),source,destination,Buffer.depth(~F32,output),

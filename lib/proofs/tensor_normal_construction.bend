@@ -12,8 +12,8 @@ import ./storage_buffer_model.bend as Buffer
 import ./storage_tree_model.bend as Tree
 import ./storage_shape.bend as Shape
 
-def buffer_ready(~Element: Data,+count: U32,+fill: Element,allocation: Depth.Ready<count>) -> Buffer.ContentReady<Element,Buffer.contents(~Element,Tensors.buffer(~Element,fill,count))>:
-  Depth.Ready{depth_ok,room} = allocation
+def buffer_ready(~Element: Data,+count: U32,+fill: Element,allocation: Depth.Sized<count>) -> Buffer.ContentReady<Element,Buffer.contents(~Element,Tensors.buffer(~Element,fill,count))>:
+  Depth.Sized{depth_ok,room} = allocation
   %Equal.sym(Buffer.Content<Element>,Buffer.contents(~Element,Tensors.buffer(~Element,fill,count)),Buffer.Content{Tree.fresh(Element,Tensors.depth_for(count),fill),U32.to_nat(count)},
     AllocationLaws.contents(~Element,Tensors.depth_for(count),fill,U32.to_nat(count))) : Buffer.ContentReady<Element,_>
   Buffer.content_ready(~Element,Buffer.fresh(~Element,Tensors.depth_for(count),fill,U32.to_nat(count)),Buffer.fresh_ready(~Element,Tensors.depth_for(count),fill,U32.to_nat(count),depth_ok,room))

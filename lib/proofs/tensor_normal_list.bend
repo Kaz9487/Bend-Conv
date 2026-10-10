@@ -16,9 +16,9 @@ import ./tensor_dense_contract.bend as Dense
 import ./tensor_global_shape_count.bend as Global
 import ./nat_order.bend as Order
 
-def written_ready(~Element: Data,+values: List<&2,Element>,+count: U32,+fill: Element,allocation: Depth.Ready<count>) ->
+def written_ready(~Element: Data,+values: List<&2,Element>,+count: U32,+fill: Element,allocation: Depth.Sized<count>) ->
   Buffer.NativeReady(~Element,Storage.from_list(~Element,values,Tensors.depth_for(count),fill,U32.to_nat(count))):
-  Depth.Ready{depth_ok,room} = allocation
+  Depth.Sized{depth_ok,room} = allocation
   Shape.Both{depth_ok,
     %Equal.sym(U32,Tree.capacity(Element,Tree.reflect(Element,Traversal.write_list(~Element,values,0,Array.new(Element,Tensors.depth_for(count),fill)))),U32.shln(1,Tensors.depth_for(count)),
       Shape.capacity(Element,Tensors.depth_for(count),Tree.reflect(Element,Traversal.write_list(~Element,values,0,Array.new(Element,Tensors.depth_for(count),fill))),

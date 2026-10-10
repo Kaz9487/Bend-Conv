@@ -2,6 +2,7 @@
 # keeps at least one row and the kernel still fits; its contract is the window
 # tree for input and the original owners for weights and bias.
 import Base
+import ./blocked_pipeline_bounds.bend as BlockBounds
 import ../specification.bend as ConvSpec
 import ../inference.bend as NativeConv
 import ../scalar_kernel.bend as ScalarConv
@@ -62,11 +63,6 @@ def axis_le(+smaller: Nat,+larger: Nat,+kernel: Nat,+stride: Nat,+padding: Nat,+
     DivisionOrder.subtract_le(Nat.add(smaller,Nat.mul(2n,padding)),Nat.add(larger,Nat.mul(2n,padding)),kernel,
       Order.add_le(smaller,larger,Nat.mul(2n,padding),ordered)))
 
-def padded_le(+smaller: Nat,+larger: Nat,+ordered: {Nat.is_le(smaller,larger) == True{} : Bool}) ->
-  {Nat.is_le(Nat.mul(Nat.div(Nat.add(smaller,7n),8n),8n),Nat.mul(Nat.div(Nat.add(larger,7n),8n),8n)) == True{} : Bool}:
-  RowMajor.mul_le(Nat.div(Nat.add(smaller,7n),8n),Nat.div(Nat.add(larger,7n),8n),8n,
-    DivisionOrder.quotient_le(Nat.add(smaller,7n),Nat.add(larger,7n),8n,{==},Order.add_le(smaller,larger,7n,ordered)))
-
 def scalar_from_formula(+limits: Machine.Limits,+problem: ConvSpec.Problem,
   +formula: {Guards.supported_formula(problem,Machine.dimension(limits),Machine.capacity(limits),Machine.coordinate(limits)) == True{} : Bool}) ->
   {ScalarConv.supported_with_limits(limits,problem) == True{} : Bool}:
@@ -97,7 +93,7 @@ def supported_from(+limits: Machine.Limits,+problem: ConvSpec.Problem,+first: Na
   +out_width = ConvSpec.axis_size(width,kernel,stride,padding)
   +axis = axis_le(rows,height,kernel,stride,padding,stride_positive,rows_le)
   +area = RowMajor.mul_le(out_rows,out_height,out_width,axis)
-  +padded = padded_le(Nat.mul(out_rows,out_width),Nat.mul(out_height,out_width),area)
+  +padded = BlockBounds.padded_le(Nat.mul(out_rows,out_width),Nat.mul(out_height,out_width),area)
   +input_fits = {%Equal.sym(Nat,ConvSpec.length(values),total,WindowBandValues.length(total,0n,WindowBandValues.Band{input,height,width,first,rows})) :
         {Nat.is_le(_,U32.to_nat(capacity)) == True{} : Bool}
       Order.transitive(total,Nat.mul(ci,Nat.mul(height,width)),U32.to_nat(capacity),

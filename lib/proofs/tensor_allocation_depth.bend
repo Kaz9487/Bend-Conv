@@ -69,19 +69,19 @@ def selected_maximum(+count: U32,+upper: U32,small: Bool,compared: {U32.is_lt(co
     case False{}: Maximum{not_small_positive(U32.to_nat(count),Equal.trans(Bool,Nat.is_lt(U32.to_nat(count),1n),U32.is_lt(count,1),False{},
       Equal.sym(Bool,U32.is_lt(count,1),Nat.is_lt(U32.to_nat(count),1n),Comparison.lt(count,1)),compared)),Bounds.as_nat_le(count,upper,bounded),Order.reflexive(U32.to_nat(count))}
 
-type Ready<-count: U32> is Data:
-  Ready{depth_ok: {Nat.is_le(Tensors.depth_for(count),30n) == True{} : Bool},
+type Sized<-count: U32> is Data:
+  Sized{depth_ok: {Nat.is_le(Tensors.depth_for(count),30n) == True{} : Bool},
     room: {Nat.is_le(U32.to_nat(count),U32.to_nat(U32.shln(1,Tensors.depth_for(count)))) == True{} : Bool}}
 
-def allocation_room(+count: U32,ready: Ready<count>) -> {Nat.is_le(U32.to_nat(count),U32.to_nat(U32.shln(1,Tensors.depth_for(count)))) == True{} : Bool}:
-  Ready{depth_ok,room} = ready
+def allocation_room(+count: U32,ready: Sized<count>) -> {Nat.is_le(U32.to_nat(count),U32.to_nat(U32.shln(1,Tensors.depth_for(count)))) == True{} : Bool}:
+  Sized{depth_ok,room} = ready
   room
 
 def ready_maximum(+count: U32,+upper: U32,upper_ok: {U32.is_le(upper,2147483648) == True{} : Bool},upper_bound: {U32.is_le(upper,1073741824) == True{} : Bool},
-  maximum: Maximum<count,U32.max(count,1),upper>) -> Ready<count>:
+  maximum: Maximum<count,U32.max(count,1),upper>) -> Sized<count>:
   Maximum{positive,bounded,+includes} = maximum
-  ArrayAllocation.with_bounds(Ready<count>,U32.max(count,1),ArrayAllocation.allocated(U32.max(count,1),upper,upper_ok,upper_bound,positive,bounded),
-    depth_ok => room => Ready{
+  ArrayAllocation.with_bounds(Sized<count>,U32.max(count,1),ArrayAllocation.allocated(U32.max(count,1),upper,upper_ok,upper_bound,positive,bounded),
+    depth_ok => room => Sized{
       %Equal.sym(Nat,Tensors.depth_for(count),Storage.allocation_depth(U32.max(count,1)),depth(count)) : {Nat.is_le(_,30n) == True{} : Bool} depth_ok,
       %Equal.sym(Nat,Tensors.depth_for(count),Storage.allocation_depth(U32.max(count,1)),depth(count)) : {Nat.is_le(U32.to_nat(count),U32.to_nat(U32.shln(1,_))) == True{} : Bool}
       Order.transitive(U32.to_nat(count),U32.to_nat(U32.max(count,1)),U32.to_nat(U32.shln(1,Storage.allocation_depth(U32.max(count,1)))),includes,room)})
@@ -89,10 +89,10 @@ def ready_maximum(+count: U32,+upper: U32,upper_ok: {U32.is_le(upper,2147483648)
 # The zero-element allocation is included: it owns one initialized cell while
 # its logical length remains zero. No positive-count premise escapes to callers.
 def bounded_with(+count: U32,+upper: U32,upper_ok: {U32.is_le(upper,2147483648) == True{} : Bool},upper_bound: {U32.is_le(upper,1073741824) == True{} : Bool},
-  one_fits: {U32.is_le(1,upper) == True{} : Bool},within: {U32.is_le(count,upper) == True{} : Bool}) -> Ready<count>:
+  one_fits: {U32.is_le(1,upper) == True{} : Bool},within: {U32.is_le(count,upper) == True{} : Bool}) -> Sized<count>:
   ready_maximum(count,upper,upper_ok,upper_bound,
     %U32Extrema.pick_maximum(count,1) : Maximum<count,_,upper>
     selected_maximum(count,upper,U32.is_lt(count,1),{==},one_fits,within))
 
-def bounded(+count: U32,within: {U32.is_le(count,1073741824) == True{} : Bool}) -> Ready<count>:
+def bounded(+count: U32,within: {U32.is_le(count,1073741824) == True{} : Bool}) -> Sized<count>:
   bounded_with(count,1073741824,{==},{==},{==},within)

@@ -50,13 +50,18 @@ def run(size=640, image='bus'):
         layers=[],
         weights={},
     )
+    # The same weights under their PyTorch names, for the Bend model.
+    named = export / 'named'
+    named.mkdir(exist_ok=True)
     for name, t in model.state_dict().items():
         if not (name.endswith('.weight') or name.endswith('.bias')):
             continue
         v = t.detach().numpy().astype('<f4')
         fn = name.replace('.', '_') + '.bin'
         v.tofile(export / fn)
+        np.save(named / f'{name}.npy', v)
         meta['weights'][name] = {'file': fn, 'shape': list(v.shape)}
+    (named / 'names.txt').write_text('\n'.join(meta['weights']), encoding='utf-8', newline='\n')
     for i, m in enumerate(model.model):
         typ = m.__class__.__name__
         spec = {'i': i, 'f': m.f, 'type': typ}

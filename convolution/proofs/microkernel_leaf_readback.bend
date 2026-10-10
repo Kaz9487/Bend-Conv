@@ -1,6 +1,7 @@
 # One packed leaf of the four-row-unit microkernel reads back the frozen matrix
 # value at every channel/column; this replaces the paired-kernel leaf theorem.
 import Base
+import ./gemm_output_relocation.bend as Relocation
 import ../../lib/tensor.bend as Tensors
 import ../../lib/storage_buffer.bend as Storage
 import ../../lib/tensor_f32.bend as F
@@ -357,6 +358,49 @@ def selection_matches(~Evidence: LeafContract.Evidence(),~samples: LeafContract.
           eight_position(offset,column,group,lane,Coordinates.position(problem,output_row,output_column),column_split,position),
           row_inside,column_in_width,base_exact,channel_row_exact(channel,block,parity,row,row_small,channel_eight),channel_inside))))
 
+def wanted_matches(~Evidence: LeafContract.Evidence(),~samples: LeafContract.Sampling(~Evidence),+limits: Machine.Limits,+problem: ConvSpec.Problem,+storage_contract: Inputs.Contract<problem>,
+  +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},
+  +tiles: Tree.Tree<Tile.Tile8>,+offset: U32,+span: U32,+blocks: Nat,+channel: Nat,+column: Nat,+output_row: Nat,+output_column: Nat,
+  +certificate: Evidence(problem,offset,span,tiles,output_row,output_column),
+  +span_exact: {U32.to_nat(span) == Nat.mul(blocks,8n) : Nat},+span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(problem)) == True{} : Bool},
+  +channel_inside: {Nat.is_lt(channel,Guards.output_channel_count(problem)) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(span)) == True{} : Bool},
+  +position: {Nat.add(U32.to_nat(offset),column) == Coordinates.position(problem,output_row,output_column) : Nat},
+  +row_inside: {Nat.is_lt(output_row,ConvSpec.out_height(problem)) == True{} : Bool},+column_in_width: {Nat.is_lt(output_column,ConvSpec.out_width(problem)) == True{} : Bool}) ->
+  {GemmReadback.wanted(leaf_query(limits,problem,storage_contract,tiles,span,blocks,channel,column,span_exact,Support.fast(limits,problem,supported),span_bound,channel_inside,column_inside)) ==
+    Values.matrix_value(problem,channel,output_row,output_column) : F32}:
+  +query = leaf_query(limits,problem,storage_contract,tiles,span,blocks,channel,column,span_exact,Support.fast(limits,problem,supported),span_bound,channel_inside,column_inside)
+  +selection = GemmReadback.select_lane(Nat.mod(column,8n),GemmReadback.select_row(Nat.mod(channel,4n),GemmReadback.unit_accumulators(query,Nat.div(channel,4n),Nat.div(column,8n))))
+  +matrix = Values.matrix_dot(MatrixSpec.kchannels(Guards.input_channel_count(problem),0n,Guards.kernel(problem)),problem,channel,output_row,output_column,0.0)
+  +bias_read = Tree.read(F32,Inputs.bias_tree(problem,storage_contract),U32.from_nat(channel))
+  %Equal.sym(F32,selection,matrix,selection_matches(~Evidence,~samples,limits,problem,storage_contract,valid,supported,tiles,offset,span,blocks,channel,column,output_row,output_column,
+    certificate,span_exact,span_bound,channel_inside,column_inside,position,row_inside,column_in_width)) :
+    {(_ + bias_read : F32) == Values.matrix_value(problem,channel,output_row,output_column) : F32}
+  %Equal.sym(F32,bias_read,ConvSpec.bias_at(problem,channel),Values.bias_matches_spec(problem,storage_contract,channel,valid,channel_inside)) :
+    {(matrix + _ : F32) == Values.matrix_value(problem,channel,output_row,output_column) : F32}
+  {==}
+
+def relocated_readback(~Evidence: LeafContract.Evidence(),~samples: LeafContract.Sampling(~Evidence),+limits: Machine.Limits,+problem: ConvSpec.Problem,+storage_contract: Inputs.Contract<problem>,
+  +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},
+  +tiles: Tree.Tree<Tile.Tile8>,+offset: U32,+span: U32,+blocks: Nat,+channel: Nat,+column: Nat,+output_row: Nat,+output_column: Nat,
+  +certificate: Evidence(problem,offset,span,tiles,output_row,output_column),
+  +span_exact: {U32.to_nat(span) == Nat.mul(blocks,8n) : Nat},+span_bound: {Nat.is_le(U32.to_nat(span),Support.padded(problem)) == True{} : Bool},
+  +channel_inside: {Nat.is_lt(channel,Guards.output_channel_count(problem)) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(span)) == True{} : Bool},
+  +position: {Nat.add(U32.to_nat(offset),column) == Coordinates.position(problem,output_row,output_column) : Nat},
+  +row_inside: {Nat.is_lt(output_row,ConvSpec.out_height(problem)) == True{} : Bool},+column_in_width: {Nat.is_lt(output_column,ConvSpec.out_width(problem)) == True{} : Bool},
+  +output_start: U32,+columns: U32,+buffer: Tree.Tree<F32>,+depth: Nat,+balanced: Shape.Balanced(F32,depth,buffer),+depth_ok: {Nat.is_le(depth,30n) == True{} : Bool},
+  +output_room: {Nat.is_le(Nat.mul(U32.to_nat(rows(problem)),U32.to_nat(columns)),U32.to_nat(Tree.capacity(F32,buffer))) == True{} : Bool},
+  +end_room: {Nat.is_le(Nat.add(U32.to_nat(output_start),U32.to_nat(span)),Nat.add(U32.to_nat(columns),7n)) == True{} : Bool},
+  +columns_room: {Nat.is_le(U32.to_nat(columns),U32.to_nat(Machine.half_word(limits))) == True{} : Bool},
+  +in_output: {Nat.is_lt(Nat.add(U32.to_nat(output_start),column),U32.to_nat(columns)) == True{} : Bool}) ->
+  {Tree.read(F32,GemmLaws.run_at(rows(problem),tiles,GemmDot.reordered(problem,storage_contract),Inputs.bias_tree(problem,storage_contract),buffer,span,Coordinates.native_inner(problem),output_start,columns),
+      U32.from_nat(Nat.add(Nat.mul(channel,U32.to_nat(columns)),Nat.add(U32.to_nat(output_start),column)))) == Values.matrix_value(problem,channel,output_row,output_column) : F32}:
+  +query = leaf_query(limits,problem,storage_contract,tiles,span,blocks,channel,column,span_exact,Support.fast(limits,problem,supported),span_bound,channel_inside,column_inside)
+  Equal.trans(F32,Tree.read(F32,GemmLaws.run_at(rows(problem),tiles,GemmDot.reordered(problem,storage_contract),Inputs.bias_tree(problem,storage_contract),buffer,span,Coordinates.native_inner(problem),output_start,columns),
+      U32.from_nat(Nat.add(Nat.mul(channel,U32.to_nat(columns)),Nat.add(U32.to_nat(output_start),column)))),GemmReadback.wanted(query),Values.matrix_value(problem,channel,output_row,output_column),
+    Relocation.run_readback(query,output_start,columns,buffer,depth,balanced,depth_ok,output_room,end_room,columns_room,in_output),
+    wanted_matches(~Evidence,~samples,limits,problem,storage_contract,valid,supported,tiles,offset,span,blocks,channel,column,output_row,output_column,
+      certificate,span_exact,span_bound,channel_inside,column_inside,position,row_inside,column_in_width))
+
 def allocation_readback(~Evidence: LeafContract.Evidence(),~samples: LeafContract.Sampling(~Evidence),+limits: Machine.Limits,+problem: ConvSpec.Problem,+storage_contract: Inputs.Contract<problem>,
   +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool},
   +tiles: Tree.Tree<Tile.Tile8>,+offset: U32,+span: U32,+blocks: Nat,+channel: Nat,+column: Nat,+output_row: Nat,+output_column: Nat,
@@ -365,10 +409,10 @@ def allocation_readback(~Evidence: LeafContract.Evidence(),~samples: LeafContrac
   +channel_inside: {Nat.is_lt(channel,Guards.output_channel_count(problem)) == True{} : Bool},+column_inside: {Nat.is_lt(column,U32.to_nat(span)) == True{} : Bool},
   +position: {Nat.add(U32.to_nat(offset),column) == Coordinates.position(problem,output_row,output_column) : Nat},
   +row_inside: {Nat.is_lt(output_row,ConvSpec.out_height(problem)) == True{} : Bool},+column_in_width: {Nat.is_lt(output_column,ConvSpec.out_width(problem)) == True{} : Bool},
-  +ready: PackedOutputAllocation.Ready<PackedOutputAllocation.count(problem,span),PackedOutputAllocation.depth(problem,span)>) ->
+  +ready: PackedOutputAllocation.Sized<PackedOutputAllocation.count(problem,span),PackedOutputAllocation.depth(problem,span)>) ->
   {Tree.read(F32,output(problem,storage_contract,tiles,span),U32.from_nat(Nat.add(Nat.mul(channel,U32.to_nat(span)),column))) ==
     Values.matrix_value(problem,channel,output_row,output_column) : F32}:
-  PackedOutputAllocation.Ready{+depth_bound,+room} = ready
+  PackedOutputAllocation.Sized{+depth_bound,+room} = ready
   +fast = Support.fast(limits,problem,supported)
   +facts = Guards.valid(problem,valid)
   +query = leaf_query(limits,problem,storage_contract,tiles,span,blocks,channel,column,span_exact,fast,span_bound,channel_inside,column_inside)
@@ -388,18 +432,11 @@ def allocation_readback(~Evidence: LeafContract.Evidence(),~samples: LeafContrac
       {Nat.is_le(Nat.mul(_,U32.to_nat(span)),U32.to_nat(Tree.capacity(F32,Tree.fresh(F32,Storage.allocation_depth(count),0.0)))) == True{} : Bool}
     %exact : {Nat.is_le(_,U32.to_nat(Tree.capacity(F32,Tree.fresh(F32,Storage.allocation_depth(count),0.0)))) == True{} : Bool}
     room : {Nat.is_le(Nat.mul(U32.to_nat(rows(problem)),U32.to_nat(span)),U32.to_nat(Tree.capacity(F32,allocated(rows(problem),span)))) == True{} : Bool}}
-  +selection = GemmReadback.select_lane(Nat.mod(column,8n),GemmReadback.select_row(Nat.mod(channel,4n),GemmReadback.unit_accumulators(query,Nat.div(channel,4n),Nat.div(column,8n))))
-  +matrix = Values.matrix_dot(MatrixSpec.kchannels(Guards.input_channel_count(problem),0n,Guards.kernel(problem)),problem,channel,output_row,output_column,0.0)
-  +bias_read = Tree.read(F32,Inputs.bias_tree(problem,storage_contract),U32.from_nat(channel))
   Equal.trans(F32,Tree.read(F32,output(problem,storage_contract,tiles,span),U32.from_nat(Nat.add(Nat.mul(channel,U32.to_nat(span)),column))),
     GemmReadback.wanted(query),Values.matrix_value(problem,channel,output_row,output_column),
     GemmReadback.run_readback(query,allocated(rows(problem),span),Tensors.depth_for(count),Shape.fresh(F32,Tensors.depth_for(count),0.0),depth_ok,output_room),
-    %Equal.sym(F32,selection,matrix,selection_matches(~Evidence,~samples,limits,problem,storage_contract,valid,supported,tiles,offset,span,blocks,channel,column,output_row,output_column,
-      certificate,span_exact,span_bound,channel_inside,column_inside,position,row_inside,column_in_width)) :
-      {(_ + bias_read : F32) == Values.matrix_value(problem,channel,output_row,output_column) : F32}
-    %Equal.sym(F32,bias_read,ConvSpec.bias_at(problem,channel),Values.bias_matches_spec(problem,storage_contract,channel,valid,channel_inside)) :
-      {(matrix + _ : F32) == Values.matrix_value(problem,channel,output_row,output_column) : F32}
-    {==})
+    wanted_matches(~Evidence,~samples,limits,problem,storage_contract,valid,supported,tiles,offset,span,blocks,channel,column,output_row,output_column,
+      certificate,span_exact,span_bound,channel_inside,column_inside,position,row_inside,column_in_width))
 
 def first_group(+span: U32,+blocks: Nat,+span_exact: {U32.to_nat(span) == Nat.mul(blocks,8n) : Nat},
   +span_positive: {Nat.is_lt(0n,U32.to_nat(span)) == True{} : Bool}) -> {Nat.is_lt(0n,PackingBounds.groups(span)) == True{} : Bool}:

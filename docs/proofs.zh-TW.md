@@ -28,9 +28,9 @@ law native_inference_matches_matrix:
 
 - 官方檢查器與 Base 函式庫。
 - 編譯器、runtime 與其排程器、C 編譯器與硬體。定理談的是 Bend 原始碼。
-- YOLO 範例的外部檔案 I/O。函式庫與卷積的證明不含任何 `@unsafe` 定義。
+- `load` 與 `save` 底下的 Bend 檔案 I/O。函式庫與卷積的證明不含任何 `@unsafe` 定義。
 
-證明沒有涵蓋的部分由數值檢查負責：產生的程式碼、模型接線、activation、I/O 與偵測解碼，都與 NumPy 及 PyTorch 比對（[benchmarks](../benchmarks/README.zh-TW.md)）。
+證明沒有涵蓋的部分由數值檢查負責：產生的程式碼、模型接線、activation、I/O 與偵測解碼，都與 NumPy 及 PyTorch 比對，數學函式則在每一個 FP32 輸入上與 MPFR 比對（[benchmarks](../benchmarks/README.zh-TW.md)）。
 
 ## 卷積證明的路線
 
@@ -58,16 +58,18 @@ law native_inference_matches_matrix:
 - **Dense 路徑：**等於 Array 流程（`microkernel_storage_execution`）。
 - **Band 路徑：**對程式實際選擇的規劃，輸出的 band 涵蓋每一列且不超出其配置（[band_pipeline_well_formed.bend](../convolution/proofs/band_pipeline_well_formed.bend)），而且每個存入的值都是該輸出點的有序矩陣值（[convolution_leaf_contract.bend](../convolution/proofs/convolution_leaf_contract.bend)、[band_pipeline_execution.bend](../convolution/proofs/band_pipeline_execution.bend)）。
 
-這些與無條件的根定理是分開的。它們的前提是：輸入為 Ready、layout 良構、數值有限、形狀相符，以及程式會檢查的機器 guard。
+這些與無條件的根定理是分開的。它們的前提是：輸入為 Usable、layout 良構、數值有限、形狀相符，以及程式會檢查的機器 guard。
 
 ## 張量運算
 
-每個定理對呼叫只有一個前提：它回傳了 Ready 的結果。
+每個定理對呼叫只有一個前提：它回傳了 Usable 的結果。
 
-| 運算 | Ready 的結果裡是什麼 | 來源 |
+| 運算 | Usable 的結果裡是什麼 | 來源 |
 |---|---|---|
 | `add`、`sub`、`mul`、`div`、`maximum`、`minimum`，含廣播 | 每個索引上是 `operation(left, right)`，參數順序如此 | [tensor_combine_dense_values.bend](../lib/proofs/tensor_combine_dense_values.bend) |
 | `add_scalar`、`mul_scalar` 等 | `operation(x, scalar)` | [tensor_scalar_values.bend](../lib/proofs/tensor_scalar_values.bend) |
+| `less`、`less_equal`、`greater`、`greater_equal`、`equal`、`not_equal` | 每個索引上依 `left` 與 `right` 的比較為 1.0 或 0.0 | [tensor_comparison_values.bend](../lib/proofs/tensor_comparison_values.bend) |
+| `sigmoid`、`silu`、`tanh`、`gelu_tanh`、`exp`、`log` | [math_fp32.bend](../lib/math_fp32.bend) 中純量函式的依序 map | [tensor_function_values.bend](../lib/proofs/tensor_function_values.bend) |
 | `transpose`、`slice`、`broadcast_to`、dense upsample | view 給該索引的位址上的輸入值 | [tensor_gather_values.bend](../lib/proofs/tensor_gather_values.bend) |
 | `set_slice`、`pad`、dense `concat` | 透過 view 寫入的部分，其餘不變 | [tensor_set_slice_values.bend](../lib/proofs/tensor_set_slice_values.bend)、[tensor_concat_dense_values.bend](../lib/proofs/tensor_concat_dense_values.bend) |
 | `sum_axis`、`max_axis`、`min_axis`、`mean_axis` | 沿該軸依索引遞增、從初始值開始的 fold | [tensor_reduce_axis_values.bend](../lib/proofs/tensor_reduce_axis_values.bend) |
@@ -87,7 +89,8 @@ law native_inference_matches_matrix:
 ## 沒有證明的部分
 
 - 規劃器的成本估計、延遲與 workspace 計算。它們不會影響結果。
-- 實數上的精確度。
+- 實數上的精確度。由 [math_accuracy.py](../benchmarks/checks/math_accuracy.py) 量測。
+- `select` 與 `softmax`。
 - Slice view 會到達哪些索引的封閉形式；敘述是跟著 cursor 的座標走的。
 - YOLO 範例的運算圖、I/O 與偵測解碼。
 - 編譯器與 runtime 的行為。

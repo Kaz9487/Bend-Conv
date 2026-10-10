@@ -12,9 +12,15 @@ import ./storage_tree_model.bend as Tree
 import ./loop_projection.bend as Projection
 import ./kernel_read_witness.bend as ReadWitness
 
-def store(+depth: Nat,-output: Array<F32>,+offset: U32,-bias: F32,-accumulator: Tile.Tile8,
+def store_lane(+depth: Nat,inside: Bool,-output: Array<F32>,+offset: U32,-value: F32,evidence: Witness.Witness(F32,depth,output)) ->
+  Witness.Witness(F32,depth,Gemm.store_lane(inside,output,offset,value)):
+  match inside:
+    case True{}: Witness.write(F32,depth,output,offset,value,evidence)
+    case False{}: evidence
+
+def store_tail(+count: U32,+depth: Nat,-output: Array<F32>,+offset: U32,-bias: F32,-accumulator: Tile.Tile8,
   evidence: Witness.Witness(F32,depth,output)) ->
-  Witness.Witness(F32,depth,Gemm.store(output,offset,bias,accumulator)):
+  Witness.Witness(F32,depth,Gemm.store_tail(count,output,offset,bias,accumulator)):
   -a = (Tile.lane0(accumulator) + bias : F32)
   -b = (Tile.lane1(accumulator) + bias : F32)
   -c = (Tile.lane2(accumulator) + bias : F32)
@@ -23,41 +29,41 @@ def store(+depth: Nat,-output: Array<F32>,+offset: U32,-bias: F32,-accumulator: 
   -f = (Tile.lane5(accumulator) + bias : F32)
   -g = (Tile.lane6(accumulator) + bias : F32)
   -h = (Tile.lane7(accumulator) + bias : F32)
-  -o1 = Array.set(F32,output,offset,a)
-  -o2 = Array.set(F32,o1,(offset + 1 : U32),b)
-  -o3 = Array.set(F32,o2,(offset + 2 : U32),c)
-  -o4 = Array.set(F32,o3,(offset + 3 : U32),d)
-  -o5 = Array.set(F32,o4,(offset + 4 : U32),e)
-  -o6 = Array.set(F32,o5,(offset + 5 : U32),f)
-  -o7 = Array.set(F32,o6,(offset + 6 : U32),g)
-  evidence = Witness.write(F32,depth,output,offset,a,evidence)
-  evidence = Witness.write(F32,depth,o1,(offset + 1 : U32),b,evidence)
-  evidence = Witness.write(F32,depth,o2,(offset + 2 : U32),c,evidence)
-  evidence = Witness.write(F32,depth,o3,(offset + 3 : U32),d,evidence)
-  evidence = Witness.write(F32,depth,o4,(offset + 4 : U32),e,evidence)
-  evidence = Witness.write(F32,depth,o5,(offset + 5 : U32),f,evidence)
-  evidence = Witness.write(F32,depth,o6,(offset + 6 : U32),g,evidence)
-  Witness.write(F32,depth,o7,(offset + 7 : U32),h,evidence)
+  -o1 = Gemm.store_lane(U32.is_lt(0,count),output,offset,a)
+  -o2 = Gemm.store_lane(U32.is_lt(1,count),o1,(offset + 1 : U32),b)
+  -o3 = Gemm.store_lane(U32.is_lt(2,count),o2,(offset + 2 : U32),c)
+  -o4 = Gemm.store_lane(U32.is_lt(3,count),o3,(offset + 3 : U32),d)
+  -o5 = Gemm.store_lane(U32.is_lt(4,count),o4,(offset + 4 : U32),e)
+  -o6 = Gemm.store_lane(U32.is_lt(5,count),o5,(offset + 5 : U32),f)
+  -o7 = Gemm.store_lane(U32.is_lt(6,count),o6,(offset + 6 : U32),g)
+  evidence = store_lane(depth,U32.is_lt(0,count),output,offset,a,evidence)
+  evidence = store_lane(depth,U32.is_lt(1,count),o1,(offset + 1 : U32),b,evidence)
+  evidence = store_lane(depth,U32.is_lt(2,count),o2,(offset + 2 : U32),c,evidence)
+  evidence = store_lane(depth,U32.is_lt(3,count),o3,(offset + 3 : U32),d,evidence)
+  evidence = store_lane(depth,U32.is_lt(4,count),o4,(offset + 4 : U32),e,evidence)
+  evidence = store_lane(depth,U32.is_lt(5,count),o5,(offset + 5 : U32),f,evidence)
+  evidence = store_lane(depth,U32.is_lt(6,count),o6,(offset + 6 : U32),g,evidence)
+  store_lane(depth,U32.is_lt(7,count),o7,(offset + 7 : U32),h,evidence)
 
 type Written<-bias: Array<F32>,-depth: Nat,-result: Array<F32> & Array<F32>> is Data:
   Written{-output: Array<F32>,equation: {result == (bias,output) : Array<F32> & Array<F32>},balanced: Witness.Witness(F32,depth,output)}
 
-def write_bias(+depth: Nat,-bias: Array<F32>,-output: Array<F32>,+offset: U32,+row: U32,-accumulator: Tile.Tile8,
+def write_bias(+depth: Nat,-bias: Array<F32>,-output: Array<F32>,+offset: U32,+row: U32,-accumulator: Tile.Tile8,+count: U32,
   read: Witness.Read<F32,bias,Array.get(F32,bias,row)>,evidence: Witness.Witness(F32,depth,output)) ->
-  Written<bias,depth,Gemm.write_bias(output,offset,accumulator,Array.get(F32,bias,row))>:
+  Written<bias,depth,Gemm.write_bias(output,offset,accumulator,count,Array.get(F32,bias,row))>:
   Witness.Read{value,equation} = read
-  Written{Gemm.store(output,offset,value,accumulator),
+  Written{Gemm.store_tail(count,output,offset,value,accumulator),
     %Equal.sym(Array<F32> & F32,Array.get(F32,bias,row),(bias,value),equation) :
-      {Gemm.write_bias(output,offset,accumulator,_) == (bias,Gemm.store(output,offset,value,accumulator)) : Array<F32> & Array<F32>}
-    {==},store(depth,output,offset,value,accumulator,evidence)}
+      {Gemm.write_bias(output,offset,accumulator,count,_) == (bias,Gemm.store_tail(count,output,offset,value,accumulator)) : Array<F32> & Array<F32>}
+    {==},store_tail(count,depth,output,offset,value,accumulator,evidence)}
 
-def write_row(+depth: Nat,valid: Bool,+row: U32,position: U32,columns: U32,-accumulator: Tile.Tile8,
+def write_row(+depth: Nat,valid: Bool,+row: U32,+position: U32,+columns: U32,-accumulator: Tile.Tile8,
   -bias: Array<F32>,-output: Array<F32>,bias_evidence: Witness.ArrayWitness<F32,bias>,evidence: Witness.Witness(F32,depth,output)) ->
   Written<bias,depth,Gemm.write_row(valid,row,position,columns,accumulator,(bias,output))>:
   match valid:
     case False{}: Written{output,{==},evidence}
     case True{}:
-      write_bias(depth,bias,output,(row * columns + position : U32),row,accumulator,Witness.observed(F32,bias,row,bias_evidence),evidence)
+      write_bias(depth,bias,output,(row * columns + position : U32),row,accumulator,U32.min(8,(columns - position : U32)),Witness.observed(F32,bias,row,bias_evidence),evidence)
 
 def next(+depth: Nat,valid: Bool,row: U32,position: U32,columns: U32,-accumulator: Tile.Tile8,
   -bias: Array<F32>,-owners: Array<F32> & Array<F32>,bias_evidence: Witness.ArrayWitness<F32,bias>,evidence: Written<bias,depth,owners>) ->
@@ -152,28 +158,80 @@ def finish(-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F3
   %Equal.sym(Gemm.Buffers,state,Gemm.Buffers{input,weights,bias,output},equation) : Witness.Witness(F32,depth,Gemm.result(_))
   balanced
 
-def run(+depth: Nat,+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,
+def run(+depth: Nat,+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32,
   input_evidence: Witness.ArrayWitness<Tile.Tile8,input>,weight_evidence: Witness.ArrayWitness<Tile.Tile8,weights>,bias_evidence: Witness.ArrayWitness<F32,bias>,
-  balanced: Witness.Witness(F32,depth,output)) -> Witness.Witness(F32,depth,Gemm.run(rows,input,weights,bias,output,columns,inner)):
+  balanced: Witness.Witness(F32,depth,output)) -> Witness.Witness(F32,depth,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)):
   +count = U32.to_nat(Gemm.job_count(rows,columns))
-  +layout = {Gemm.Layout{rows,columns,inner} : Gemm.Layout}
+  +layout = {Gemm.Layout{rows,columns,inner,start,output_columns} : Gemm.Layout}
   -state = {Gemm.Buffers{input,weights,bias,output} : Gemm.Buffers}
   finish(input,weights,bias,depth,Traversal.indexed_fold(~Gemm.Buffers,~Gemm.Layout,~Gemm.step_job,count,0,layout,state),
     traverse(depth,count,0,layout,input,weights,bias,state,input_evidence,weight_evidence,bias_evidence,Evidence{output,{==},balanced}))
 
-def equation(+depth: Nat,+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,
+def equation(+depth: Nat,+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32,
   input_certificate: Certificate.Certificate<Tile.Tile8,input>,weight_certificate: Certificate.Certificate<Tile.Tile8,weights>,bias_certificate: Certificate.Certificate<F32,bias>,
   balanced: {output == Tree.pack(F32,Certificate.normalized(F32,depth,Tree.reflect(F32,output))) : Array<F32>}) ->
-  {Gemm.run(rows,input,weights,bias,output,columns,inner) ==
-    Tree.pack(F32,Certificate.normalized(F32,depth,Tree.reflect(F32,Gemm.run(rows,input,weights,bias,output,columns,inner)))) : Array<F32>}:
-  %Certificate.restored(F32,depth,Gemm.run(rows,input,weights,bias,output,columns,inner),
-    run(depth,rows,input,weights,bias,output,columns,inner,Certificate.witness(Tile.Tile8,input,input_certificate),
+  {Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns) ==
+    Tree.pack(F32,Certificate.normalized(F32,depth,Tree.reflect(F32,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)))) : Array<F32>}:
+  %Certificate.restored(F32,depth,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns),
+    run(depth,rows,input,weights,bias,output,columns,inner,start,output_columns,Certificate.witness(Tile.Tile8,input,input_certificate),
       Certificate.witness(Tile.Tile8,weights,weight_certificate),Certificate.witness(F32,bias,bias_certificate),Certificate.witness_at(F32,depth,output,balanced))) :
-    {_ == Tree.pack(F32,Certificate.normalized(F32,depth,Tree.reflect(F32,Gemm.run(rows,input,weights,bias,output,columns,inner)))) : Array<F32>}
+    {_ == Tree.pack(F32,Certificate.normalized(F32,depth,Tree.reflect(F32,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)))) : Array<F32>}
   {==}
 
-def certificate(rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,columns: U32,inner: U32,
+def certificate(rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,columns: U32,inner: U32,start: U32,output_columns: U32,
   input_certificate: Certificate.Certificate<Tile.Tile8,input>,weight_certificate: Certificate.Certificate<Tile.Tile8,weights>,bias_certificate: Certificate.Certificate<F32,bias>,
-  output_certificate: Certificate.Certificate<F32,output>) -> Certificate.Certificate<F32,Gemm.run(rows,input,weights,bias,output,columns,inner)>:
+  output_certificate: Certificate.Certificate<F32,output>) -> Certificate.Certificate<F32,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)>:
   Certificate.Certificate{+depth,balanced} = output_certificate
-  Certificate.Certificate{depth,equation(depth,rows,input,weights,bias,output,columns,inner,input_certificate,weight_certificate,bias_certificate,balanced)}
+  Certificate.Certificate{depth,equation(depth,rows,input,weights,bias,output,columns,inner,start,output_columns,input_certificate,weight_certificate,bias_certificate,balanced)}
+
+# The fold gives back the three buffers it only reads, next to the output of run.
+def kept_state(-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-depth: Nat,-state: Gemm.Buffers,
+  evidence: Evidence<input,weights,bias,depth,state>) -> {state == Gemm.Buffers{input,weights,bias,Gemm.result(state)} : Gemm.Buffers}:
+  Evidence{output,equation,balanced} = evidence
+  %Equal.sym(Gemm.Buffers,state,Gemm.Buffers{input,weights,bias,output},equation) :
+    {_ == Gemm.Buffers{input,weights,bias,Gemm.result(_)} : Gemm.Buffers}
+  {==}
+
+def kept_equation(+depth: Nat,+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32,
+  input_evidence: Witness.ArrayWitness<Tile.Tile8,input>,weight_evidence: Witness.ArrayWitness<Tile.Tile8,weights>,bias_evidence: Witness.ArrayWitness<F32,bias>,
+  balanced: Witness.Witness(F32,depth,output)) ->
+  {Gemm.run_keeping(rows,input,weights,bias,output,columns,inner,start,output_columns) ==
+    Gemm.Buffers{input,weights,bias,Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)} : Gemm.Buffers}:
+  +count = U32.to_nat(Gemm.job_count(rows,columns))
+  +layout = {Gemm.Layout{rows,columns,inner,start,output_columns} : Gemm.Layout}
+  -state = {Gemm.Buffers{input,weights,bias,output} : Gemm.Buffers}
+  kept_state(input,weights,bias,depth,Traversal.indexed_fold(~Gemm.Buffers,~Gemm.Layout,~Gemm.step_job,count,0,layout,state),
+    traverse(depth,count,0,layout,input,weights,bias,state,input_evidence,weight_evidence,bias_evidence,Evidence{output,{==},balanced}))
+
+type Kept<-state: Gemm.Buffers> is Data:
+  Kept{input: Certificate.Certificate<Tile.Tile8,Gemm.kept_input(state)>,weights: Certificate.Certificate<Tile.Tile8,Gemm.kept_weights(state)>,
+    bias: Certificate.Certificate<F32,Gemm.kept_bias(state)>,output: Certificate.Certificate<F32,Gemm.result(state)>}
+
+# The certificates of the read-only buffers are the ones that came in.
+def kept(+rows: U32,-input: Array<Tile.Tile8>,-weights: Array<Tile.Tile8>,-bias: Array<F32>,-output: Array<F32>,+columns: U32,+inner: U32,+start: U32,+output_columns: U32,
+  input_certificate: Certificate.Certificate<Tile.Tile8,input>,weight_certificate: Certificate.Certificate<Tile.Tile8,weights>,bias_certificate: Certificate.Certificate<F32,bias>,
+  output_certificate: Certificate.Certificate<F32,output>) -> Kept<Gemm.run_keeping(rows,input,weights,bias,output,columns,inner,start,output_columns)>:
+  Certificate.Certificate{+input_depth,+input_equation} = input_certificate
+  Certificate.Certificate{+weight_depth,+weight_equation} = weight_certificate
+  Certificate.Certificate{+bias_depth,+bias_equation} = bias_certificate
+  Certificate.Certificate{+depth,+balanced} = output_certificate
+  -state = Gemm.run_keeping(rows,input,weights,bias,output,columns,inner,start,output_columns)
+  -result = Gemm.run_at(rows,input,weights,bias,output,columns,inner,start,output_columns)
+  +owners = kept_equation(depth,rows,input,weights,bias,output,columns,inner,start,output_columns,
+    Certificate.witness(Tile.Tile8,input,Certificate.Certificate{input_depth,input_equation}),Certificate.witness(Tile.Tile8,weights,Certificate.Certificate{weight_depth,weight_equation}),
+    Certificate.witness(F32,bias,Certificate.Certificate{bias_depth,bias_equation}),Certificate.witness_at(F32,depth,output,balanced))
+  Kept{
+    Certificate.Certificate{input_depth,
+      %Equal.sym(Gemm.Buffers,state,Gemm.Buffers{input,weights,bias,result},owners) :
+        {Gemm.kept_input(_) == Tree.pack(Tile.Tile8,Certificate.normalized(Tile.Tile8,input_depth,Tree.reflect(Tile.Tile8,Gemm.kept_input(_)))) : Array<Tile.Tile8>}
+      input_equation},
+    Certificate.Certificate{weight_depth,
+      %Equal.sym(Gemm.Buffers,state,Gemm.Buffers{input,weights,bias,result},owners) :
+        {Gemm.kept_weights(_) == Tree.pack(Tile.Tile8,Certificate.normalized(Tile.Tile8,weight_depth,Tree.reflect(Tile.Tile8,Gemm.kept_weights(_)))) : Array<Tile.Tile8>}
+      weight_equation},
+    Certificate.Certificate{bias_depth,
+      %Equal.sym(Gemm.Buffers,state,Gemm.Buffers{input,weights,bias,result},owners) :
+        {Gemm.kept_bias(_) == Tree.pack(F32,Certificate.normalized(F32,bias_depth,Tree.reflect(F32,Gemm.kept_bias(_)))) : Array<F32>}
+      bias_equation},
+    Certificate.Certificate{depth,equation(depth,rows,input,weights,bias,output,columns,inner,start,output_columns,Certificate.Certificate{input_depth,input_equation},
+      Certificate.Certificate{weight_depth,weight_equation},Certificate.Certificate{bias_depth,bias_equation},balanced)}}

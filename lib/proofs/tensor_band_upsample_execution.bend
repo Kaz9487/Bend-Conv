@@ -212,14 +212,14 @@ def leaf_copy(~Element: Data,+geometry: Bands.Geometry,+scale: U32,+fill: Elemen
       Operations.copy(~Element,input,source,Tensors.buffer(~Element,fill,count),target)) : Bands.Bands(~Element)}:
   Bands.Geometry{+batch,+channels,+height,+width} = geometry
   %Equal.sym(Maybe<&2,Views.View>,Layout.repeated(Tensors.view_of(local_shape(geometry,rows)),scale),Some{source},repeated) :
-    {Tensors.with_dense(~Element,~Bands.Bands(~Element),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Ready{},input,local_shape(geometry,rows),scale,fill,1)),
+    {Tensors.with_dense(~Element,~Bands.Bands(~Element),Layout.result_of(~Element,Layout.upsample_view(~Element,_,Tensors.Usable{},input,local_shape(geometry,rows),scale,fill,1)),
       output => shape => fill => status => workers => Partition.Leaf{output,(first * scale : U32),(rows * scale : U32),Unit{}}) ==
       copied_band(~Element,(first * scale : U32),(rows * scale : U32),local_shape(geometry,rows),Layout.scaled_extents(local_shape(geometry,rows),scale),fill,
         Operations.copy(~Element,input,source,Tensors.buffer(~Element,fill,count),target)) : Bands.Bands(~Element)}
   Equal.cong(Tensors.Tensor<Element> & Tensors.Tensor<Element>,Bands.Bands(~Element),pair =>
     Tensors.with_dense(~Element,~Bands.Bands(~Element),Layout.result_of(~Element,pair),
       output => shape => fill => status => workers => Partition.Leaf{output,(first * scale : U32),(rows * scale : U32),Unit{}}),
-    Layout.upsample_view(~Element,Some{source},Tensors.Ready{},input,local_shape(geometry,rows),scale,fill,1),
+    Layout.upsample_view(~Element,Some{source},Tensors.Usable{},input,local_shape(geometry,rows),scale,fill,1),
     Layout.copied(~Element,"upsample_nearest",local_shape(geometry,rows),Layout.scaled_extents(local_shape(geometry,rows),scale),fill,1,
       Operations.copy(~Element,input,source,Tensors.buffer(~Element,fill,count),target)),
     Public.gathered(~Element,"upsample_nearest",source,Layout.extents(Some{source}),Layout.scaled_extents(local_shape(geometry,rows),scale),input,local_shape(geometry,rows),fill,target,count,1,target_view,counted))
@@ -456,12 +456,12 @@ def target_counted(+geometry: Bands.Geometry,+rows: U32,+scale: U32,+input_count
   {Views.numel(canonical_view(repeated_shape(geometry,rows,scale),producer_output_count)) == Some{producer_output_count} : Maybe<&2,U32>}:
   target_counted_from_count(repeated_shape(geometry,rows,scale),producer_output_count,counted(geometry,rows,scale,input_count,producer_output_count,evidence))
 
-def allocated_from_count(+elements: Nat,+count: U32,evidence: Count.Count<elements,count>) -> Depth.Ready<count>:
+def allocated_from_count(+elements: Nat,+count: U32,evidence: Count.Count<elements,count>) -> Depth.Sized<count>:
   Count.Count{exact,bounded} = evidence
   Depth.bounded(count,bounded)
 
 def allocated(+geometry: Bands.Geometry,+rows: U32,+scale: U32,+input_count: U32,+producer_output_count: U32,
-  evidence: Descriptor<geometry,rows,scale,input_count,producer_output_count>) -> Depth.Ready<producer_output_count>:
+  evidence: Descriptor<geometry,rows,scale,input_count,producer_output_count>) -> Depth.Sized<producer_output_count>:
   allocated_from_count(ShapeLaws.elements(repeated_shape(geometry,rows,scale)),producer_output_count,counted(geometry,rows,scale,input_count,producer_output_count,evidence))
 
 def source_exact(+geometry: Bands.Geometry,+first: U32,+rows: U32,+length: Nat,
@@ -477,7 +477,7 @@ def source_exact(+geometry: Bands.Geometry,+first: U32,+rows: U32,+length: Nat,
     Equal.sym(Nat,U32.to_nat(Bands.local_count(geometry,rows)),length,exact))
 
 def producer_owner_descriptor(~Element: Data,+geometry: Bands.Geometry,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,+global_count: U32,
-  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   global_exact: {Nat.mul(U32.to_nat(producer_batch(geometry)),Nat.mul(U32.to_nat(producer_channels(geometry)),
     Nat.mul(Nat.mul(U32.to_nat(producer_height(geometry)),U32.to_nat(scale)),Nat.mul(U32.to_nat(producer_width(geometry)),U32.to_nat(scale))))) == U32.to_nat(global_count) : Nat},
   global_within: {U32.is_le(global_count,Machine.capacity(Default.limits())) == True{} : Bool}) ->
@@ -493,7 +493,7 @@ def producer_owner_descriptor(~Element: Data,+geometry: Bands.Geometry,+first: U
 # uses the existing producer_width-positive metadata theorem; descriptor/from_global
 # above also cover zero producer_width when an exact input count is supplied.
 def guarded_owner_from_count(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,
-  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   scaled_elements: {ShapeLaws.elements(Layout.scaled_extents(shape,scale)) == Nat.mul(U32.to_nat(producer_batch(geometry)),Nat.mul(U32.to_nat(producer_channels(geometry)),
     Nat.mul(Nat.mul(U32.to_nat(producer_height(geometry)),U32.to_nat(scale)),Nat.mul(U32.to_nat(producer_width(geometry)),U32.to_nat(scale))))) : Nat},
   allocation: Count.Count<ShapeLaws.elements(Layout.scaled_extents(shape,scale)),Checked.value(Tensors.count_of(Layout.scaled_extents(shape,scale)))>) ->
@@ -507,7 +507,7 @@ def guarded_owner_from_count(~Element: Data,+geometry: Bands.Geometry,+shape: Li
         Nat.mul(Nat.mul(U32.to_nat(producer_height(geometry)),U32.to_nat(scale)),Nat.mul(U32.to_nat(producer_width(geometry)),U32.to_nat(scale))))),scaled_elements),exact),bounded)
 
 def guarded_owner(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,
-  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   truth: {guard(geometry,shape,scale) == True{} : Bool},
   scaled_elements: {ShapeLaws.elements(Layout.scaled_extents(shape,scale)) == Nat.mul(U32.to_nat(producer_batch(geometry)),Nat.mul(U32.to_nat(producer_channels(geometry)),
     Nat.mul(Nat.mul(U32.to_nat(producer_height(geometry)),U32.to_nat(scale)),Nat.mul(U32.to_nat(producer_width(geometry)),U32.to_nat(scale))))) : Nat}) ->
@@ -831,7 +831,7 @@ def scaled_total(+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,trut
 # Each leaf retains its real checked-copy outcomes. A scaled placement is
 # local to that leaf; only the full tree consumes whole-tensor coverage.
 def execution_owner_descriptor(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,
+  width_positive: {BandShape.width_positive(geometry) == True{} : Bool},metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,
   +original: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {guard(geometry,shape,scale) == True{} : Bool}) ->
   Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),producer_output_count(geometry,rows,scale)>:
   guarded_owner(~Element,geometry,shape,first,rows,scale,input,width_positive,metadata,ready,truth,scaled_elements(geometry,shape,scale,original,truth))

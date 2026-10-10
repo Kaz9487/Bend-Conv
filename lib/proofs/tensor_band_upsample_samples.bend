@@ -353,7 +353,7 @@ def repeated_fits(+geometry: Bands.Geometry,+rows: U32,+scale: U32,+count: U32,+
   repeated_fits_when(geometry,rows,scale,count,Shapes.has_zero(BandUpsampleExecution.repeated_shape(geometry,rows,scale)),{==},exact)
 
 def copy_guard(~Element: Data,+geometry: Bands.Geometry,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,+output_count: U32,
-  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>) ->
+  +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>) ->
   {CopyValues.copy_guard(~Element,Buffer.pack(~Element,input),BandUpsampleExecution.repeated_view(geometry,rows,scale,Bands.local_count(geometry,rows)),Tensors.buffer(~Element,fill,output_count),
     BandUpsampleExecution.canonical_view(BandUpsampleExecution.repeated_shape(geometry,rows,scale),output_count)) == True{} : Bool}:
   +input_counted = {BandShapeCount.counted(~Element,geometry,first,rows,input,metadata,ready) : BandShape.Count<geometry,rows,Buffer.length(~Element,input)>}
@@ -473,7 +473,7 @@ def row_fit(+geometry: Bands.Geometry,+first: U32,+rows: U32,+length: Nat,metada
   rows_fit
 
 def owner_descriptor(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,+original: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) ->
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,+original: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) ->
   BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>:
   Bands.Geometry{+batch,+channels,+height,+width} = geometry
   +allocation = {BandUpsampleExecution.guards_allocation(geometry,shape,scale,truth) : Count.Count<ShapeLaws.elements(Layout.scaled_extents(shape,scale)),Checked.value(Tensors.count_of(Layout.scaled_extents(shape,scale)))>}
@@ -541,7 +541,7 @@ def placements_local_guard(+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale
   local_guard_when(geometry,shape,scale,first,rows,length,U32.is_zero(rows),{==},metadata,words,envelope,truth)
 
 def placement(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Ready<Element,input>,+envelope: PlacementsRowEnvelope<geometry,scale>,
+  +metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),ready: Buffer.Sized<Element,input>,+envelope: PlacementsRowEnvelope<geometry,scale>,
   +original: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.guard(geometry,shape,scale) == True{} : Bool}) -> BandUpsampleExecution.Placement<geometry,scale,first,rows>:
   Bands.Geometry{batch,channels,height,width} = geometry
   +words = {scaled_words(geometry,shape,scale,first,rows,Buffer.length(~Element,input),metadata,envelope,truth) : BandUpsampleExecution.Words<scale,first,rows>}
@@ -630,9 +630,9 @@ def enabled_well_formed(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2
   BandUpsampleExecution.scheduled_well_formed(~Element,geometry,shape,scale,fill,workers,bands,width_positive_dimensions(geometry,dimensions),BandShape.WellFormed{metadata,ready,coverage},original,
     BandUpsampleExecution.legal(geometry,shape,scale,truth),enabled_placements(~Element,geometry,shape,scale,bands,metadata,Model.ready(~Element,bands,ready),original,truth))
 
-def leaf_finite_from_ready(~Element: Data,+geometry: Bands.Geometry,+scale: U32,+rows: U32,+input_count: U32,+output_count: U32,+fill: Element,+input: Buffer.Model<Element>,ready: Depth.Ready<output_count>) ->
+def leaf_finite_from_ready(~Element: Data,+geometry: Bands.Geometry,+scale: U32,+rows: U32,+input_count: U32,+output_count: U32,+fill: Element,+input: Buffer.Model<Element>,ready: Depth.Sized<output_count>) ->
   CopyValues.Finite<Element,Views.is_contiguous(BandUpsampleExecution.repeated_view(geometry,rows,scale,input_count)),U32.to_nat(output_count),BandUpsampleExecution.repeated_view(geometry,rows,scale,input_count),Buffer.tree(~Element,input),Tree.capacity(Element,BandUpsampleExecution.fresh_tree(~Element,fill,output_count))>:
-  Depth.Ready{depth_ok,room} = ready
+  Depth.Sized{depth_ok,room} = ready
   CopyValues.owned_finite(~Element,Views.is_contiguous(BandUpsampleExecution.repeated_view(geometry,rows,scale,input_count)),U32.to_nat(output_count),BandUpsampleExecution.repeated_view(geometry,rows,scale,input_count),Buffer.tree(~Element,input),
     Buffer.fresh(~Element,Tensors.depth_for(output_count),fill,U32.to_nat(output_count)),{==},Buffer.fresh_ready(~Element,Tensors.depth_for(output_count),fill,U32.to_nat(output_count),depth_ok,room))
 
@@ -732,13 +732,13 @@ def repeated_sample_value(~Element: Data,~Context: Data,~original: Context -> U3
     source_sample_at(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),U32.to_nat(output_count),CursorLaws.initial(view),index,samples,inside))
 
 # The readiness of a model, stated for its tree and its length.
-def tree_ready(~Element: Data,+input: Buffer.Model<Element>,ready: Buffer.Ready<Element,input>) ->
+def tree_ready(~Element: Data,+input: Buffer.Model<Element>,ready: Buffer.Sized<Element,input>) ->
   Buffer.ContentReady<Element,Buffer.Content{Buffer.tree(~Element,input),Buffer.length(~Element,input)}>:
   Buffer.Model{+tree,+length,+certificate} = input
   Buffer.content_ready(~Element,Buffer.Model{tree,length,certificate},ready)
 
 def repeated_source_samples(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+first: U32,+rows: U32,+scale: U32,+input: Buffer.Model<Element>,+output_count: U32,
-  +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +values: BandValues.Leaf(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
   +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),output_count>) ->
   SourceSamples(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),U32.to_nat(output_count),CursorLaws.initial(BandUpsampleExecution.repeated_view(geometry,rows,scale,Bands.local_count(geometry,rows)))):
@@ -764,7 +764,7 @@ type ActualLeaf<-Element: Data,-Context: Data,-original: Context -> U32 -> Eleme
 
 def actual_leaf(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
   +descriptor: BandUpsampleExecution.Descriptor<geometry,rows,scale,Bands.local_count(geometry,rows),BandUpsampleExecution.producer_output_count(geometry,rows,scale)>,
-  +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +values: BandValues.Leaf(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input))) ->
   ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>:
   ActualLeaf{descriptor,copy_guard(~Element,geometry,scale,fill,first,rows,input,BandUpsampleExecution.producer_output_count(geometry,rows,scale),descriptor,metadata,ready),
@@ -801,7 +801,7 @@ def metadata_width_guard(geometry: Bands.Geometry) ->
   {==}
 
 def enabled_leaf(~Element: Data,~Context: Data,~original: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+shape: List<&2,U32>,+scale: U32,+fill: Element,+first: U32,+rows: U32,+input: Buffer.Model<Element>,
-  +domain: BandGather.Domain<geometry,Default.limits(),Machine.capacity(Default.limits())>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Ready<Element,input>,
+  +domain: BandGather.Domain<geometry,Default.limits(),Machine.capacity(Default.limits())>,+metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,input)),+ready: Buffer.Sized<Element,input>,
   +values: BandValues.Leaf(~Element,~Context,~original,context,geometry,first,rows,Buffer.tree(~Element,input),Buffer.length(~Element,input)),
   +original_shape: {shape == BandCount.extents(geometry) : List<&2,U32>},+truth: {BandUpsampleExecution.enabled(geometry,shape,scale) == True{} : Bool}) ->
   ActualLeaf<Element,Context,original,context,geometry,scale,fill,first,rows,input>:

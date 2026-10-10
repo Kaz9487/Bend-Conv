@@ -90,14 +90,14 @@ def width_positive(+geometry: Bands.Geometry,+limits: Machine.Limits,+capacity: 
   BandGather.Domain{capacity_ok,channels_positive,height_positive,width_positive,machine_room,allocation_room} = domain
   width_positive
 
-def depth_ready(+result: Buffer.Model<F32>,ready: Buffer.Ready<F32,result>) ->
+def depth_ready(+result: Buffer.Model<F32>,ready: Buffer.Sized<F32,result>) ->
   {Nat.is_le(Buffer.depth(~F32,result),30n) == True{} : Bool}:
-  Buffer.Ready{depth_ok,room} = ready
+  Buffer.Sized{depth_ok,room} = ready
   depth_ok
 
 def point_read(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+limits: Machine.Limits,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,
   +domain: BandGather.Domain<geometry,limits,Tree.capacity(F32,Buffer.tree(~F32,result))>,source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
-  values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),ready: Buffer.Ready<F32,result>,+position: Nat,
+  values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),ready: Buffer.Sized<F32,result>,+position: Nat,
   point: LinearPoint<geometry,position>) ->
   {Buffer.value(~F32,U32.from_nat(position),Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)))) == original(logical,U32.from_nat(position)) : F32}:
   LinearPoint{+image,+channel,+row,+column,+inside,+exact} = point
@@ -109,7 +109,7 @@ def point_read(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical
 
 def finite_read(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+limits: Machine.Limits,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,
   +domain: BandGather.Domain<geometry,limits,Tree.capacity(F32,Buffer.tree(~F32,result))>,source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
-  values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),ready: Buffer.Ready<F32,result>,+position: Nat,
+  values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),ready: Buffer.Sized<F32,result>,+position: Nat,
   inside: {Nat.is_lt(position,BandGather.elements(geometry)) == True{} : Bool}) ->
   Dense.At(~F32,~Logical,~original,logical,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result))),position):
   point_read(~Logical,~original,logical,geometry,limits,bands,result,domain,source_shape,values,ready,position,
@@ -118,7 +118,7 @@ def finite_read(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logica
 
 def finite_values(~Logical: Data,~original: Logical -> U32 -> F32,count: Nat,+start: Nat,+logical: Logical,+geometry: Bands.Geometry,+limits: Machine.Limits,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,
   +domain: BandGather.Domain<geometry,limits,Tree.capacity(F32,Buffer.tree(~F32,result))>,+source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
-  +values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Ready<F32,result>,
+  +values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Sized<F32,result>,
   +room: {Nat.is_le(Nat.add(start,count),BandGather.elements(geometry)) == True{} : Bool}) ->
   Members.All(Nat,{position => Dense.At(~F32,~Logical,~original,logical,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result))),position) : Nat -> Data},Ranges.range(count,start)):
   match count:
@@ -133,7 +133,7 @@ def gathered_length(+geometry: Bands.Geometry,+bands: Model.Model<F32>,+result: 
     Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result))),
     Buffer.Content{Writes.pure(F32,BandGather.refinement_writes(~F32,geometry,bands),Buffer.tree(~F32,result)),Buffer.length(~F32,result)},BandGather.gathered_writes(~F32,geometry,bands,result))
 
-def gathered_ready(+geometry: Bands.Geometry,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,ready: Buffer.Ready<F32,result>) ->
+def gathered_ready(+geometry: Bands.Geometry,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,ready: Buffer.Sized<F32,result>) ->
   Buffer.ContentReady<F32,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)))>:
   Buffer.Model{+tree,+length,certificate} = result
   %Equal.sym(Buffer.Content<F32>,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result))),
@@ -142,7 +142,7 @@ def gathered_ready(+geometry: Bands.Geometry,+bands: Model.Model<F32>,+result: B
 
 def gathered_values(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+limits: Machine.Limits,+bands: Model.Model<F32>,+result: Buffer.Model<F32>,
   +domain: BandGather.Domain<geometry,limits,Tree.capacity(F32,Buffer.tree(~F32,result))>,+source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
-  +values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Ready<F32,result>,
+  +values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Sized<F32,result>,
   +length_exact: {Buffer.length(~F32,result) == BandGather.elements(geometry) : Nat}) ->
   Dense.Values(~F32,~Logical,~original,logical,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)))):
   %Equal.sym(Nat,Buffer.content_length(~F32,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)))),Buffer.length(~F32,result),gathered_length(geometry,bands,result)) :
@@ -153,9 +153,9 @@ def gathered_values(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Lo
 
 def gathered_contract(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: F32,+workers: U32,+limits: Machine.Limits,
   +bands: Model.Model<F32>,+result: Buffer.Model<F32>,+domain: BandGather.Domain<geometry,limits,Tree.capacity(F32,Buffer.tree(~F32,result))>,
-  +source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Ready<F32,result>,
+  +source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),+ready: Buffer.Sized<F32,result>,
   +length_exact: {Buffer.length(~F32,result) == BandGather.elements(geometry) : Nat},coherent: {ShapeLaws.elements(shape) == BandGather.elements(geometry) : Nat}) ->
-  Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)),shape,fill,Tensors.Ready{},workers}):
+  Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)),shape,fill,Tensors.Usable{},workers}):
   Shape.Both{Shape.Both{Dense.WellFormed{
       Equal.trans(Nat,Buffer.content_length(~F32,Buffer.contents(~F32,Bands.gather(~F32,geometry,Model.pack(~F32,bands),Buffer.pack(~F32,result)))),Buffer.length(~F32,result),ShapeLaws.elements(shape),
         gathered_length(geometry,bands,result),Equal.trans(Nat,Buffer.length(~F32,result),BandGather.elements(geometry),ShapeLaws.elements(shape),length_exact,Equal.sym(Nat,ShapeLaws.elements(shape),BandGather.elements(geometry),coherent))),
@@ -258,13 +258,13 @@ def allocated_observed(~Logical: Data,~original: Logical -> U32 -> F32,+logical:
   +bands: Model.Model<F32>,+whole: BandGather.Domain<geometry,limits,capacity>,source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
   values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),coherent: {ShapeLaws.elements(shape) == BandGather.elements(geometry) : Nat},
   observation: Buffer.Observation<F32,Tensors.buffer(~F32,fill,Bands.elements(geometry))>) ->
-  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Ready{},workers})):
+  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Usable{},workers})):
   Buffer.Observation{+result,+equation} = observation
   +ready = Buffer.ready_observed(~F32,Tensors.buffer(~F32,fill,Bands.elements(geometry)),result,equation,
     BandCount.allocated(~F32,Bands.elements(geometry),fill,BandCount.allocatable(geometry,limits,capacity,whole)))
   +length_exact = Equal.trans(Nat,Buffer.length(~F32,result),U32.to_nat(Bands.elements(geometry)),BandGather.elements(geometry),
     allocation_length(Bands.elements(geometry),fill,result,equation),BandCount.exact(geometry,limits,capacity,whole))
-  %equation : Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{Bands.gather(~F32,geometry,Model.pack(~F32,bands),_),shape,fill,Tensors.Ready{},workers})
+  %equation : Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{Bands.gather(~F32,geometry,Model.pack(~F32,bands),_),shape,fill,Tensors.Usable{},workers})
   gathered_contract(~Logical,~original,logical,geometry,shape,fill,workers,limits,bands,result,
     BandDense.owned(~F32,geometry,limits,capacity,result,Equal.sym(Nat,Buffer.length(~F32,result),BandGather.elements(geometry),length_exact),ready,whole),
     source_shape,values,ready,length_exact,coherent)
@@ -272,15 +272,15 @@ def allocated_observed(~Logical: Data,~original: Logical -> U32 -> F32,+logical:
 def banded(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: F32,+workers: U32,+limits: Machine.Limits,+capacity: U32,
   +bands: Model.Model<F32>,whole: BandGather.Domain<geometry,limits,capacity>,source_shape: BandShape.WellFormed<F32,geometry,Model.content(~F32,bands)>,
   values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.content(~F32,bands)),coherent: {ShapeLaws.elements(shape) == BandGather.elements(geometry) : Nat}) ->
-  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Ready{},workers})):
+  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Usable{},workers})):
   allocated_observed(~Logical,~original,logical,geometry,shape,fill,workers,limits,capacity,bands,whole,source_shape,values,coherent,
     Buffer.observe(~F32,Tensors.buffer(~F32,fill,Bands.elements(geometry))))
 
 def normal_banded(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: F32,+workers: U32,+bands: Model.Model<F32>,
-  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Ready{},workers}),
+  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Usable{},workers}),
   values: BandValues.Values(~F32,~Logical,~original,logical,geometry,Model.contents(~F32,Model.pack(~F32,bands))),
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool}) ->
-  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Ready{},workers})):
+  Dense.Contract(~F32,~Logical,~original,logical,flattened(Tensors.Banded{Model.pack(~F32,bands),geometry,shape,fill,Tensors.Usable{},workers})):
   Shape.Both{source_shape,Shape.Both{+counted,+coherent}} = normal
   banded(~Logical,~original,logical,geometry,shape,fill,workers,Default.limits(),Machine.capacity(Default.limits()),bands,
     Global.domain(shape,geometry,counted,coherent,channels_positive,height_positive,width_positive),
@@ -289,7 +289,7 @@ def normal_banded(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logi
     BandCount.shape_coherence_elements(shape,geometry,coherent))
 
 type Parameter<-buffer: Storage.Buffer<F32>> is Data:
-  Parameter{model: Buffer.Model<F32>,equation: {Buffer.pack(~F32,model) == buffer : Storage.Buffer<F32>},ready: Buffer.Ready<F32,model>,
+  Parameter{model: Buffer.Model<F32>,equation: {Buffer.pack(~F32,model) == buffer : Storage.Buffer<F32>},ready: Buffer.Sized<F32,model>,
     values: List<&2,F32>,length_exact: {ConvSpec.length(values) == Buffer.length(~F32,model) : Nat},
     evidence: StorageLaws.SequenceEvidence<F32,ConvSpec.length(values),values>,
     tree_exact: {Buffer.tree(~F32,model) == StorageLaws.sequence_storage(F32,ConvSpec.length(values),values,evidence) : Tree.Tree<F32>}}
@@ -316,7 +316,7 @@ def parameter(buffer: Storage.Buffer<F32>,ready: Buffer.ContentReady<F32,Buffer.
   observed_parameter(buffer,ready,Buffer.observe(~F32,buffer))
 
 def contract_ready(~Logical: Data,~original: Logical -> U32 -> F32,+logical: Logical,-buffer: Storage.Buffer<F32>,+shape: List<&2,U32>,+fill: F32,+workers: U32,
-  contract: Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{buffer,shape,fill,Tensors.Ready{},workers})) -> Buffer.ContentReady<F32,Buffer.contents(~F32,buffer)>:
+  contract: Dense.Contract(~F32,~Logical,~original,logical,Tensors.Tensor{buffer,shape,fill,Tensors.Usable{},workers})) -> Buffer.ContentReady<F32,Buffer.contents(~F32,buffer)>:
   Shape.Both{Shape.Both{Dense.WellFormed{length_exact,ready},status_ready},values} = contract
   ready
 

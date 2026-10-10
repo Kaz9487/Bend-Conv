@@ -37,6 +37,7 @@ import ../../lib/proofs/tensor_shape_refinement.bend as ShapeLaws
 import ../../lib/proofs/word_encoding.bend as WordEncoding
 import ../../lib/storage_buffer.bend as Storage
 import ../../lib/tensor_band.bend as Bands
+import ../../lib/kernel_tile.bend as Tile
 
 # A dense image keeps the supplied input trees and their certificates. The
 # storage contract is constructed from their real leading contents and room;
@@ -159,7 +160,7 @@ def shape_count(+limits: Machine.Limits,+problem: ConvSpec.Problem,+batched: Boo
 def run_contract(~custom: F32 -> F32,+activation: Activations.Activation,+limits: Machine.Limits,+problem: ConvSpec.Problem,+batched: Bool,+depth: U32,+input: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32,+source: SourceStorage<problem,input,weights,bias>,
   +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool}) ->
   Dense.Contract(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{problem,activation},
-    Tensors.Tensor{Pipeline.run(~custom,activation,depth,Inference.work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Ready{},workers}):
+    Tensors.Tensor{Pipeline.run(~custom,activation,depth,Inference.work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Usable{},workers}):
   Shape.Both{Shape.Both{Dense.WellFormed{
     Equal.trans(Nat,Buffer.content_length(~F32,Buffer.contents(~F32,Pipeline.run(~custom,activation,depth,Inference.work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)))),
       U32.to_nat(PreparedOutputReadback.count(problem)),ShapeLaws.elements(output_extents(problem,batched)),
@@ -176,9 +177,14 @@ def caller_input_size(problem: ConvSpec.Problem) -> U32:
   ConvSpec.Problem{ConvSpec.Shape{ci,co,height,width,kernel,stride,padding},xs,ws,bs} = problem
   U32.from_nat(Nat.mul(ci,Nat.mul(height,width)))
 
+# The caller's weights in the order the kernel reads them.
+def packed(problem: ConvSpec.Problem,weights: Buffer.Model<F32>) -> Storage.Buffer<Tile.Tile8>:
+  TensorConvolution.packed(TensorConvolution.Geometry{1,False{},dimensions(problem)},Buffer.pack(~F32,weights))
+
 def executed(~custom: F32 -> F32,+activation: Activations.Activation,+problem: ConvSpec.Problem,+batched: Bool,+selected: U32,+input: Buffer.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
-  {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) ==
-    Tensors.Tensor{Pipeline.run(~custom,activation,selected,image_work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Ready{},workers} : Tensors.Tensor<F32>}:
+  {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),packed(problem,weights),Buffer.pack(~F32,bias),workers) ==
+    Tensors.Tensor{Pipeline.run(~custom,activation,selected,image_work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Usable{},workers} : Tensors.Tensor<F32>}:
+  ConvSpec.Problem{ConvSpec.Shape{ci,co,height,width,kernel,stride,padding},xs,ws,bs} = problem
   {==}
 
 type ActualInput is Data:
@@ -187,7 +193,7 @@ type ActualInput is Data:
 
 def at_depth(~custom: F32 -> F32,input: ActualInput,selected: U32) -> Tensors.Tensor<F32>:
   ActualInput{+problem,activation,+batched,source,weights,bias,workers} = input
-  TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)
+  TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers)
 
 def logical(input: ActualInput) -> DenseConvolution.Logical:
   ActualInput{problem,activation,batched,source,weights,bias,workers} = input
@@ -209,12 +215,12 @@ def configured_parts(~custom: F32 -> F32,+activation: Activations.Activation,+li
   +source: SourceStorage<problem,input,weights,bias>,
   +valid: {ConvSpec.valid(problem) == True{} : Bool},+supported: {NativeConv.supports_packed_with_limits(limits,problem) == True{} : Bool}) ->
   Dense.Contract(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{problem,activation},
-    TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)):
-  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    Tensors.Tensor{Pipeline.run(~custom,activation,selected,image_work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Ready{},workers},
+    TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),packed(problem,weights),Buffer.pack(~F32,bias),workers)):
+  %Equal.sym(Tensors.Tensor<F32>,TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),output_extents(problem,batched),Buffer.pack(~F32,input),packed(problem,weights),Buffer.pack(~F32,bias),workers),
+    Tensors.Tensor{Pipeline.run(~custom,activation,selected,image_work(problem),Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Usable{},workers},
     executed(~custom,activation,problem,batched,selected,input,weights,bias,workers)) : Dense.Contract(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{problem,activation},_)
   %Equal.sym(Pipeline.Work,image_work(problem),Inference.work(problem),work_matches(limits,problem,valid,supported)) :
-    Dense.Contract(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{problem,activation},Tensors.Tensor{Pipeline.run(~custom,activation,selected,_,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Ready{},workers})
+    Dense.Contract(~F32,~DenseConvolution.Logical,~DenseConvolution.original(~custom),DenseConvolution.Logical{problem,activation},Tensors.Tensor{Pipeline.run(~custom,activation,selected,_,Buffer.pack(~F32,input),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias)),output_extents(problem,batched),0.0,Tensors.Usable{},workers})
   run_contract(~custom,activation,limits,problem,batched,selected,input,weights,bias,workers,source,valid,supported)
 
 def selected_contract(~custom: F32 -> F32,+input: ActualInput,+limits: Machine.Limits,+selected: U32,+source: Source(input),
@@ -263,11 +269,11 @@ def selected(arguments: TensorConvolution.DenseArguments) -> U32:
 
 def execute(~custom: F32 -> F32,input: ActualInput,arguments: TensorConvolution.DenseArguments) -> Tensors.Tensor<F32>:
   ActualInput{problem,activation,batched,source,weights,bias,workers} = input
-  TensorConvolution.execute_dense_arguments(~custom,activation,arguments,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)
+  TensorConvolution.execute_dense_arguments(~custom,activation,arguments,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers)
 
 def result(~custom: F32 -> F32,input: ActualInput) -> Tensors.Tensor<F32>:
-  ActualInput{problem,activation,batched,source,weights,bias,workers} = input
-  TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{1,batched,dimensions(problem)},Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers)
+  ActualInput{+problem,activation,batched,source,weights,bias,workers} = input
+  TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{1,batched,dimensions(problem)},Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers)
 
 # Leave the problem opaque here. Both executor heads contain the exact same
 # dense_arguments producer, including its original default cost calculation.
@@ -300,15 +306,15 @@ def scheduled(~custom: F32 -> F32,+input: ActualInput,+actual: TensorConvolution
   TensorConvolution.DenseArguments{+count,+arguments_work,+arguments_input_size,+output_size,+extents,+selected} = actual
   Metadata{+count_exact,+work_exact,+input_exact,+output_exact,+extents_exact} = evidence
   %Equal.sym(U32,count,1,count_exact) :
-    {TensorConvolution.execute_dense_at_depth(~custom,activation,_,selected,arguments_work,arguments_input_size,output_size,extents,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
+    {TensorConvolution.execute_dense_at_depth(~custom,activation,_,selected,arguments_work,arguments_input_size,output_size,extents,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
   %Equal.sym(Pipeline.Work,arguments_work,image_work(problem),work_exact) :
-    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,_,arguments_input_size,output_size,extents,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
+    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,_,arguments_input_size,output_size,extents,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
   %Equal.sym(U32,arguments_input_size,caller_input_size(problem),input_exact) :
-    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),_,output_size,extents,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
+    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),_,output_size,extents,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
   %Equal.sym(U32,output_size,PreparedOutputReadback.count(problem),output_exact) :
-    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),_,extents,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
+    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),_,extents,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
   %Equal.sym(List<&2,U32>,extents,output_extents(problem,batched),extents_exact) :
-    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),_,Buffer.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
+    {TensorConvolution.execute_dense_at_depth(~custom,activation,1,selected,image_work(problem),caller_input_size(problem),PreparedOutputReadback.count(problem),_,Buffer.pack(~F32,source),packed(problem,weights),Buffer.pack(~F32,bias),workers) == at_depth(~custom,input,selected) : Tensors.Tensor<F32>}
   {==}
 
 def configured(~custom: F32 -> F32,+input: ActualInput,+limits: Machine.Limits,+actual: TensorConvolution.DenseArguments,+facts: Metadata<input,actual>,+source: Source(input),
@@ -327,14 +333,14 @@ def gathered(+layout: Bands.Geometry,source: Bands.Bands(~F32)) -> Storage.Buffe
   Bands.gather(~F32,layout,source,Tensors.buffer(~F32,0.0,U32.from_nat(Nat.mul(U32.to_nat(images),Nat.mul(U32.to_nat(channels),Nat.mul(U32.to_nat(height),U32.to_nat(width)))))))
 
 def false_route(~custom: F32 -> F32,+activation: Activations.Activation,+geometry: TensorConvolution.Geometry,+layout: Bands.Geometry,
-  -source: Bands.Bands(~F32),-weights: Storage.Buffer<F32>,-bias: Storage.Buffer<F32>,+workers: U32) ->
+  -source: Bands.Bands(~F32),-weights: Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32>,+workers: U32) ->
   {TensorConvolution.execute_existing_layout(~custom,activation,False{},geometry,layout,source,weights,bias,workers) ==
     TensorConvolution.execute_dense(~custom,activation,geometry,gathered(layout,source),weights,bias,workers) : Tensors.Tensor<F32>}:
   Bands.Geometry{images,channels,height,width} = layout
   {==}
 
 def selected_false(~custom: F32 -> F32,+activation: Activations.Activation,+selected: Bool,+geometry: TensorConvolution.Geometry,+layout: Bands.Geometry,
-  -source: Bands.Bands(~F32),-weights: Storage.Buffer<F32>,-bias: Storage.Buffer<F32>,+workers: U32,disabled: {selected == False{} : Bool}) ->
+  -source: Bands.Bands(~F32),-weights: Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32>,+workers: U32,disabled: {selected == False{} : Bool}) ->
   {TensorConvolution.execute_existing_layout(~custom,activation,selected,geometry,layout,source,weights,bias,workers) ==
     TensorConvolution.execute_dense(~custom,activation,geometry,gathered(layout,source),weights,bias,workers) : Tensors.Tensor<F32>}:
   %Equal.sym(Bool,selected,False{},disabled) :
@@ -365,7 +371,7 @@ def empty_selector(+batched: Bool,dimensions: KernelShape.Dimensions) ->
   {==}
 
 def padding_route(~custom: F32 -> F32,+activation: Activations.Activation,+images: U32,+batched: Bool,+channels: Nat,+outputs: Nat,+height: Nat,+width: Nat,+kernel: Nat,+stride: Nat,+padding: Nat,+layout: Bands.Geometry,
-  -source: Bands.Bands(~F32),-weights: Storage.Buffer<F32>,-bias: Storage.Buffer<F32>,+workers: U32,large: {Nat.is_le(kernel,padding) == True{} : Bool}) ->
+  -source: Bands.Bands(~F32),-weights: Storage.Buffer<Tile.Tile8>,-bias: Storage.Buffer<F32>,+workers: U32,large: {Nat.is_le(kernel,padding) == True{} : Bool}) ->
   {TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{images,batched,KernelShape.Dimensions{channels,outputs,height,width,kernel,stride,padding}}),
       TensorConvolution.Geometry{images,batched,KernelShape.Dimensions{channels,outputs,height,width,kernel,stride,padding}},layout,source,weights,bias,workers) ==
     TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{images,batched,KernelShape.Dimensions{channels,outputs,height,width,kernel,stride,padding}},gathered(layout,source),weights,bias,workers) : Tensors.Tensor<F32>}:
@@ -377,21 +383,21 @@ def empty_output_shape(+batched: Bool,dimensions: KernelShape.Dimensions) -> Lis
   TensorConvolution.output_shape(batched,0,U32.from_nat(outputs),U32.from_nat(KernelShape.axis_size(height,kernel,stride,padding)),U32.from_nat(KernelShape.axis_size(width,kernel,stride,padding)))
 
 def empty_dense(~custom: F32 -> F32,+activation: Activations.Activation,+batched: Bool,+dimensions: KernelShape.Dimensions,-input: Storage.Buffer<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
-  {TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,batched,dimensions},input,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) ==
-    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Ready{},workers} : Tensors.Tensor<F32>}:
+  {TensorConvolution.execute_dense(~custom,activation,TensorConvolution.Geometry{0,batched,dimensions},input,TensorConvolution.packed(TensorConvolution.Geometry{0,batched,dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) ==
+    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Usable{},workers} : Tensors.Tensor<F32>}:
   KernelShape.Dimensions{channels,outputs,height,width,kernel,stride,padding} = dimensions
   Buffer.Model{tree,length,Certificate.Certificate{depth,equation}} = bias
   {==}
 
 def empty_existing_layout(~custom: F32 -> F32,+activation: Activations.Activation,+batched: Bool,+dimensions: KernelShape.Dimensions,+layout: Bands.Geometry,
   -source: Bands.Bands(~F32),+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+workers: U32) ->
-  {TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,batched,dimensions}),TensorConvolution.Geometry{0,batched,dimensions},layout,source,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) ==
-    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Ready{},workers} : Tensors.Tensor<F32>}:
+  {TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(TensorConvolution.Geometry{0,batched,dimensions}),TensorConvolution.Geometry{0,batched,dimensions},layout,source,TensorConvolution.packed(TensorConvolution.Geometry{0,batched,dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) ==
+    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Usable{},workers} : Tensors.Tensor<F32>}:
   +geometry = {TensorConvolution.Geometry{0,batched,dimensions} : TensorConvolution.Geometry}
-  Equal.trans(Tensors.Tensor<F32>,TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(geometry),geometry,layout,source,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    TensorConvolution.execute_dense(~custom,activation,geometry,gathered(layout,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers),
-    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Ready{},workers},
-    selected_false(~custom,activation,TensorConvolution.uses_band_windows(geometry),geometry,layout,source,Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers,empty_selector(batched,dimensions)),
+  Equal.trans(Tensors.Tensor<F32>,TensorConvolution.execute_existing_layout(~custom,activation,TensorConvolution.uses_band_windows(geometry),geometry,layout,source,TensorConvolution.packed(TensorConvolution.Geometry{0,batched,dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
+    TensorConvolution.execute_dense(~custom,activation,geometry,gathered(layout,source),TensorConvolution.packed(TensorConvolution.Geometry{0,batched,dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers),
+    Tensors.Tensor{Tensors.buffer(~F32,0.0,0),empty_output_shape(batched,dimensions),0.0,Tensors.Usable{},workers},
+    selected_false(~custom,activation,TensorConvolution.uses_band_windows(geometry),geometry,layout,source,TensorConvolution.packed(TensorConvolution.Geometry{0,batched,dimensions},Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers,empty_selector(batched,dimensions)),
     empty_dense(~custom,activation,batched,dimensions,gathered(layout,source),weights,bias,workers))
 
 # Existing Array strategies already cover arbitrary supported padding. This

@@ -10,7 +10,7 @@ import ./tensor_global_shape_count.bend as Global
 import ./nat_order.bend as Order
 
 def stored(~Element: Data,+model: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+count: U32,
-  ready: Buffer.Ready<Element,model>,+length_exact: {Buffer.length(~Element,model) == ShapeLaws.elements(shape) : Nat},
+  ready: Buffer.Sized<Element,model>,+length_exact: {Buffer.length(~Element,model) == ShapeLaws.elements(shape) : Nat},
   accepted: {Tensors.count_of(shape) == Some{count} : Maybe<&2,U32>},counted: Count.Count<ShapeLaws.elements(shape),count>) ->
   Global.Normal(~Element,Tensors.storage_of(~Element,shape,Some{count},Buffer.pack(~Element,model),fill)):
   Buffer.Model{+tree,+length,+certificate} = model
@@ -29,7 +29,7 @@ def stored(~Element: Data,+model: Buffer.Model<Element>,+shape: List<&2,U32>,+fi
       length_exact}}
 
 def from_storage(~Element: Data,+model: Buffer.Model<Element>,+shape: List<&2,U32>,+fill: Element,+counted: Global.Counted<shape>,
-  ready: Buffer.Ready<Element,model>,length_exact: {Buffer.length(~Element,model) == ShapeLaws.elements(shape) : Nat}) ->
+  ready: Buffer.Sized<Element,model>,length_exact: {Buffer.length(~Element,model) == ShapeLaws.elements(shape) : Nat}) ->
   Global.Normal(~Element,Tensors.from_storage(~Element,shape,Buffer.pack(~Element,model),fill)):
   Global.Counted{+count,+accepted} = counted
   %Equal.sym(Maybe<&2,U32>,Tensors.count_of(shape),Some{count},accepted) : Global.Normal(~Element,Tensors.storage_of(~Element,shape,_,Buffer.pack(~Element,model),fill))

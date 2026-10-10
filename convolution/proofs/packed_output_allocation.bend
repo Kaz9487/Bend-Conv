@@ -29,18 +29,18 @@ def channel_positive(+problem: ConvSpec.Problem,valid: Guards.Valid<problem>) ->
   Guards.Valid{input_channels,output_channels,height,width,kernel,stride,fits_height,fits_width,input_length,weight_length,bias_length} = valid
   output_channels
 
-type Ready<-count: U32,-depth: Nat> is Data:
-  Ready{depth_bound: {Nat.is_le(depth,30n) == True{} : Bool},room: {Nat.is_le(U32.to_nat(count),U32.to_nat(Tree.capacity(F32,Tree.fresh(F32,depth,0.0)))) == True{} : Bool}}
+type Sized<-count: U32,-depth: Nat> is Data:
+  Sized{depth_bound: {Nat.is_le(depth,30n) == True{} : Bool},room: {Nat.is_le(U32.to_nat(count),U32.to_nat(Tree.capacity(F32,Tree.fresh(F32,depth,0.0)))) == True{} : Bool}}
 
-def from_allocation(+count: U32,proof: ArrayAllocation.Allocation(count)) -> Ready<count,Storage.allocation_depth(count)>:
+def from_allocation(+count: U32,proof: ArrayAllocation.Allocation(count)) -> Sized<count,Storage.allocation_depth(count)>:
   Shape.Both{depth_bound,room} = proof
-  Ready{depth_bound,
+  Sized{depth_bound,
     %Equal.sym(U32,Tree.capacity(F32,Tree.fresh(F32,Storage.allocation_depth(count),0.0)),U32.shln(1,Storage.allocation_depth(count)),StorageCapacity.exact(Storage.allocation_depth(count),Tree.fresh(F32,Storage.allocation_depth(count),0.0),Shape.fresh(F32,Storage.allocation_depth(count),0.0))) :
       {Nat.is_le(U32.to_nat(count),U32.to_nat(_)) == True{} : Bool}
     room}
 
 def allocated(+limits: Machine.Limits,+problem: ConvSpec.Problem,+span: U32,+group: Nat,geometry: LeafBounds.Geometry<limits,problem,span>,group_inside: {Nat.is_lt(group,PackingBounds.groups(span)) == True{} : Bool}) ->
-  Ready<count(problem,span),depth(problem,span)>:
+  Sized<count(problem,span),depth(problem,span)>:
   LeafBounds.Geometry{+valid,+supported,+span_bound,alignment} = geometry
   +exact = Output.count_exact(limits,problem,span,supported,span_bound)
   from_allocation(count(problem,span),ArrayAllocation.allocated(count(problem,span),Machine.capacity(limits),Limits.capacity_fits(limits),Limits.capacity_allocatable(limits),

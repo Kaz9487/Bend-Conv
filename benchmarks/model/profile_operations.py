@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'benchmarks'))
-sys.path.insert(0, str(ROOT / 'examples/yolov5'))
+sys.path.insert(0, str(ROOT / 'benchmarks/model'))
 from allocation_instrumentation import replace_once  # noqa: E402
 from yolo_graph import input_slots  # noqa: E402
 

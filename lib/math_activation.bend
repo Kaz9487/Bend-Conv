@@ -1,10 +1,13 @@
 # FP32 activations, imported by callers as Act: Act.silu() is a value for
 # F.conv2d or F.activate, Act.silu_value the scalar function. Each built-in
-# states its scalar operations for the planners, counted from the C
-# that Bend emits: F32 arithmetic, comparisons and selects count one each.
-# F32.exp and F32.tanh widen to double, call glibc and narrow back; glibc
-# 2.41's common paths (sysdeps/ieee754/dbl-64/e_exp.c, s_tanh.c, s_expm1.c)
-# are 35 and 80 operations including call and return. See docs/design.md.
+# states its operations per element for the planners, counted from the emitted
+# C and assembly: arithmetic, comparisons, selects and word operations;
+# addressing, moves and loop control are excluded. The sigmoid, SiLU, tanh and
+# GELU run eight lanes at a time, so their counts are the instructions per
+# eight lanes divided by eight; the others are scalar counts. The sigmoid and
+# tanh use ordered FP32 arithmetic and word operations (lib/math_fp32.bend).
+# Sigmoid and SiLU scale their negative tails before the final underflow;
+# accuracy is measured against MPFR rather than a global rounding guarantee.
 import Base
 import ./math_fp32.bend as Fp32
 
@@ -45,7 +48,7 @@ def silu_value(value: F32) -> F32:
   Fp32.activate(value,True{})
 
 def tanh_value(value: F32) -> F32:
-  F32.tanh(value)
+  Fp32.tanh(value)
 
 # PyTorch's order: relu6(x + 3) / 6 and x * relu6(x + 3) / 6.
 def hard_sigmoid_value(value: F32) -> F32:
@@ -60,7 +63,7 @@ def hard_swish_value(value: F32) -> F32:
 # PyTorch's gelu(approximate='tanh'): 0.5 x (1 + tanh(sqrt(2/pi) (x + 0.044715 x^3))).
 def gelu_tanh_of(+value: F32) -> F32:
   +cube = ((value * value : F32) * value : F32)
-  ((0.5 * value : F32) * (1.0 + F32.tanh((0.7978845608 * (value + (0.044715 * cube : F32) : F32) : F32)) : F32) : F32)
+  ((0.5 * value : F32) * (1.0 + tanh_value((0.7978845608 * (value + (0.044715 * cube : F32) : F32) : F32)) : F32) : F32)
 
 def gelu_tanh_value(value: F32) -> F32:
   gelu_tanh_of(value)
@@ -101,7 +104,7 @@ def is_identity(activation: Activation) -> Bool:
     case Identity{}: True{}
     case activation: False{}
 
-# Scalar operations per element, excluding the pass that applies them.
+# Operations per element, excluding the pass that applies them.
 def operations(activation: Activation) -> F32:
   match activation:
     case Identity{}: 0.0
@@ -110,23 +113,23 @@ def operations(activation: Activation) -> F32:
     case ReLU6{}: 4.0
     # compare, multiply and select
     case LeakyReLU{slope}: 3.0
-    # negate, widen, exp, narrow, add and divide
-    case Sigmoid{}: 40.0
-    # the sigmoid and one multiply
-    case SiLU{}: 41.0
-    # widen, tanh and narrow
-    case Tanh{}: 82.0
+    # 31 arithmetic, comparison, select and word instructions per eight lanes
+    case Sigmoid{}: 3.875
+    # 34 per eight lanes: scaled numerator and positive-tail selection
+    case SiLU{}: 4.25
+    # 54 per eight lanes
+    case Tanh{}: 6.75
     # add, relu6 and divide; hard_swish also multiplies
     case HardSigmoid{}: 6.0
     case HardSwish{}: 7.0
-    # cube, four multiplies, two adds, the tanh and its conversions
-    case GELUTanh{}: 90.0
+    # 62 per eight lanes: the PyTorch expression around the tanh
+    case GELUTanh{}: 7.75
     case Custom{operations}: operations
 
-# A custom function (F.conv2d_with, F.apply) states its scalar operations per
+# A custom function (F.conv2d_custom, F.apply) states its scalar operations per
 # element: one per arithmetic, comparison or select; F32.exp about 37 and
 # F32.tanh about 82 with their conversions. The count only steers parallel
 # planning; results never depend on it. When unsure, use this conservative
-# count, the most expensive built-in.
+# count: a call into the C math library and a few operations around it.
 def unknown_operations() -> F32:
-  operations(GELUTanh{})
+  90.0

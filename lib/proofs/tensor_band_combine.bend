@@ -41,43 +41,43 @@ def leaf_contract_count_exact(+geometry: Bands.Geometry,+rows: U32,+length: Nat,
   BandShape.Count{exact,allocatable} = evidence
   exact
 
-def equation(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
+def equation(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},
   +left_metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,left)),+right_metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,right)),
-  +left_ready: Buffer.Ready<Element,left>,+right_ready: Buffer.Ready<Element,right>) ->
-  {Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))) ==
+  +left_ready: Buffer.Sized<Element,left>,+right_ready: Buffer.Sized<Element,right>) ->
+  {Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))) ==
     BandCombineLeaf.leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right)) : Buffer.Content<Element>}:
   +left_exact = leaf_contract_count_exact(geometry,rows,Buffer.length(~Element,left),BandShape.count(~Element,geometry,first,rows,left,width_positive,left_metadata,left_ready))
   +right_exact = leaf_contract_count_exact(geometry,rows,Buffer.length(~Element,right),BandShape.count(~Element,geometry,first,rows,right,width_positive,right_metadata,right_ready))
   +descriptor = TensorVectorDescriptorRefinement.from_count(geometry,rows,Buffer.length(~Element,left),BandShape.count(~Element,geometry,first,rows,left,width_positive,left_metadata,left_ready))
   Equal.trans(Buffer.Content<Element>,
-    Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
+    Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
     BandCombineLeaf.refinement_leaf_model(~Element,~operation,Bands.local_count(geometry,rows),left,right),
     BandCombineLeaf.leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right)),
-    BandCombineLeaf.refinement_leaf(~Element,~operation,Bands.local_count(geometry,rows),left,right),
+    BandCombineLeaf.refinement_leaf(~Element,~operation,~kernel,~kernel_law,Bands.local_count(geometry,rows),left,right),
     BandCombineLeaf.checked_leaf_model(~Element,~operation,Bands.local_count(geometry,rows),left,right,left_exact,right_exact,left_ready,right_ready,descriptor))
 
 def LeafContract(~Element: Data,~Context: Data,~value: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+first: U32,+rows: U32,+content: Buffer.Content<Element>) -> Data:
   Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.RowBand{content,first,rows}),
     Shape.Both<Buffer.ContentReady<Element,content>,BandShape.Leaf(geometry,first,rows,Buffer.content_length(~Element,content))>>
 
-def leaf(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def leaf(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+first: U32,+rows: U32,+left: Buffer.Model<Element>,+right: Buffer.Model<Element>,
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},
   +left_metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,left)),+right_metadata: BandShape.Leaf(geometry,first,rows,Buffer.length(~Element,right)),
-  +left_ready: Buffer.Ready<Element,left>,+right_ready: Buffer.Ready<Element,right>,
+  +left_ready: Buffer.Sized<Element,left>,+right_ready: Buffer.Sized<Element,right>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.RowBand{Buffer.content(~Element,left),first,rows}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.RowBand{Buffer.content(~Element,right),first,rows})) ->
   LeafContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,first,rows,
-    Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right)))):
+    Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right)))):
   match left right:
     case Buffer.Model{+left_tree,+left_length,+left_certificate} Buffer.Model{+right_tree,+right_length,+right_certificate}:
       +left = {Buffer.Model{left_tree,left_length,left_certificate} : Buffer.Model<Element>}
       +right = {Buffer.Model{right_tree,right_length,right_certificate} : Buffer.Model<Element>}
       %Equal.sym(Buffer.Content<Element>,
-        Buffer.contents(~Element,Bands.combine_leaf(~Element,~operation,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
+        Buffer.contents(~Element,Bands.combine_leaf_with(~Element,~kernel,Bands.local_count(geometry,rows),Buffer.pack(~Element,left),Buffer.pack(~Element,right))),
         BandCombineLeaf.leaf_content(~Element,~operation,Buffer.content(~Element,left),Buffer.content(~Element,right)),
-        equation(~Element,~operation,geometry,first,rows,left,right,width_positive,left_metadata,right_metadata,left_ready,right_ready)) :
+        equation(~Element,~operation,~kernel,~kernel_law,geometry,first,rows,left,right,width_positive,left_metadata,right_metadata,left_ready,right_ready)) :
         LeafContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,first,rows,_)
       Shape.Both{BandCombineLeaf.semantics_leaf(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,first,rows,left,right,
           left_ready,left_values,right_values),
@@ -102,7 +102,7 @@ def leaf_contract(~Element: Data,~Context: Data,~value: Context -> U32 -> Elemen
   Buffer.Content{tree,length} = content
   evidence
 
-def pipeline_model(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def pipeline_model(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},common: BandCombineLeaf.Common(~Element,left,right),
   left_metadata: BandShape.Contents(~Element,geometry,Model.content(~Element,left)),right_metadata: BandShape.Contents(~Element,geometry,Model.content(~Element,right)),
@@ -131,9 +131,9 @@ def pipeline_model(~Element: Data,~Left: Data,~Right: Data,~operation: Element -
         right_values : BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.RowBand{Buffer.content(~Element,right),first,rows})}
       leaf_contract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,first,rows,
         BandCombineLeaf.refinement_leaf_model(~Element,~operation,Bands.local_count(geometry,rows),left,right),
-        %BandCombineLeaf.refinement_leaf(~Element,~operation,Bands.local_count(geometry,rows),left,right) :
+        %BandCombineLeaf.refinement_leaf(~Element,~operation,~kernel,~kernel_law,Bands.local_count(geometry,rows),left,right) :
           LeafContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,first,rows,_)
-        leaf(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,first,rows,left,right,
+        leaf(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,first,rows,left,right,
           width_positive,left_metadata,right_metadata,left_ready,right_ready,left_values,right_values))
     case Model.Fork{+left,+right} Model.Fork{+other_left,+other_right}:
       Shape.Both{left_common,right_common} = common
@@ -145,9 +145,9 @@ def pipeline_model(~Element: Data,~Left: Data,~Right: Data,~operation: Element -
       Shape.Both{right_left_values,right_right_values} = right_values
       joined(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
         BandCombineLeaf.model(~Element,~operation,geometry,left,other_left),BandCombineLeaf.model(~Element,~operation,geometry,right,other_right),
-        pipeline_model(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,left,other_left,width_positive,left_common,
+        pipeline_model(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,left,other_left,width_positive,left_common,
           left_left_metadata,right_left_metadata,left_left_ready,right_left_ready,left_left_values,right_left_values),
-        pipeline_model(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,right,other_right,width_positive,right_common,
+        pipeline_model(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,right,other_right,width_positive,right_common,
           left_right_metadata,right_right_metadata,left_right_ready,right_right_ready,left_right_values,right_right_values))
     case Model.Leaf{+buffer,+first,+rows} Model.Fork{+other_left,+other_right}:
       Empty.absurd(PipelineContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
@@ -156,7 +156,7 @@ def pipeline_model(~Element: Data,~Left: Data,~Right: Data,~operation: Element -
       Empty.absurd(PipelineContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
         BandCombineLeaf.model(~Element,~operation,geometry,Model.Fork{left,right},Model.Leaf{buffer,first,rows})),common)
 
-def pipeline_combine(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def pipeline_combine(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},same: {Model.layout(~Element,left) == Model.layout(~Element,right) : Bands.Plan},
   left_metadata: BandShape.Contents(~Element,geometry,Model.content(~Element,left)),right_metadata: BandShape.Contents(~Element,geometry,Model.content(~Element,right)),
@@ -164,11 +164,11 @@ def pipeline_combine(~Element: Data,~Left: Data,~Right: Data,~operation: Element
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   PipelineContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-    Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))):
-  %Equal.sym(Model.Content<Element>,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
-    BandCombineLeaf.model(~Element,~operation,geometry,left,right),BandCombineLeaf.combine(~Element,~operation,geometry,parallel,left,right)) :
+    Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))):
+  %Equal.sym(Model.Content<Element>,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
+    BandCombineLeaf.model(~Element,~operation,geometry,left,right),BandCombineLeaf.combine(~Element,~operation,~kernel,~kernel_law,geometry,parallel,left,right)) :
     PipelineContract(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,_)
-  pipeline_model(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,left,right,width_positive,BandCombineLeaf.matched(~Element,left,right,same),
+  pipeline_model(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,left,right,width_positive,BandCombineLeaf.matched(~Element,left,right,same),
     left_metadata,right_metadata,left_ready,right_ready,left_values,right_values)
 
 def well_formed(~Element: Data,~Context: Data,~value: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+content: Model.Content<Element>,
@@ -177,23 +177,23 @@ def well_formed(~Element: Data,~Context: Data,~value: Context -> U32 -> Element,
   Shape.Both{values,Shape.Both{ready,metadata}} = evidence
   Shape.Both{values,BandShape.WellFormed{metadata,ready,coverage}}
 
-def combine_well_formed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def combine_well_formed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},same: {Model.layout(~Element,left) == Model.layout(~Element,right) : Bands.Plan},
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
   BandShape.WellFormed{left_metadata,left_ready,coverage} = left_shape
   BandShape.WellFormed{right_metadata,right_ready,right_coverage} = right_shape
   well_formed(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-    Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
-    pipeline_combine(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left,right,width_positive,same,
+    Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
+    pipeline_combine(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left,right,width_positive,same,
       left_metadata,right_metadata,Model.ready(~Element,left,left_ready),Model.ready(~Element,right,right_ready),left_values,right_values),
-    %Equal.sym(Bands.Plan,Model.content_layout(~Element,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
-      Model.layout(~Element,left),BandCombineLeaf.combine_layout(~Element,~operation,geometry,parallel,left,right)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
+    %Equal.sym(Bands.Plan,Model.content_layout(~Element,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
+      Model.layout(~Element,left),BandCombineLeaf.combine_layout(~Element,~operation,~kernel,~kernel_law,geometry,parallel,left,right)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
     %Equal.sym(Bands.Plan,Model.layout(~Element,left),Model.content_layout(~Element,Model.content(~Element,left)),Model.layout_matches_content(~Element,left)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
     coverage)
 
@@ -212,7 +212,7 @@ def observed_layout(~Element: Data,+model: Model.Model<Element>,-owner: Bands.Ba
     Equal.sym(Bands.Plan,Model.content_layout(~Element,Model.contents(~Element,owner)),Model.content_layout(~Element,Model.content(~Element,model)),
       Equal.cong(Model.Content<Element>,Bands.Plan,content => Model.content_layout(~Element,content),Model.contents(~Element,owner),Model.content(~Element,model),observed_contents(~Element,model,owner,equation))))
 
-def owners_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def owners_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,-left: Bands.Bands(~Element),-right: Bands.Bands(~Element),
   +width_positive: {BandShape.width_positive(geometry) == True{} : Bool},+same: {Model.content_layout(~Element,Model.contents(~Element,left)) == Model.content_layout(~Element,Model.contents(~Element,right)) : Bands.Plan},
   left_shape: BandShape.WellFormed<Element,geometry,Model.contents(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.contents(~Element,right)>,
@@ -220,8 +220,8 @@ def owners_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element 
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.contents(~Element,right)),
   left_observation: Model.Observation<Element,left>,right_observation: Model.Observation<Element,right>) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))>>:
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))>>:
   Model.Observation{+left_model,+left_equation} = left_observation
   Model.Observation{+right_model,+right_equation} = right_observation
   +left_content = observed_contents(~Element,left_model,left,left_equation)
@@ -244,25 +244,25 @@ def owners_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element 
       same,Equal.sym(Bands.Plan,Model.layout(~Element,right_model),Model.content_layout(~Element,Model.contents(~Element,right)),observed_layout(~Element,right_model,right,right_equation))))
   %left_equation :
     Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-        Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,_,right))),
-      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,_,right))>>
+        Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,_,right))),
+      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,_,right))>>
   %right_equation :
     Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-        Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left_model),_))),
-      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left_model),_))>>
-  combine_well_formed(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left_model,right_model,width_positive,matched,
+        Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left_model),_))),
+      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left_model),_))>>
+  combine_well_formed(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left_model,right_model,width_positive,matched,
     left_shape,right_shape,left_values,right_values)
 
-def combine_owners(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def combine_owners(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,left: Bands.Bands(~Element),right: Bands.Bands(~Element),
   width_positive: {BandShape.width_positive(geometry) == True{} : Bool},same: {Model.content_layout(~Element,Model.contents(~Element,left)) == Model.content_layout(~Element,Model.contents(~Element,right)) : Bands.Plan},
   left_shape: BandShape.WellFormed<Element,geometry,Model.contents(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.contents(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.contents(~Element,left)),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.contents(~Element,right))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))>>:
-  owners_observed(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left,right,width_positive,same,left_shape,right_shape,left_values,right_values,
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))>>:
+  owners_observed(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left,right,width_positive,same,left_shape,right_shape,left_values,right_values,
     Model.observe(~Element,left),Model.observe(~Element,right))
 
 # Both real align calls establish the common layout before any binary leaf.
@@ -273,16 +273,16 @@ def alignment_width_positive(+geometry: Bands.Geometry,+limits: Machine.Limits,+
   BandGather.Domain{capacity_ok,channels_positive,height_positive,alignment_width_positive,machine_room,allocation_room} = domain
   alignment_width_positive
 
-def alignment_aligned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def alignment_aligned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+layout: Bands.Plan,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,
   +left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,+right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right)),
   +target: BandDense.Fits(geometry,layout,capacity,Machine.half_word(limits)),+coverage: BandPlan.Coverage(layout,0n,Inspection.total_rows(geometry))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
-  combine_owners(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
+  combine_owners(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,
     Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right)),alignment_width_positive(geometry,limits,capacity,domain),
     Equal.trans(Bands.Plan,
       Model.content_layout(~Element,Model.contents(~Element,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)))),layout,
@@ -312,31 +312,31 @@ def alignment_selected(~Element: Data,choose_left: Bool,+geometry: Bands.Geometr
         %Equal.sym(Bands.Plan,Model.layout(~Element,right),Model.content_layout(~Element,Model.content(~Element,right)),Model.layout_matches_content(~Element,right)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
         coverage}
 
-def alignment_from_choice(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def alignment_from_choice(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+layout: Bands.Plan,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right)),
   choice: Choice(geometry,layout,limits,capacity)) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
   Shape.Both{target,coverage} = choice
-  alignment_aligned(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,layout,left,right,limits,capacity,domain,left_shape,right_shape,left_values,right_values,target,coverage)
+  alignment_aligned(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,layout,left,right,limits,capacity,domain,left_shape,right_shape,left_values,right_values,target,coverage)
 
-def alignment_chosen(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def alignment_chosen(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +limits: Machine.Limits,+capacity: U32,+domain: BandGather.Domain<geometry,limits,capacity>,
   +left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,+right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
         Bands.align(~Element,geometry,left_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,left)),
         Bands.align(~Element,geometry,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,right))))>>:
-  alignment_from_choice(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,
+  alignment_from_choice(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,
     BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),left,right,limits,capacity,domain,left_shape,right_shape,left_values,right_values,
     alignment_selected(~Element,Bands.same_plan(Model.layout(~Element,left),Model.layout(~Element,right)) ||
       Nat.is_le(BandSchedule.allocation_elements(Model.layout(~Element,left),geometry),BandSchedule.allocation_elements(Model.layout(~Element,right),geometry)),
@@ -360,7 +360,7 @@ def contract_banded(~Element: Data,~Left: Data,~Right: Data,~operation: Element 
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: Element,+workers: U32,-bands: Bands.Bands(~Element),
   evidence: Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,Model.contents(~Element,bands)),
     BandShape.WellFormed<Element,geometry,Model.contents(~Element,bands)>>) ->
-  CombineContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers}):
+  CombineContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers}):
   Shape.Both{values,well_formed} = evidence
   Shape.Both{well_formed,values}
 
@@ -368,15 +368,15 @@ def contract_banded(~Element: Data,~Left: Data,~Right: Data,~operation: Element 
 # band layout. Its machine envelope comes from the real dense owner and count.
 def count_domain(~Element: Data,+geometry: Bands.Geometry,+input: Buffer.Model<Element>,+count: U32,
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  length_exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},ready: Buffer.Ready<Element,input>,
+  length_exact: {U32.to_nat(count) == Buffer.length(~Element,input) : Nat},ready: Buffer.Sized<Element,input>,
   counted: Count.Count<ShapeLaws.elements(BandCount.extents(geometry)),count>) ->
   BandGather.Domain<geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,input))>:
   match ready counted:
-    case Buffer.Ready{+depth_ok,+room} Count.Count{+exact,+within}:
+    case Buffer.Sized{+depth_ok,+room} Count.Count{+exact,+within}:
       +expected_length = Equal.trans(Nat,BandGather.elements(geometry),ShapeLaws.elements(BandCount.extents(geometry)),Buffer.length(~Element,input),
         Equal.sym(Nat,ShapeLaws.elements(BandCount.extents(geometry)),BandGather.elements(geometry),BandCount.domain_elements(geometry)),
         Equal.trans(Nat,ShapeLaws.elements(BandCount.extents(geometry)),U32.to_nat(count),Buffer.length(~Element,input),exact,length_exact))
-      BandDense.owned(~Element,geometry,Default.limits(),Machine.capacity(Default.limits()),input,expected_length,Buffer.Ready{depth_ok,room},
+      BandDense.owned(~Element,geometry,Default.limits(),Machine.capacity(Default.limits()),input,expected_length,Buffer.Sized{depth_ok,room},
         BandCount.evidence(geometry,count,channels_positive,height_positive,width_positive,Count.Count{exact,within}))
 
 def converted_well_formed(~Element: Data,+geometry: Bands.Geometry,+fill: Element,+layout: Bands.Plan,+input: Buffer.Model<Element>,+division_capacity: U32,
@@ -387,21 +387,21 @@ def converted_well_formed(~Element: Data,+geometry: Bands.Geometry,+fill: Elemen
       BandDense.from_dense_layout(~Element,geometry,fill,layout,input)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
     coverage}
 
-def band_left(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def band_left(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+left: Model.Model<Element>,+right: Buffer.Model<Element>,
   +whole: BandGather.Domain<geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,right))>,+left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Tree.Tree<Element>>,~BandCombineLeaf.value(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element)),BandCombineLeaf.Context{left_context,Buffer.tree(~Element,right)},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
         Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))))>>:
   BandShape.WellFormed{metadata,ready,+coverage} = left_shape
   +target = BandDense.target(~Element,geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,right)),left,whole,metadata,Model.ready(~Element,left,ready))
   +coverage = {
     %Equal.sym(Bands.Plan,Model.layout(~Element,left),Model.content_layout(~Element,Model.content(~Element,left)),Model.layout_matches_content(~Element,left)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
     coverage : BandPlan.Coverage(Model.layout(~Element,left),0n,Inspection.total_rows(geometry))}
-  combine_owners(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),geometry,parallel,
+  combine_owners(~Element,~Left,~Tree.Tree<Element>,~operation,~kernel,~kernel_law,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),geometry,parallel,
     Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right)),
     alignment_width_positive(geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,right)),whole),
     Equal.trans(Bands.Plan,Model.content_layout(~Element,Model.contents(~Element,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)))),Model.layout(~Element,left),
@@ -416,22 +416,22 @@ def band_left(~Element: Data,~Left: Data,~operation: Element -> Element -> Eleme
 
 # Dense storage on the left is converted directly into the right owner's
 # layout. The binary operation still receives the original left value first.
-def combined(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def combined(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+left: Buffer.Model<Element>,+right: Model.Model<Element>,
   +whole: BandGather.Domain<geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,left))>,+right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Tree.Tree<Element>,Right>,~BandCombineLeaf.value(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value),
       BandCombineLeaf.Context{Buffer.tree(~Element,left),right_context},geometry,
-      Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+      Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
         Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))))>>:
   BandShape.WellFormed{metadata,ready,+coverage} = right_shape
   +target = BandDense.target(~Element,geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,left)),right,whole,metadata,Model.ready(~Element,right,ready))
   +coverage = {
     %Equal.sym(Bands.Plan,Model.layout(~Element,right),Model.content_layout(~Element,Model.content(~Element,right)),Model.layout_matches_content(~Element,right)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
     coverage : BandPlan.Coverage(Model.layout(~Element,right),0n,Inspection.total_rows(geometry))}
-  combine_owners(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,geometry,parallel,
+  combine_owners(~Element,~Tree.Tree<Element>,~Right,~operation,~kernel,~kernel_law,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,geometry,parallel,
     Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right)),
     alignment_width_positive(geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,left)),whole),
     Equal.trans(Bands.Plan,Model.content_layout(~Element,Model.contents(~Element,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)))),Model.layout(~Element,right),
@@ -514,10 +514,10 @@ def empty_refinement_model(~Element: Data,~operation: Element -> Element -> Elem
     case Model.Leaf{buffer,first,rows} Model.Fork{other_left,other_right}: {==}
     case Model.Fork{left,right} Model.Leaf{buffer,first,rows}: {==}
 
-def empty_refinement_combine(~Element: Data,~operation: Element -> Element -> Element,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,counts: Counts(~Element,geometry,left)) ->
-  {Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))) == Model.content(~Element,left) : Model.Content<Element>}:
-  Equal.trans(Model.Content<Element>,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
-    BandCombineLeaf.model(~Element,~operation,geometry,left,right),Model.content(~Element,left),BandCombineLeaf.combine(~Element,~operation,geometry,parallel,left,right),empty_refinement_model(~Element,~operation,geometry,left,right,counts))
+def empty_refinement_combine(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,counts: Counts(~Element,geometry,left)) ->
+  {Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))) == Model.content(~Element,left) : Model.Content<Element>}:
+  Equal.trans(Model.Content<Element>,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),
+    BandCombineLeaf.model(~Element,~operation,geometry,left,right),Model.content(~Element,left),BandCombineLeaf.combine(~Element,~operation,~kernel,~kernel_law,geometry,parallel,left,right),empty_refinement_model(~Element,~operation,geometry,left,right,counts))
 
 # Source metadata and Ready discharge empty local lengths. The actual empty
 # binary preserves content, so its complete WF and pointwise values follow.
@@ -542,13 +542,13 @@ def values(~Element: Data,~Context: Data,~value: Context -> U32 -> Element,+cont
       Shape.Both{left_ready,right_ready} = ready
       Shape.Both{values(~Element,~Context,~value,context,geometry,left,left_counts,left_metadata,left_ready),values(~Element,~Context,~value,context,geometry,right,right_counts,right_metadata,right_ready)}
 
-def combined_well_formed(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,
+def combined_well_formed(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,+context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,
   +counts: Counts(~Element,geometry,left),source: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
   BandShape.WellFormed{+metadata,+ready,coverage} = source
-  %Equal.sym(Model.Content<Element>,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),Model.content(~Element,left),
-    empty_refinement_combine(~Element,~operation,geometry,parallel,left,right,counts)) :
+  %Equal.sym(Model.Content<Element>,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right))),Model.content(~Element,left),
+    empty_refinement_combine(~Element,~operation,~kernel,~kernel_law,geometry,parallel,left,right,counts)) :
     Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,_),BandShape.WellFormed<Element,geometry,_>>
   Shape.Both{values(~Element,~Context,~value,context,geometry,left,counts,metadata,Model.ready(~Element,left,ready)),BandShape.WellFormed{metadata,ready,coverage}}
 
@@ -582,20 +582,20 @@ def counts(~Element: Data,+geometry: Bands.Geometry,+bands: Model.Model<Element>
       channel_counts(~Element,images,height,width,bands)
     case Bands.Geometry{images,channels,height,width} BandShapeCount.Rows{zero}: no_rows_counts(~Element,geometry,bands,zero,metadata)
 
-def modeled(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def modeled(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left: Model.Model<Element>,+right: Model.Model<Element>,empty: BandShapeCount.EmptyGeometry<geometry>,
   source: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left),Model.pack(~Element,right)))>>:
   BandShape.WellFormed{+metadata,ready,coverage} = source
-  combined_well_formed(~Element,~Context,~operation,~value,context,geometry,parallel,left,right,
+  combined_well_formed(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,left,right,
     counts(~Element,geometry,left,empty,metadata),BandShape.WellFormed{metadata,ready,coverage})
 
-def empty_alignment_observed(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def empty_alignment_observed(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,-left: Bands.Bands(~Element),-right: Bands.Bands(~Element),+empty: BandShapeCount.EmptyGeometry<geometry>,
   source: BandShape.WellFormed<Element,geometry,Model.contents(~Element,left)>,left_observation: Model.Observation<Element,left>,right_observation: Model.Observation<Element,right>) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))>>:
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))>>:
   Model.Observation{+left_model,+left_equation} = left_observation
   Model.Observation{+right_model,+right_equation} = right_observation
   +left_content = observed_contents(~Element,left_model,left,left_equation)
@@ -603,29 +603,29 @@ def empty_alignment_observed(~Element: Data,~Context: Data,~operation: Element -
     %left_content : BandShape.WellFormed<Element,geometry,_>
     source : BandShape.WellFormed<Element,geometry,Model.content(~Element,left_model)>}
   %left_equation :
-    Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,_,right))),
-      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,_,right))>>
+    Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,_,right))),
+      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,_,right))>>
   %right_equation :
-    Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left_model),_))),
-      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,Model.pack(~Element,left_model),_))>>
-  modeled(~Element,~Context,~operation,~value,context,geometry,parallel,left_model,right_model,empty,canonical)
+    Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left_model),_))),
+      BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,Model.pack(~Element,left_model),_))>>
+  modeled(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,left_model,right_model,empty,canonical)
 
-def empty_alignment_owners(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def empty_alignment_owners(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,left: Bands.Bands(~Element),right: Bands.Bands(~Element),empty: BandShapeCount.EmptyGeometry<geometry>,
   source: BandShape.WellFormed<Element,geometry,Model.contents(~Element,left)>) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,left,right))>>:
-  empty_alignment_observed(~Element,~Context,~operation,~value,context,geometry,parallel,left,right,empty,source,Model.observe(~Element,left),Model.observe(~Element,right))
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))),
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,left,right))>>:
+  empty_alignment_observed(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,left,right,empty,source,Model.observe(~Element,left),Model.observe(~Element,right))
 
-def empty_alignment_aligned(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def empty_alignment_aligned(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+layout: Bands.Plan,+left: Model.Model<Element>,+right: Model.Model<Element>,+limits: Machine.Limits,+capacity: U32,
   empty: BandShapeCount.EmptyGeometry<geometry>,source: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,
   empty_alignment_target: BandDense.Fits(geometry,layout,capacity,Machine.half_word(limits)),coverage: BandPlan.Coverage(layout,0n,Inspection.total_rows(geometry))) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
-  empty_alignment_owners(~Element,~Context,~operation,~value,context,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),
+  empty_alignment_owners(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),
     Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right)),empty,
     BandCombineLeaf.aligned_well_formed(~Element,geometry,left_fill,layout,left,capacity,Machine.half_word(limits),source,empty_alignment_target,coverage))
 
@@ -644,50 +644,50 @@ def empty_alignment_selected(~Element: Data,choose_left: Bool,+geometry: Bands.G
         %Equal.sym(Bands.Plan,Model.layout(~Element,right),Model.content_layout(~Element,Model.content(~Element,right)),Model.layout_matches_content(~Element,right)) : BandPlan.Coverage(_,0n,Inspection.total_rows(geometry))
         coverage}
 
-def empty_alignment_from_choice(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def empty_alignment_from_choice(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+layout: Bands.Plan,+left: Model.Model<Element>,+right: Model.Model<Element>,+limits: Machine.Limits,+capacity: U32,
   empty: BandShapeCount.EmptyGeometry<geometry>,source: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,choice: Choice(geometry,layout,limits,capacity)) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))))>>:
   Shape.Both{empty_alignment_target,coverage} = choice
-  empty_alignment_aligned(~Element,~Context,~operation,~value,context,geometry,parallel,left_fill,right_fill,layout,left,right,limits,capacity,empty,source,empty_alignment_target,coverage)
+  empty_alignment_aligned(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,left_fill,right_fill,layout,left,right,limits,capacity,empty,source,empty_alignment_target,coverage)
 
-def empty_alignment_chosen(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~value: Context -> U32 -> Element,
+def empty_alignment_chosen(~Element: Data,~Context: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~value: Context -> U32 -> Element,
   +context: Context,+geometry: Bands.Geometry,+parallel: Bool,+left_fill: Element,+right_fill: Element,+left: Model.Model<Element>,+right: Model.Model<Element>,+limits: Machine.Limits,+capacity: U32,+empty: BandShapeCount.EmptyGeometry<geometry>,
   +left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>) ->
-  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+  Shape.Both<BandValues.Values(~Element,~Context,~value,context,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,right))))),
-    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine(~Element,~operation,geometry,parallel,
+    BandShape.WellFormed<Element,geometry,Model.contents(~Element,Bands.combine_with(~Element,~kernel,geometry,parallel,
       Bands.align(~Element,geometry,left_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),Model.pack(~Element,right))))>>:
-  empty_alignment_from_choice(~Element,~Context,~operation,~value,context,geometry,parallel,left_fill,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),left,right,limits,capacity,
+  empty_alignment_from_choice(~Element,~Context,~operation,~kernel,~kernel_law,~value,context,geometry,parallel,left_fill,right_fill,BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right)),left,right,limits,capacity,
     empty,left_shape,empty_alignment_selected(~Element,Bands.same_plan(Model.layout(~Element,left),Model.layout(~Element,right)) ||
       Nat.is_le(BandSchedule.allocation_elements(Model.layout(~Element,left),geometry),BandSchedule.allocation_elements(Model.layout(~Element,right),geometry)),geometry,limits,capacity,left,right,empty,left_shape,right_shape))
 
 # Empty binary execution contracts use the selected band layout. Their
 # zero-count content contract includes every zero axis and both mixed orders.
-def empty_contract_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def empty_contract_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,+left: Model.Model<Element>,+right: Model.Model<Element>,
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>) ->
   CombineContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   +layout = BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right))
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,layout)
   contract_banded(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))),
-    empty_alignment_chosen(~Element,~BandCombineLeaf.Context<Left,Right>,~operation,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))),
+    empty_alignment_chosen(~Element,~BandCombineLeaf.Context<Left,Right>,~operation,~kernel,~kernel_law,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},
       geometry,parallel,left_fill,right_fill,left,right,Default.limits(),Machine.capacity(Default.limits()),BandShapeCount.empty_geometry_classified(geometry,empty),left_shape,right_shape))
 
-def empty_contract_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def empty_contract_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Buffer.Model<Element>,
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},+source: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>) ->
   CombineContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,workers,
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
+    Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,workers,
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
   BandShape.WellFormed{metadata,ready,+coverage} = source
   +kind = BandShapeCount.empty_geometry_classified(geometry,empty)
   +target = empty_alignment_target(~Element,geometry,left,Machine.capacity(Default.limits()),Machine.half_word(Default.limits()),kind,metadata)
@@ -696,16 +696,16 @@ def empty_contract_band_left_planned(~Element: Data,~Left: Data,~operation: Elem
     coverage : BandPlan.Coverage(Model.layout(~Element,left),0n,Inspection.total_rows(geometry))}
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,left))
   contract_banded(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))),
-    empty_alignment_owners(~Element,~BandCombineLeaf.Context<Left,Tree.Tree<Element>>,~operation,~BandCombineLeaf.value(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element)),BandCombineLeaf.Context{left_context,Buffer.tree(~Element,right)},geometry,parallel,
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))),
+    empty_alignment_owners(~Element,~BandCombineLeaf.Context<Left,Tree.Tree<Element>>,~operation,~kernel,~kernel_law,~BandCombineLeaf.value(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element)),BandCombineLeaf.Context{left_context,Buffer.tree(~Element,right)},geometry,parallel,
       Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right)),kind,
       BandCombineLeaf.aligned_well_formed(~Element,geometry,left_fill,Model.layout(~Element,left),left,Machine.capacity(Default.limits()),Machine.half_word(Default.limits()),source,target,covered)))
 
-def empty_contract_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def empty_contract_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,+left: Buffer.Model<Element>,+right: Model.Model<Element>,
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},source: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>) ->
   CombineContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,right_fill,workers,
       Buffer.pack(~Element,left),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   BandShape.WellFormed{metadata,ready,coverage} = source
   +kind = BandShapeCount.empty_geometry_classified(geometry,empty)
@@ -715,8 +715,8 @@ def empty_contract_dense_left_planned(~Element: Data,~Right: Data,~operation: El
     coverage : BandPlan.Coverage(Model.layout(~Element,right),0n,Inspection.total_rows(geometry))}
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,right))
   contract_banded(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))),
-    empty_alignment_owners(~Element,~BandCombineLeaf.Context<Tree.Tree<Element>,Right>,~operation,~BandCombineLeaf.value(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value),BandCombineLeaf.Context{Buffer.tree(~Element,left),right_context},geometry,parallel,
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))),
+    empty_alignment_owners(~Element,~BandCombineLeaf.Context<Tree.Tree<Element>,Right>,~operation,~kernel,~kernel_law,~BandCombineLeaf.value(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value),BandCombineLeaf.Context{Buffer.tree(~Element,left),right_context},geometry,parallel,
       Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right)),kind,
       converted_well_formed(~Element,geometry,left_fill,Model.layout(~Element,right),left,Machine.half_word(Default.limits()),target,covered)))
 
@@ -732,12 +732,12 @@ def unchanged(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element
     Shape.Both<BandShape.WellFormed<Element,geometry,_>,BandValues.Values(~Element,~Logical,~original,logical,geometry,_)>
   Shape.Both{well_formed,values}
 
-def failed_checked(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~original: Logical -> U32 -> Element,
+def failed_checked(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~original: Logical -> U32 -> Element,
   +logical: Logical,+name: String,+operations: F32,+problem: Tensors.Problem,+same: Bool,+geometry: Bands.Geometry,+layout: Bands.Plan,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+fill: Element,+workers: U32,
   +source_geometry: Bands.Geometry,+source_shape: List<&2,U32>,+source_fill: Element,+source_status: Tensors.Status,+source_workers: U32,+left: Model.Model<Element>,right: Tensors.Tensor<Element>,
   well_formed: BandShape.WellFormed<Element,source_geometry,Model.content(~Element,left)>,values: BandValues.Values(~Element,~Logical,~original,logical,source_geometry,Model.content(~Element,left))) ->
   Preserved(~Element,~Logical,~original,logical,
-    Tensors.combine_bands_checked(~Element,~operation,name,operations,Tensors.Failed{problem},same,geometry,layout,left_shape,right_shape,fill,workers,
+    Tensors.combine_bands_checked_with(~Element,~kernel,name,operations,Tensors.Failed{problem},same,geometry,layout,left_shape,right_shape,fill,workers,
       Tensors.Banded{Model.pack(~Element,left),source_geometry,source_shape,source_fill,source_status,source_workers},right)):
   unchanged(~Element,~Logical,~original,logical,source_geometry,source_shape,source_fill,Tensors.Failed{problem},source_workers,left,well_formed,values)
 
@@ -758,25 +758,25 @@ def normal_banded(~Element: Data,~Left: Data,~Right: Data,~operation: Element ->
   counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   evidence: Shape.Both<BandValues.Values(~Element,~BandCombineLeaf.Context<Left,Right>,~BandCombineLeaf.value(~Element,~Left,~Right,~operation,~left_value,~right_value),BandCombineLeaf.Context{left_context,right_context},geometry,Model.contents(~Element,bands)),
     BandShape.WellFormed<Element,geometry,Model.contents(~Element,bands)>>) ->
-  NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers}):
+  NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers}):
   Shape.Both{values,well_formed} = evidence
   Shape.Both{Shape.Both{well_formed,Shape.Both{counted,coherent}},values}
 
-def normal_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def normal_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Model.Model<Element>,+right: Model.Model<Element>,+counted: Global.Counted<shape>,+coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   +layout = BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right))
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,layout)
   normal_banded(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))),
     counted,coherent,
-    alignment_chosen(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,left,right,
+    alignment_chosen(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,geometry,parallel,left_fill,right_fill,left,right,
       Default.limits(),Machine.capacity(Default.limits()),Global.domain(shape,geometry,counted,coherent,channels_positive,height_positive,width_positive),left_shape,right_shape,left_values,right_values))
 
 # The dense owner contributes its physical room. Its length equals the actual
@@ -784,7 +784,7 @@ def normal_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Elem
 def dense_domain(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+input: Buffer.Model<Element>,+counted: Global.Counted<shape>,
   coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  length_exact: {Buffer.length(~Element,input) == ShapeLaws.elements(shape) : Nat},ready: Buffer.Ready<Element,input>) ->
+  length_exact: {Buffer.length(~Element,input) == ShapeLaws.elements(shape) : Nat},ready: Buffer.Sized<Element,input>) ->
   BandGather.Domain<geometry,Default.limits(),Tree.capacity(Element,Buffer.tree(~Element,input))>:
   +evidence = Global.evidence(shape,counted)
   +geometry_evidence = Global.geometry_evidence(shape,geometry,counted,coherent)
@@ -795,58 +795,58 @@ def dense_domain(~Element: Data,+geometry: Bands.Geometry,+shape: List<&2,U32>,+
     %Equal.sym(Nat,ShapeLaws.elements(BandCount.extents(geometry)),BandGather.elements(geometry),BandCount.domain_elements(geometry)) : Count.Count<_,Global.count(shape,counted)>
     geometry_evidence)
 
-def normal_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def normal_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,+right_workers: U32,
   +left: Model.Model<Element>,+right: Buffer.Model<Element>,+counted: Global.Counted<shape>,+coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  length_exact: {Buffer.length(~Element,right) == ShapeLaws.elements(shape) : Nat},right_ready: Buffer.Ready<Element,right>,
+  length_exact: {Buffer.length(~Element,right) == ShapeLaws.elements(shape) : Nat},right_ready: Buffer.Sized<Element,right>,
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,workers,
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
+    Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,workers,
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,left))
   normal_banded(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),
       Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))),counted,coherent,
-    band_left(~Element,~Left,~operation,~left_value,left_context,geometry,parallel,left_fill,right_fill,left,right,
+    band_left(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,geometry,parallel,left_fill,right_fill,left,right,
       dense_domain(~Element,geometry,shape,right,counted,coherent,channels_positive,height_positive,width_positive,length_exact,right_ready),left_shape,left_values))
 
-def normal_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def normal_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Buffer.Model<Element>,+right: Model.Model<Element>,+counted: Global.Counted<shape>,+coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  length_exact: {Buffer.length(~Element,left) == ShapeLaws.elements(shape) : Nat},left_ready: Buffer.Ready<Element,left>,
+  length_exact: {Buffer.length(~Element,left) == ShapeLaws.elements(shape) : Nat},left_ready: Buffer.Sized<Element,left>,
   right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,right_fill,workers,
       Buffer.pack(~Element,left),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,right))
   normal_banded(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))),counted,coherent,
-    combined(~Element,~Right,~operation,~right_value,right_context,geometry,parallel,left_fill,right_fill,left,right,
+    combined(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,geometry,parallel,left_fill,right_fill,left,right,
       dense_domain(~Element,geometry,shape,left,counted,coherent,channels_positive,height_positive,width_positive,length_exact,left_ready),right_shape,right_values))
 
-def pair_invocation(~Element: Data,~operation: Element -> Element -> Element,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,
+def pair_invocation(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Model.Model<Element>) ->
-  {Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers}) ==
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+  {Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers}) ==
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right))) : Tensors.Tensor<Element>}:
   %Equal.sym(Bool,Shapes.same_extents(shape,shape),True{},same_shape(shape)) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
       Bands.plan(~Element,Model.pack(~Element,left)),Bands.plan(~Element,Model.pack(~Element,right))) ==
-      Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+      Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right))) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
       _,Bands.plan(~Element,Model.pack(~Element,right))) ==
-      Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+      Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right))) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
       (Model.pack(~Element,left),Model.layout(~Element,left)),_) ==
-      Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+      Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right))) : Tensors.Tensor<Element>}
   {==}
 
@@ -855,52 +855,52 @@ def pair_invocation(~Element: Data,~operation: Element -> Element -> Element,+na
 def promote_banded(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+geometry: Bands.Geometry,+shape: List<&2,U32>,+fill: Element,+workers: U32,-bands: Bands.Bands(~Element),
   counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
-  evidence: CombineContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers})) ->
-  NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers}):
+  evidence: CombineContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers})) ->
+  NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers}):
   Shape.Both{well_formed,values} = evidence
   Shape.Both{Shape.Both{well_formed,Shape.Both{counted,coherent}},values}
 
-def empty_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def empty_pair_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Model.Model<Element>,+right: Model.Model<Element>,counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   +layout = BandSchedule.alignment(geometry,Model.layout(~Element,left),Model.layout(~Element,right))
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,layout)
   promote_banded(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,layout,Model.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,layout,Model.pack(~Element,right))),counted,coherent,
-    empty_contract_pair_planned(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
+    empty_contract_pair_planned(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
       empty,left_shape,right_shape))
 
-def empty_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def empty_band_left_planned(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,+right_workers: U32,
   +left: Model.Model<Element>,+right: Buffer.Model<Element>,counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,workers,
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
+    Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,workers,
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},(Model.pack(~Element,left),Model.layout(~Element,left)))):
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,left))
   promote_banded(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.align(~Element,geometry,left_fill,Model.layout(~Element,left),Model.pack(~Element,left)),
       Bands.from_dense(~Element,geometry,right_fill,Model.layout(~Element,left),Buffer.pack(~Element,right))),counted,coherent,
-    empty_contract_band_left_planned(~Element,~Left,~operation,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,workers,right_workers,left,right,empty,left_shape))
+    empty_contract_band_left_planned(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,workers,right_workers,left,right,empty,left_shape))
 
-def empty_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def empty_dense_left_planned(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Buffer.Model<Element>,+right: Model.Model<Element>,counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   empty: {Shapes.has_zero(BandCount.extents(geometry)) == True{} : Bool},right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,right_fill,workers,
       Buffer.pack(~Element,left),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   +parallel = BandSchedule.parallel(geometry,workers,12.0,operations,Model.layout(~Element,right))
   promote_banded(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,geometry,shape,left_fill,workers,
-    Bands.combine(~Element,~operation,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),
+    Bands.combine_with(~Element,~kernel,geometry,parallel,Bands.from_dense(~Element,geometry,left_fill,Model.layout(~Element,right),Buffer.pack(~Element,left)),
       Bands.align(~Element,geometry,right_fill,Model.layout(~Element,right),Model.pack(~Element,right))),counted,coherent,
-    empty_contract_dense_left_planned(~Element,~Right,~operation,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,empty,right_shape))
+    empty_contract_dense_left_planned(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,empty,right_shape))
 
 def dense_length(~Element: Data,+shape: List<&2,U32>,input: Buffer.Model<Element>,
   exact: {Buffer.content_length(~Element,Buffer.content(~Element,input)) == ShapeLaws.elements(shape) : Nat}) ->
@@ -908,16 +908,16 @@ def dense_length(~Element: Data,+shape: List<&2,U32>,input: Buffer.Model<Element
   Buffer.Model{tree,length,certificate} = input
   exact
 
-def band_left_nonempty_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def band_left_nonempty_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,
   +left: Model.Model<Element>,+right: Buffer.Model<Element>,
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers})):
   Shape.Both{left_shape,Shape.Both{+counted,+coherent}} = left_normal
   Shape.Both{right_ready,Shape.Both{right_counted,length_exact}} = right_normal
   +right_ready = Buffer.ready_content(~Element,right,
@@ -926,26 +926,26 @@ def band_left_nonempty_ready(~Element: Data,~Left: Data,~operation: Element -> E
     %Buffer.packed_contents(~Element,right) : {Buffer.content_length(~Element,_) == ShapeLaws.elements(shape) : Nat} length_exact)
   %Equal.sym(Bool,Shapes.same_extents(shape,shape),True{},same_shape(shape)) :
     NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-      Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,shape,shape,left_fill,U32.max(left_workers,right_workers),
-        Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},Bands.plan(~Element,Model.pack(~Element,left))))
+      Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,shape,shape,left_fill,U32.max(left_workers,right_workers),
+        Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},Bands.plan(~Element,Model.pack(~Element,left))))
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
     NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-      Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,U32.max(left_workers,right_workers),
-        Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},_))
-  normal_band_left_planned(~Element,~Left,~operation,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,U32.max(left_workers,right_workers),right_workers,
+      Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,U32.max(left_workers,right_workers),
+        Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},_))
+  normal_band_left_planned(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,U32.max(left_workers,right_workers),right_workers,
     left,right,counted,coherent,channels_positive,height_positive,width_positive,length_exact,right_ready,
     %Model.packed_contents(~Element,left) : BandShape.WellFormed<Element,geometry,_> left_shape,left_values)
 
-def dense_left_nonempty_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def dense_left_nonempty_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,
   +left: Buffer.Model<Element>,+right: Model.Model<Element>,
   channels_positive: {BandGather.channels_positive(geometry) == True{} : Bool},height_positive: {BandGather.height_positive(geometry) == True{} : Bool},width_positive: {BandGather.width_positive(geometry) == True{} : Bool},
-  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers})):
   Shape.Both{left_ready,Shape.Both{left_counted,length_exact}} = left_normal
   Shape.Both{right_shape,Shape.Both{+counted,+coherent}} = right_normal
   +left_ready = Buffer.ready_content(~Element,left,
@@ -954,13 +954,13 @@ def dense_left_nonempty_ready(~Element: Data,~Right: Data,~operation: Element ->
     %Buffer.packed_contents(~Element,left) : {Buffer.content_length(~Element,_) == ShapeLaws.elements(shape) : Nat} length_exact)
   %Equal.sym(Bool,Shapes.same_extents(shape,shape),True{},same_shape(shape)) :
     NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-      Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+      Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),Bands.plan(~Element,Model.pack(~Element,right))))
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
     NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-      Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+      Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),_))
-  normal_dense_left_planned(~Element,~Right,~operation,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+  normal_dense_left_planned(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
     left,right,counted,coherent,channels_positive,height_positive,width_positive,length_exact,left_ready,
     %Model.packed_contents(~Element,right) : BandShape.WellFormed<Element,geometry,_> right_shape,right_values)
 
@@ -988,42 +988,42 @@ def dimensions_selected(empty: Bool,+geometry: Bands.Geometry,classified: {Shape
 def dimension_choice(+geometry: Bands.Geometry) -> DimensionChoice(geometry):
   dimensions_selected(Shapes.has_zero(BandCount.extents(geometry)),geometry,{==})
 
-def pair_nonempty_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def pair_nonempty_planned(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Model.Model<Element>,+right: Model.Model<Element>,counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},dimensions: Dimensions<geometry>,
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   Dimensions{channels_positive,height_positive,width_positive} = dimensions
-  normal_pair_planned(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
+  normal_pair_planned(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
     counted,coherent,channels_positive,height_positive,width_positive,left_shape,right_shape,left_values,right_values)
 
-def pair_selected(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def pair_selected(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   empty: Bool,+left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+workers: U32,
   +left: Model.Model<Element>,+right: Model.Model<Element>,counted: Global.Counted<shape>,coherent: {Window.band_shape(shape,geometry) == True{} : Bool},
   classified: {Shapes.has_zero(BandCount.extents(geometry)) == empty : Bool},
   left_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,right_shape: BandShape.WellFormed<Element,geometry,Model.content(~Element,right)>,
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,workers,
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right)))):
   match empty:
-    case True{}: empty_pair_planned(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
+    case True{}: empty_pair_planned(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
       counted,coherent,classified,left_shape,right_shape)
-    case False{}: pair_nonempty_planned(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
+    case False{}: pair_nonempty_planned(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,
       counted,coherent,nonempty_dimensions(geometry,classified),left_shape,right_shape,left_values,right_values)
 
-def normal_pair_ready(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def normal_pair_ready(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+right_geometry: Bands.Geometry,+shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Model.Model<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),right_geometry,shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),right_geometry,shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left)),right_values: BandValues.Values(~Element,~Right,~right_value,right_context,right_geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),right_geometry,shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),right_geometry,shape,right_fill,Tensors.Usable{},right_workers})):
   Shape.Both{left_shape,Shape.Both{+counted,+left_coherent}} = left_normal
   Shape.Both{right_shape,Shape.Both{right_counted,+right_coherent}} = right_normal
   +same_geometry = BandCount.unique(shape,geometry,right_geometry,left_coherent,right_coherent)
@@ -1036,115 +1036,115 @@ def normal_pair_ready(~Element: Data,~Left: Data,~Right: Data,~operation: Elemen
   +right_values = {%Equal.sym(Bands.Geometry,geometry,right_geometry,same_geometry) : BandValues.Values(~Element,~Right,~right_value,right_context,_,Model.content(~Element,right)) right_values :
     BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))}
   %same_geometry : NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),_,shape,right_fill,Tensors.Ready{},right_workers}))
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),_,shape,right_fill,Tensors.Usable{},right_workers}))
   %Equal.sym(Tensors.Tensor<Element>,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers}),
-    Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers}),
+    Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,geometry,shape,shape,left_fill,right_fill,U32.max(left_workers,right_workers),
       (Model.pack(~Element,left),Model.layout(~Element,left)),(Model.pack(~Element,right),Model.layout(~Element,right))),
-    pair_invocation(~Element,~operation,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right)) :
+    pair_invocation(~Element,~operation,~kernel,~kernel_law,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right)) :
     NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,_)
-  pair_selected(~Element,~Left,~Right,~operation,~left_value,~right_value,Shapes.has_zero(BandCount.extents(geometry)),left_context,right_context,name,operations,
+  pair_selected(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,Shapes.has_zero(BandCount.extents(geometry)),left_context,right_context,name,operations,
     geometry,shape,left_fill,right_fill,U32.max(left_workers,right_workers),left,right,counted,left_coherent,{==},
     %Model.packed_contents(~Element,left) : BandShape.WellFormed<Element,geometry,_>
     left_shape,right_shape,left_values,right_values)
 
-def band_left_ready_selected(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def band_left_ready_selected(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +geometry: Bands.Geometry,choice: DimensionChoice(geometry),+left_context: Left,+name: String,+operations: F32,+shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Buffer.Model<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers})):
   match choice:
     case Inr{dimensions}:
       Dimensions{channels_positive,height_positive,width_positive} = dimensions
-      band_left_nonempty_ready(~Element,~Left,~operation,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right,
+      band_left_nonempty_ready(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right,
         channels_positive,height_positive,width_positive,left_normal,right_normal,left_values)
     case Inl{empty}:
       Shape.Both{left_shape,Shape.Both{counted,coherent}} = left_normal
       +workers = U32.max(left_workers,right_workers)
       %Equal.sym(Bool,Shapes.same_extents(shape,shape),True{},same_shape(shape)) :
         NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-          Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,shape,shape,left_fill,workers,
-            Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},Bands.plan(~Element,Model.pack(~Element,left))))
+          Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,shape,shape,left_fill,workers,
+            Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},Bands.plan(~Element,Model.pack(~Element,left))))
       %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
         NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-          Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,workers,
-            Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers},_))
-      empty_band_left_planned(~Element,~Left,~operation,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,workers,right_workers,left,right,counted,coherent,empty,
+          Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,workers,
+            Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers},_))
+      empty_band_left_planned(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,name,operations,geometry,shape,left_fill,right_fill,workers,right_workers,left,right,counted,coherent,empty,
         %Model.packed_contents(~Element,left) : BandShape.WellFormed<Element,geometry,_> left_shape)
 
-def normal_band_left_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def normal_band_left_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,
   +left: Model.Model<Element>,+right: Buffer.Model<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.content(~Element,left))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.tree(~Element,right),
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Ready{},right_workers})):
-  band_left_ready_selected(~Element,~Left,~operation,~left_value,geometry,dimension_choice(geometry),left_context,name,operations,shape,left_fill,right_fill,left_workers,right_workers,left,right,
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Tensor{Buffer.pack(~Element,right),shape,right_fill,Tensors.Usable{},right_workers})):
+  band_left_ready_selected(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,geometry,dimension_choice(geometry),left_context,name,operations,shape,left_fill,right_fill,left_workers,right_workers,left,right,
     left_normal,right_normal,left_values)
 
-def dense_left_ready_selected(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def dense_left_ready_selected(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +geometry: Bands.Geometry,choice: DimensionChoice(geometry),+right_context: Right,+name: String,+operations: F32,+shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,+left: Buffer.Model<Element>,+right: Model.Model<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers})):
   match choice:
     case Inr{dimensions}:
       Dimensions{channels_positive,height_positive,width_positive} = dimensions
-      dense_left_nonempty_ready(~Element,~Right,~operation,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right,
+      dense_left_nonempty_ready(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,left_workers,right_workers,left,right,
         channels_positive,height_positive,width_positive,left_normal,right_normal,right_values)
     case Inl{empty}:
       Shape.Both{right_shape,Shape.Both{counted,coherent}} = right_normal
       +workers = U32.max(left_workers,right_workers)
       %Equal.sym(Bool,Shapes.same_extents(shape,shape),True{},same_shape(shape)) :
         NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-          Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,shape,shape,left_fill,right_fill,workers,
+          Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,shape,shape,left_fill,right_fill,workers,
             Buffer.pack(~Element,left),Bands.plan(~Element,Model.pack(~Element,right))))
       %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
         NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-          Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},True{},geometry,shape,shape,left_fill,right_fill,workers,
+          Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},True{},geometry,shape,shape,left_fill,right_fill,workers,
             Buffer.pack(~Element,left),_))
-      empty_dense_left_planned(~Element,~Right,~operation,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,counted,coherent,empty,
+      empty_dense_left_planned(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,name,operations,geometry,shape,left_fill,right_fill,workers,left,right,counted,coherent,empty,
         %Model.packed_contents(~Element,right) : BandShape.WellFormed<Element,geometry,_> right_shape)
 
-def normal_dense_left_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def normal_dense_left_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+name: String,+operations: F32,+geometry: Bands.Geometry,+shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,
   +left: Buffer.Model<Element>,+right: Model.Model<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.content(~Element,right))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.tree(~Element,left),right_context,
-    Tensors.combine(~Element,~operation,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Ready{},right_workers})):
-  dense_left_ready_selected(~Element,~Right,~operation,~right_value,geometry,dimension_choice(geometry),right_context,name,operations,shape,left_fill,right_fill,left_workers,right_workers,left,right,
+    Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{Model.pack(~Element,right),geometry,shape,right_fill,Tensors.Usable{},right_workers})):
+  dense_left_ready_selected(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,geometry,dimension_choice(geometry),right_context,name,operations,shape,left_fill,right_fill,left_workers,right_workers,left,right,
     left_normal,right_normal,right_values)
 
 # Native combine factories observe each owner once, then use canonical Data
 # models. Normal retains the actual shape count, including zero dimensions.
 # In mixed calls the dense context is its actual reflected storage tree;
 # its logical value is Tree.read, rather than a separate supplied value map.
-def pair_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def pair_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+operation_name: String,+operation_cost: F32,+left_geometry: Bands.Geometry,+right_geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,-left_bands: Bands.Bands(~Element),-right_bands: Bands.Bands(~Element),
   left_observation: Model.Observation<Element,left_bands>,right_observation: Model.Observation<Element,right_bands>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,left_geometry,Model.contents(~Element,left_bands)),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,right_geometry,Model.contents(~Element,right_bands))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers})):
   Model.Observation{+left_model,+left_equation} = left_observation
   Model.Observation{+right_model,+right_equation} = right_observation
   +left_contents = Equal.trans(Model.Content<Element>,Model.contents(~Element,left_bands),Model.contents(~Element,Model.pack(~Element,left_model)),Model.content(~Element,left_model),
@@ -1152,39 +1152,39 @@ def pair_observed(~Element: Data,~Left: Data,~Right: Data,~operation: Element ->
   +right_contents = Equal.trans(Model.Content<Element>,Model.contents(~Element,right_bands),Model.contents(~Element,Model.pack(~Element,right_model)),Model.content(~Element,right_model),
     Equal.cong(Bands.Bands(~Element),Model.Content<Element>,Model.contents(~Element),right_bands,Model.pack(~Element,right_model),Equal.sym(Bands.Bands(~Element),Model.pack(~Element,right_model),right_bands,right_equation)),Model.packed_contents(~Element,right_model))
   %left_equation : NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{_,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}))
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{_,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}))
   %right_equation : NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{Model.pack(~Element,left_model),left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{_,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}))
-  normal_pair_ready(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,operation_name,operation_cost,left_geometry,right_geometry,shared_shape,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{Model.pack(~Element,left_model),left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{_,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}))
+  normal_pair_ready(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,operation_name,operation_cost,left_geometry,right_geometry,shared_shape,
     left_fill,right_fill,left_workers,right_workers,left_model,right_model,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,left_model),left_bands,left_equation) : Global.Normal(~Element,Tensors.Banded{_,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}) left_normal,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,right_model),right_bands,right_equation) : Global.Normal(~Element,Tensors.Banded{_,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}) right_normal,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,left_model),left_bands,left_equation) : Global.Normal(~Element,Tensors.Banded{_,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}) left_normal,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,right_model),right_bands,right_equation) : Global.Normal(~Element,Tensors.Banded{_,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}) right_normal,
     %left_contents : BandValues.Values(~Element,~Left,~left_value,left_context,left_geometry,_) left_values,
     %right_contents : BandValues.Values(~Element,~Right,~right_value,right_context,right_geometry,_) right_values)
 
-def native_pair_ready(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
+def native_pair_ready(~Element: Data,~Left: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,~right_value: Right -> U32 -> Element,
   +left_context: Left,+right_context: Right,+operation_name: String,+operation_cost: F32,+left_geometry: Bands.Geometry,+right_geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,left_bands: Bands.Bands(~Element),right_bands: Bands.Bands(~Element),
-  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,left_geometry,Model.contents(~Element,left_bands)),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,right_geometry,Model.contents(~Element,right_bands))) ->
   NormalContract(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Ready{},right_workers})):
-  pair_observed(~Element,~Left,~Right,~operation,~left_value,~right_value,left_context,right_context,operation_name,operation_cost,left_geometry,right_geometry,shared_shape,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{left_bands,left_geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{right_bands,right_geometry,shared_shape,right_fill,Tensors.Usable{},right_workers})):
+  pair_observed(~Element,~Left,~Right,~operation,~kernel,~kernel_law,~left_value,~right_value,left_context,right_context,operation_name,operation_cost,left_geometry,right_geometry,shared_shape,
     left_fill,right_fill,left_workers,right_workers,left_bands,right_bands,Model.observe(~Element,left_bands),Model.observe(~Element,right_bands),left_normal,right_normal,left_values,right_values)
 
-def band_left_observed(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def band_left_observed(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+operation_name: String,+operation_cost: F32,+geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,-left_bands: Bands.Bands(~Element),-right_buffer: Storage.Buffer<Element>,
   left_observation: Model.Observation<Element,left_bands>,right_observation: Buffer.Observation<Element,right_buffer>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.contents(~Element,left_bands))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.content_tree(~Element,Buffer.contents(~Element,right_buffer)),
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers})):
   Model.Observation{+left_model,+left_equation} = left_observation
   Buffer.Observation{Buffer.Model{+right_tree,+right_length,+right_certificate},+right_equation} = right_observation
   +right_model = {Buffer.Model{right_tree,right_length,right_certificate} : Buffer.Model<Element>}
@@ -1195,38 +1195,38 @@ def band_left_observed(~Element: Data,~Left: Data,~operation: Element -> Element
   +right_tree_equal = Equal.cong(Buffer.Content<Element>,Tree.Tree<Element>,Buffer.content_tree(~Element),Buffer.contents(~Element,right_buffer),Buffer.content(~Element,right_model),right_contents)
   %Equal.sym(Tree.Tree<Element>,Buffer.content_tree(~Element,Buffer.contents(~Element,right_buffer)),right_tree,right_tree_equal) :
     NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,_,
-      Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers}))
+      Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers}))
   %left_equation : NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,right_tree,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{_,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers}))
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{_,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers}))
   %right_equation : NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,right_tree,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{Model.pack(~Element,left_model),geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Tensor{_,shared_shape,right_fill,Tensors.Ready{},right_workers}))
-  normal_band_left_ready(~Element,~Left,~operation,~left_value,left_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,left_model,right_model,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,left_model),left_bands,left_equation) : Global.Normal(~Element,Tensors.Banded{_,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}) left_normal,
-    %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,right_model),right_buffer,right_equation) : Global.Normal(~Element,Tensors.Tensor{_,shared_shape,right_fill,Tensors.Ready{},right_workers}) right_normal,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{Model.pack(~Element,left_model),geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Tensor{_,shared_shape,right_fill,Tensors.Usable{},right_workers}))
+  normal_band_left_ready(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,left_model,right_model,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,left_model),left_bands,left_equation) : Global.Normal(~Element,Tensors.Banded{_,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}) left_normal,
+    %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,right_model),right_buffer,right_equation) : Global.Normal(~Element,Tensors.Tensor{_,shared_shape,right_fill,Tensors.Usable{},right_workers}) right_normal,
     %left_contents : BandValues.Values(~Element,~Left,~left_value,left_context,geometry,_) left_values)
 
-def native_band_left_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~left_value: Left -> U32 -> Element,
+def native_band_left_ready(~Element: Data,~Left: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~left_value: Left -> U32 -> Element,
   +left_context: Left,+operation_name: String,+operation_cost: F32,+geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,left_bands: Bands.Bands(~Element),right_buffer: Storage.Buffer<Element>,
-  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   left_values: BandValues.Values(~Element,~Left,~left_value,left_context,geometry,Model.contents(~Element,left_bands))) ->
   NormalContract(~Element,~Left,~Tree.Tree<Element>,~operation,~left_value,~BandValues.dense_value(~Element),left_context,Buffer.content_tree(~Element,Buffer.contents(~Element,right_buffer)),
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Ready{},right_workers})):
-  band_left_observed(~Element,~Left,~operation,~left_value,left_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Banded{left_bands,geometry,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Tensor{right_buffer,shared_shape,right_fill,Tensors.Usable{},right_workers})):
+  band_left_observed(~Element,~Left,~operation,~kernel,~kernel_law,~left_value,left_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,
     left_bands,right_buffer,Model.observe(~Element,left_bands),Buffer.observe(~Element,right_buffer),left_normal,right_normal,left_values)
 
-def dense_left_observed(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def dense_left_observed(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+operation_name: String,+operation_cost: F32,+geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,-left_buffer: Storage.Buffer<Element>,-right_bands: Bands.Bands(~Element),
   left_observation: Buffer.Observation<Element,left_buffer>,right_observation: Model.Observation<Element,right_bands>,
-  left_normal: Global.Normal(~Element,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.contents(~Element,right_bands))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.content_tree(~Element,Buffer.contents(~Element,left_buffer)),right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers})):
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers})):
   Buffer.Observation{Buffer.Model{+left_tree,+left_length,+left_certificate},+left_equation} = left_observation
   Model.Observation{+right_model,+right_equation} = right_observation
   +left_model = {Buffer.Model{left_tree,left_length,left_certificate} : Buffer.Model<Element>}
@@ -1237,26 +1237,26 @@ def dense_left_observed(~Element: Data,~Right: Data,~operation: Element -> Eleme
   +left_tree_equal = Equal.cong(Buffer.Content<Element>,Tree.Tree<Element>,Buffer.content_tree(~Element),Buffer.contents(~Element,left_buffer),Buffer.content(~Element,left_model),left_contents)
   %Equal.sym(Tree.Tree<Element>,Buffer.content_tree(~Element,Buffer.contents(~Element,left_buffer)),left_tree,left_tree_equal) :
     NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,_,right_context,
-      Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}))
+      Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}))
   %left_equation : NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,left_tree,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Tensor{_,shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}))
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Tensor{_,shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}))
   %right_equation : NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,left_tree,right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Tensor{Buffer.pack(~Element,left_model),shared_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{_,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}))
-  normal_dense_left_ready(~Element,~Right,~operation,~right_value,right_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,left_model,right_model,
-    %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,left_model),left_buffer,left_equation) : Global.Normal(~Element,Tensors.Tensor{_,shared_shape,left_fill,Tensors.Ready{},left_workers}) left_normal,
-    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,right_model),right_bands,right_equation) : Global.Normal(~Element,Tensors.Banded{_,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}) right_normal,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Tensor{Buffer.pack(~Element,left_model),shared_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{_,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}))
+  normal_dense_left_ready(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,left_model,right_model,
+    %Equal.sym(Storage.Buffer<Element>,Buffer.pack(~Element,left_model),left_buffer,left_equation) : Global.Normal(~Element,Tensors.Tensor{_,shared_shape,left_fill,Tensors.Usable{},left_workers}) left_normal,
+    %Equal.sym(Bands.Bands(~Element),Model.pack(~Element,right_model),right_bands,right_equation) : Global.Normal(~Element,Tensors.Banded{_,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}) right_normal,
     %right_contents : BandValues.Values(~Element,~Right,~right_value,right_context,geometry,_) right_values)
 
-def native_dense_left_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~right_value: Right -> U32 -> Element,
+def native_dense_left_ready(~Element: Data,~Right: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~right_value: Right -> U32 -> Element,
   +right_context: Right,+operation_name: String,+operation_cost: F32,+geometry: Bands.Geometry,+shared_shape: List<&2,U32>,
   +left_fill: Element,+right_fill: Element,+left_workers: U32,+right_workers: U32,left_buffer: Storage.Buffer<Element>,right_bands: Bands.Bands(~Element),
-  left_normal: Global.Normal(~Element,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Ready{},left_workers}),
-  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers}),
+  left_normal: Global.Normal(~Element,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Usable{},left_workers}),
+  right_normal: Global.Normal(~Element,Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers}),
   right_values: BandValues.Values(~Element,~Right,~right_value,right_context,geometry,Model.contents(~Element,right_bands))) ->
   NormalContract(~Element,~Tree.Tree<Element>,~Right,~operation,~BandValues.dense_value(~Element),~right_value,Buffer.content_tree(~Element,Buffer.contents(~Element,left_buffer)),right_context,
-    Tensors.combine(~Element,~operation,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Ready{},left_workers},
-      Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Ready{},right_workers})):
-  dense_left_observed(~Element,~Right,~operation,~right_value,right_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,
+    Tensors.combine_with(~Element,~kernel,operation_name,operation_cost,Tensors.Tensor{left_buffer,shared_shape,left_fill,Tensors.Usable{},left_workers},
+      Tensors.Banded{right_bands,geometry,shared_shape,right_fill,Tensors.Usable{},right_workers})):
+  dense_left_observed(~Element,~Right,~operation,~kernel,~kernel_law,~right_value,right_context,operation_name,operation_cost,geometry,shared_shape,left_fill,right_fill,left_workers,right_workers,
     left_buffer,right_bands,Buffer.observe(~Element,left_buffer),Model.observe(~Element,right_bands),left_normal,right_normal,right_values)
 
 # Public status and shape failures preserve the actual left owner through
@@ -1266,112 +1266,112 @@ def left_failure(+problem: Tensors.Problem,+right: Tensors.Status) ->
   {==}
 
 def right_failure(+problem: Tensors.Problem) ->
-  {Tensors.first_failure(Tensors.Ready{},Tensors.Failed{problem}) == Tensors.Failed{problem} : Tensors.Status}:
+  {Tensors.first_failure(Tensors.Usable{},Tensors.Failed{problem}) == Tensors.Failed{problem} : Tensors.Status}:
   {==}
 
-def band_tensor_failed(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~original: Logical -> U32 -> Element,
+def band_tensor_failed(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~original: Logical -> U32 -> Element,
   +logical: Logical,+name: String,+operations: F32,+geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_status: Tensors.Status,+right_status: Tensors.Status,+left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Buffer.Model<Element>,+problem: Tensors.Problem,
   failure: {Tensors.first_failure(left_status,right_status) == Tensors.Failed{problem} : Tensors.Status},
   well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,values: BandValues.Values(~Element,~Logical,~original,logical,geometry,Model.content(~Element,left))) ->
-  Preserved(~Element,~Logical,~original,logical,Tensors.combine(~Element,~operation,name,operations,
+  Preserved(~Element,~Logical,~original,logical,Tensors.combine_with(~Element,~kernel,name,operations,
     Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,left_status,left_workers},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,right_status,right_workers})):
   %Equal.sym(Tensors.Status,Tensors.first_failure(left_status,right_status),Tensors.Failed{problem},failure) :
-    Preserved(~Element,~Logical,~original,logical,Tensors.combine_bands_plan(~Element,~operation,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,
+    Preserved(~Element,~Logical,~original,logical,Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,
       left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,right_status,right_workers},Bands.plan(~Element,Model.pack(~Element,left))))
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    Preserved(~Element,~Logical,~original,logical,Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,
+    Preserved(~Element,~Logical,~original,logical,Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,
       left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,right_status,right_workers},_))
   unchanged(~Element,~Logical,~original,logical,geometry,left_shape,left_fill,Tensors.Failed{problem},U32.max(left_workers,right_workers),left,well_formed,values)
 
-def pair_failed(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~original: Logical -> U32 -> Element,
+def pair_failed(~Element: Data,~Logical: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),~original: Logical -> U32 -> Element,
   +logical: Logical,+name: String,+operations: F32,+geometry: Bands.Geometry,+right_geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_status: Tensors.Status,+right_status: Tensors.Status,+left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Model.Model<Element>,+problem: Tensors.Problem,
   failure: {Tensors.first_failure(left_status,right_status) == Tensors.Failed{problem} : Tensors.Status},
   well_formed: BandShape.WellFormed<Element,geometry,Model.content(~Element,left)>,values: BandValues.Values(~Element,~Logical,~original,logical,geometry,Model.content(~Element,left))) ->
-  Preserved(~Element,~Logical,~original,logical,Tensors.combine(~Element,~operation,name,operations,
+  Preserved(~Element,~Logical,~original,logical,Tensors.combine_with(~Element,~kernel,name,operations,
     Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,left_status,left_workers},Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,right_status,right_workers})):
   %Equal.sym(Tensors.Status,Tensors.first_failure(left_status,right_status),Tensors.Failed{problem},failure) :
-    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans(~Element,~operation,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
+    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
       left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),Bands.plan(~Element,Model.pack(~Element,left)),Bands.plan(~Element,Model.pack(~Element,right))))
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
+    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
       left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),_,Bands.plan(~Element,Model.pack(~Element,right))))
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
-    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
+    Preserved(~Element,~Logical,~original,logical,Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,right_geometry,
       left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),(Model.pack(~Element,left),Model.layout(~Element,left)),_))
   unchanged(~Element,~Logical,~original,logical,geometry,left_shape,left_fill,Tensors.Failed{problem},U32.max(left_workers,right_workers),left,well_formed,values)
 
-def tensor_band_failed(~Element: Data,~operation: Element -> Element -> Element,
+def tensor_band_failed(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),
   +name: String,+operations: F32,+geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_status: Tensors.Status,+right_status: Tensors.Status,+left_workers: U32,+right_workers: U32,+left: Buffer.Model<Element>,+right: Model.Model<Element>,+problem: Tensors.Problem,
   failure: {Tensors.first_failure(left_status,right_status) == Tensors.Failed{problem} : Tensors.Status}) ->
-  {Tensors.combine(~Element,~operation,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,left_status,left_workers},
+  {Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,left_status,left_workers},
       Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,right_status,right_workers}) ==
     Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Failed{problem},U32.max(left_workers,right_workers)} : Tensors.Tensor<Element>}:
   %Equal.sym(Tensors.Status,Tensors.first_failure(left_status,right_status),Tensors.Failed{problem},failure) :
-    {Tensors.combine_right_plan(~Element,~operation,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_right_plan_with(~Element,~kernel,name,operations,_,Shapes.same_extents(left_shape,right_shape),geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),Bands.plan(~Element,Model.pack(~Element,right))) ==
       Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Failed{problem},U32.max(left_workers,right_workers)} : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
-    {Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Failed{problem},Shapes.same_extents(left_shape,right_shape),geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),_) == Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Failed{problem},U32.max(left_workers,right_workers)} : Tensors.Tensor<Element>}
   {==}
 
 # Operands of different extents leave the band layout: the call is the dense
 # combination of the two tensors, which gathers a banded operand first and
 # follows NumPy broadcasting (tensor_public_refinement).
-def band_tensor_different(~Element: Data,~operation: Element -> Element -> Element,
+def band_tensor_different(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),
   +name: String,+operations: F32,+geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Buffer.Model<Element>,mismatch: {Shapes.same_extents(left_shape,right_shape) == False{} : Bool}) ->
-  {Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers}) ==
-    Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers}) : Tensors.Tensor<Element>}:
+  {Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers}) ==
+    Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers}) : Tensors.Tensor<Element>}:
   %Equal.sym(Bool,Shapes.same_extents(left_shape,right_shape),False{},mismatch) :
-    {Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers},
+    {Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers},
         Bands.plan(~Element,Model.pack(~Element,left))) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers}) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    {Tensors.combine_bands_plan(~Element,~operation,name,operations,Tensors.Ready{},False{},geometry,left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers},_) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Ready{},right_workers}) : Tensors.Tensor<Element>}
+    {Tensors.combine_bands_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},False{},geometry,left_shape,right_shape,left_fill,U32.max(left_workers,right_workers),Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers},_) ==
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},Tensors.Tensor{Buffer.pack(~Element,right),right_shape,right_fill,Tensors.Usable{},right_workers}) : Tensors.Tensor<Element>}
   {==}
 
-def pair_different(~Element: Data,~operation: Element -> Element -> Element,
+def pair_different(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),
   +name: String,+operations: F32,+geometry: Bands.Geometry,+right_geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_workers: U32,+right_workers: U32,+left: Model.Model<Element>,+right: Model.Model<Element>,mismatch: {Shapes.same_extents(left_shape,right_shape) == False{} : Bool}) ->
-  {Tensors.combine(~Element,~operation,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Ready{},right_workers}) ==
-    Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-      Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}:
+  {Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Usable{},right_workers}) ==
+    Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+      Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}:
   %Equal.sym(Bool,Shapes.same_extents(left_shape,right_shape),False{},mismatch) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Bands.plan(~Element,Model.pack(~Element,left)),Bands.plan(~Element,Model.pack(~Element,right))) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,left)),(Model.pack(~Element,left),Model.layout(~Element,left)),Model.plan(~Element,left)) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},False{},geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},False{},geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         _,Bands.plan(~Element,Model.pack(~Element,right))) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
-    {Tensors.combine_pair_plans(~Element,~operation,name,operations,Tensors.Ready{},False{},geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_pair_plans_with(~Element,~kernel,name,operations,Tensors.Usable{},False{},geometry,right_geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         (Model.pack(~Element,left),Model.layout(~Element,left)),_) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Banded{Model.pack(~Element,left),geometry,left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+        Tensors.Banded{Model.pack(~Element,right),right_geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
   {==}
 
-def tensor_band_different(~Element: Data,~operation: Element -> Element -> Element,
+def tensor_band_different(~Element: Data,~operation: Element -> Element -> Element,~kernel: OperationsLaws.Kernel(~Element),~kernel_law: OperationsLaws.KernelLaw(~Element,~operation,~kernel),
   +name: String,+operations: F32,+geometry: Bands.Geometry,+left_shape: List<&2,U32>,+right_shape: List<&2,U32>,+left_fill: Element,+right_fill: Element,
   +left_workers: U32,+right_workers: U32,+left: Buffer.Model<Element>,+right: Model.Model<Element>,mismatch: {Shapes.same_extents(left_shape,right_shape) == False{} : Bool}) ->
-  {Tensors.combine(~Element,~operation,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Ready{},left_workers},Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Ready{},right_workers}) ==
-    Tensors.combine_dense(~Element,~operation,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-      Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}:
+  {Tensors.combine_with(~Element,~kernel,name,operations,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Usable{},left_workers},Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Usable{},right_workers}) ==
+    Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+      Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}:
   %Equal.sym(Bool,Shapes.same_extents(left_shape,right_shape),False{},mismatch) :
-    {Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},_,geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},_,geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),Bands.plan(~Element,Model.pack(~Element,right))) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-        Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+        Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
   %Equal.sym(Bands.Bands(~Element) & Bands.Plan,Bands.plan(~Element,Model.pack(~Element,right)),(Model.pack(~Element,right),Model.layout(~Element,right)),Model.plan(~Element,right)) :
-    {Tensors.combine_right_plan(~Element,~operation,name,operations,Tensors.Ready{},False{},geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
+    {Tensors.combine_right_plan_with(~Element,~kernel,name,operations,Tensors.Usable{},False{},geometry,left_shape,right_shape,left_fill,right_fill,U32.max(left_workers,right_workers),
         Buffer.pack(~Element,left),_) ==
-      Tensors.combine_dense(~Element,~operation,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Ready{},U32.max(left_workers,right_workers)},
-        Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Ready{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
+      Tensors.combine_dense_with(~Element,~kernel,name,Tensors.Tensor{Buffer.pack(~Element,left),left_shape,left_fill,Tensors.Usable{},U32.max(left_workers,right_workers)},
+        Tensors.Banded{Model.pack(~Element,right),geometry,right_shape,right_fill,Tensors.Usable{},U32.max(left_workers,right_workers)}) : Tensors.Tensor<Element>}
   {==}

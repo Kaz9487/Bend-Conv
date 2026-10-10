@@ -32,20 +32,20 @@ import ./band_output_metadata.bend as OutputMetadata
 import ./band_output_normal.bend as BandOutputNormal
 
 def source_well_formed(+input: PublicFrame.NativeInput,+source: Model.Model<F32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},workers})) ->
+  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},workers})) ->
   BandShape.WellFormed<F32,PublicFrame.source_geometry(input),Model.content(~F32,source)>:
   Shape.Both{well_formed,shape} = normal
   %Model.packed_contents(~F32,source) : BandShape.WellFormed<F32,PublicFrame.source_geometry(input),_>
   well_formed
 
 def source_shape(+input: PublicFrame.NativeInput,+source: Model.Model<F32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},workers})) ->
+  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},workers})) ->
   Shape.Both<Global.Counted<Native.input_extents(input)>,{Window.band_shape(Native.input_extents(input),PublicFrame.source_geometry(input)) == True{} : Bool}>:
   Shape.Both{well_formed,shape} = normal
   shape
 
 def source_coherent(+input: PublicFrame.NativeInput,+source: Model.Model<F32>,+fill: F32,+workers: U32,
-  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},workers})) ->
+  normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},workers})) ->
   {Window.band_shape(Native.input_extents(input),PublicFrame.source_geometry(input)) == True{} : Bool}:
   Shape.Both{well_formed,Shape.Both{counted,coherent}} = normal
   coherent
@@ -90,10 +90,10 @@ def checked(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,
   +validated: {PublicFrame.frame_valid(input,weight_list,bias_list) == True{} : Bool},+supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +eligible: {TensorConvolution.uses_band_windows(PublicFrame.geometry(input)) == True{} : Bool},
   +source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},workers}),
+  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},workers}),
   values: BandValues.Values(~F32,~Logical,~original,logical,PublicFrame.source_geometry(input),Model.content(~F32,source)),
   weight_length: {Buffer.length(~F32,weights) == ConvSpec.length(weight_list) : Nat},bias_length: {Buffer.length(~F32,bias) == ConvSpec.length(bias_list) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>,
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>,
   weight_exact: {Buffer.tree(~F32,weights) == StorageLaws.sequence_storage(F32,ConvSpec.length(weight_list),weight_list,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == Buffer.Content{StorageLaws.sequence_storage(F32,ConvSpec.length(bias_list),bias_list,bias_evidence),ConvSpec.length(bias_list)} : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PublicFrame.reference_context(~Logical,logical,activation,input,weight_list,bias_list),
@@ -112,20 +112,20 @@ def conv2d(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -> F32,+
   +validated: {PublicFrame.frame_valid(input,weight_list,bias_list) == True{} : Bool},+supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +eligible: {TensorConvolution.uses_band_windows(PublicFrame.geometry(input)) == True{} : Bool},
   +source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+weight_workers: U32,+bias_workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   values: BandValues.Values(~F32,~Logical,~original,logical,PublicFrame.source_geometry(input),Model.content(~F32,source)),
   weight_length: {Buffer.length(~F32,weights) == ConvSpec.length(weight_list) : Nat},bias_length: {Buffer.length(~F32,bias) == ConvSpec.length(bias_list) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>,
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>,
   weight_exact: {Buffer.tree(~F32,weights) == StorageLaws.sequence_storage(F32,ConvSpec.length(weight_list),weight_list,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == Buffer.Content{StorageLaws.sequence_storage(F32,ConvSpec.length(bias_list),bias_list,bias_evidence),ConvSpec.length(bias_list)} : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PublicFrame.reference_context(~Logical,logical,activation,input,weight_list,bias_list),
-    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers},
-      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Ready{},weight_workers},
-      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Ready{},bias_workers},Native.stride(input),Native.padding(input))):
+    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers},
+      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Usable{},weight_workers},
+      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Usable{},bias_workers},Native.stride(input),Native.padding(input))):
   %Equal.sym(Tensors.Tensor<F32>,
-    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers},
-      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Ready{},weight_workers},
-      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Ready{},bias_workers},Native.stride(input),Native.padding(input)),
+    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers},
+      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Usable{},weight_workers},
+      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Usable{},bias_workers},Native.stride(input),Native.padding(input)),
     TensorConvolution.band_checked(~custom,activation,Some{PublicFrame.geometry(input)},PublicFrame.source_geometry(input),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),Native.input_extents(input),fill,U32.max(input_workers,U32.max(weight_workers,bias_workers))),
     Native.conv2d_matches(~custom,activation,input,source,weights,bias,fill,input_workers,weight_workers,bias_workers,input_matched(input,source_coherent(input,source,fill,input_workers,normal)))) :
     PublicFrame.Contract(~custom,~Logical,~original,PublicFrame.reference_context(~Logical,logical,activation,input,weight_list,bias_list),_)
@@ -167,7 +167,7 @@ def checked_normal_fields(~custom: F32 -> F32,~Logical: Data,~original: Logical 
   source_shape: BandShape.WellFormed<F32,PublicFrame.source_geometry(input),Model.content(~F32,source)>,
   values: BandValues.Values(~F32,~Logical,~original,logical,PublicFrame.source_geometry(input),Model.content(~F32,source)),
   weight_length: {Buffer.length(~F32,weights) == ConvSpec.length(weight_list) : Nat},bias_length: {Buffer.length(~F32,bias) == ConvSpec.length(bias_list) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>,
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>,
   weight_exact: {Buffer.tree(~F32,weights) == StorageLaws.sequence_storage(F32,ConvSpec.length(weight_list),weight_list,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == Buffer.Content{StorageLaws.sequence_storage(F32,ConvSpec.length(bias_list),bias_list,bias_evidence),ConvSpec.length(bias_list)} : Buffer.Content<F32>}) ->
   Global.Normal(~F32,TensorConvolution.band_checked(~custom,activation,Some{PublicFrame.geometry(input)},PublicFrame.source_geometry(input),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),shape,fill,workers)):
@@ -202,10 +202,10 @@ def checked_normal(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 
   +validated: {PublicFrame.frame_valid(input,weight_list,bias_list) == True{} : Bool},+supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +eligible: {TensorConvolution.uses_band_windows(PublicFrame.geometry(input)) == True{} : Bool},
   +source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+fill: F32,+workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},workers}),
+  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},workers}),
   values: BandValues.Values(~F32,~Logical,~original,logical,PublicFrame.source_geometry(input),Model.content(~F32,source)),
   weight_length: {Buffer.length(~F32,weights) == ConvSpec.length(weight_list) : Nat},bias_length: {Buffer.length(~F32,bias) == ConvSpec.length(bias_list) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>,
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>,
   weight_exact: {Buffer.tree(~F32,weights) == StorageLaws.sequence_storage(F32,ConvSpec.length(weight_list),weight_list,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == Buffer.Content{StorageLaws.sequence_storage(F32,ConvSpec.length(bias_list),bias_list,bias_evidence),ConvSpec.length(bias_list)} : Buffer.Content<F32>}) ->
   Global.Normal(~F32,TensorConvolution.band_checked(~custom,activation,Some{PublicFrame.geometry(input)},PublicFrame.source_geometry(input),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),Native.input_extents(input),fill,workers)):
@@ -223,19 +223,19 @@ def conv2d_normal(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32 -
   +validated: {PublicFrame.frame_valid(input,weight_list,bias_list) == True{} : Bool},+supported: {PublicFrame.machine(input,Default.limits()) == True{} : Bool},
   +eligible: {TensorConvolution.uses_band_windows(PublicFrame.geometry(input)) == True{} : Bool},
   +source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>,+fill: F32,+input_workers: U32,+weight_workers: U32,+bias_workers: U32,
-  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers}),
+  +normal: Global.Normal(~F32,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers}),
   values: BandValues.Values(~F32,~Logical,~original,logical,PublicFrame.source_geometry(input),Model.content(~F32,source)),
   weight_length: {Buffer.length(~F32,weights) == ConvSpec.length(weight_list) : Nat},bias_length: {Buffer.length(~F32,bias) == ConvSpec.length(bias_list) : Nat},
-  weight_ready: Buffer.Ready<F32,weights>,bias_ready: Buffer.Ready<F32,bias>,
+  weight_ready: Buffer.Sized<F32,weights>,bias_ready: Buffer.Sized<F32,bias>,
   weight_exact: {Buffer.tree(~F32,weights) == StorageLaws.sequence_storage(F32,ConvSpec.length(weight_list),weight_list,weight_evidence) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == Buffer.Content{StorageLaws.sequence_storage(F32,ConvSpec.length(bias_list),bias_list,bias_evidence),ConvSpec.length(bias_list)} : Buffer.Content<F32>}) ->
-  Global.Normal(~F32,TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers},
-    Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Ready{},weight_workers},
-    Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Ready{},bias_workers},Native.stride(input),Native.padding(input))):
+  Global.Normal(~F32,TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers},
+    Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Usable{},weight_workers},
+    Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Usable{},bias_workers},Native.stride(input),Native.padding(input))):
   %Equal.sym(Tensors.Tensor<F32>,
-    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Ready{},input_workers},
-      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Ready{},weight_workers},
-      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Ready{},bias_workers},Native.stride(input),Native.padding(input)),
+    TensorConvolution.conv2d(~custom,activation,Tensors.Banded{Model.pack(~F32,source),PublicFrame.source_geometry(input),Native.input_extents(input),fill,Tensors.Usable{},input_workers},
+      Tensors.Tensor{Buffer.pack(~F32,weights),Native.weight_extents(input),0.0,Tensors.Usable{},weight_workers},
+      Tensors.Tensor{Buffer.pack(~F32,bias),Native.bias_extents(input),0.0,Tensors.Usable{},bias_workers},Native.stride(input),Native.padding(input)),
     TensorConvolution.band_checked(~custom,activation,Some{PublicFrame.geometry(input)},PublicFrame.source_geometry(input),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),Native.input_extents(input),fill,U32.max(input_workers,U32.max(weight_workers,bias_workers))),
     Native.conv2d_matches(~custom,activation,input,source,weights,bias,fill,input_workers,weight_workers,bias_workers,input_matched(input,source_coherent(input,source,fill,input_workers,normal)))) : Global.Normal(~F32,_)
   checked_normal(~custom,~Logical,~original,logical,activation,input,parallel,weight_list,bias_list,weight_evidence,bias_evidence,validated,supported,eligible,

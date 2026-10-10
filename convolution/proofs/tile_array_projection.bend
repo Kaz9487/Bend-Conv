@@ -21,8 +21,11 @@ def write_projected(+tree: Tree.Tree<Tile.Tile8>,+lane: Sequence.Index(8n),+inde
   {project(Tree.write(Tile.Tile8,tree,index,value),lane) == Tree.write(F32,project(tree,lane),index,Tile.element_at(lane,value)) : Tree.Tree<F32>}:
   Mapping.map_write(~Tile.Tile8,~F32,~Sequence.Index(8n),~Tile.element_at,lane,tree,index,value)
 
-def fresh_balanced(+depth: Nat,+value: Tile.Tile8,+lane: Sequence.Index(8n)) ->
-  Shape.Balanced(F32,depth,project(Tree.fresh(Tile.Tile8,depth,value),lane)):
-  %Equal.sym(Tree.Tree<F32>,project(Tree.fresh(Tile.Tile8,depth,value),lane),Tree.fresh(F32,depth,Tile.element_at(lane,value)),project_fresh(depth,value,lane)) :
-    Shape.Balanced(F32,depth,_)
-  Shape.fresh(F32,depth,Tile.element_at(lane,value))
+def balanced(+depth: Nat,+tree: Tree.Tree<Tile.Tile8>,+lane: Sequence.Index(8n),evidence: Shape.Balanced(Tile.Tile8,depth,tree)) -> Shape.Balanced(F32,depth,project(tree,lane)):
+  Mapping.map_preserves_balance(~Tile.Tile8,~F32,~Sequence.Index(8n),~Tile.element_at,lane,depth,tree,evidence)
+
+def capacity(+tree: Tree.Tree<Tile.Tile8>,+lane: Sequence.Index(8n)) -> {Tree.capacity(F32,project(tree,lane)) == Tree.capacity(Tile.Tile8,tree) : U32}:
+  Mapping.map_preserves_capacity(~Tile.Tile8,~F32,~Sequence.Index(8n),~Tile.element_at,lane,tree)
+
+def fresh_balanced(+depth: Nat,+value: Tile.Tile8,+lane: Sequence.Index(8n)) -> Shape.Balanced(F32,depth,project(Tree.fresh(Tile.Tile8,depth,value),lane)):
+  balanced(depth,Tree.fresh(Tile.Tile8,depth,value),lane,Shape.fresh(Tile.Tile8,depth,value))

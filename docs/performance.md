@@ -6,43 +6,46 @@ YOLOv5n v7.0 forward, the bus image at 640 × 640, FP32, batch one. Two warmups 
 
 | Backend | 1 thread | 4 threads |
 |---|---:|---:|
-| Bend-Conv | 271.7 | 151.4 |
-| NumPy / OpenBLAS | 249.9 | 260.0 |
-| PyTorch | 89.8 | 51.8 |
+| Stelliferous 0.0.2 | 110 | 43 |
+| Stelliferous 0.0.1 | 153.7 | 54.8 |
+| NumPy / OpenBLAS | 126.9 | 113.3 |
+| PyTorch | 49.3 | 14.8 |
 
-Measured on 2026-10-05 by the [Benchmark workflow](https://github.com/Kaz9487/Bend-Conv/actions/runs/37268568117) on a GitHub-hosted runner. Hosted runners differ from run to run, and CPU affinity and frequency are not pinned. Every setting passed the layer, prediction and detection comparison with the official reference.
+Measured on 2026-10-10 on a Google Cloud `c4d-standard-8` virtual machine. CPU affinity and frequency are not pinned. Every setting passed the layer, prediction and detection comparison with the official reference. Stelliferous 0.0.2 reports whole milliseconds. Stelliferous 0.0.1 is the released tree with its own Bend v2.0.35, measured in the same way on the same machine.
 
 ## Reproduce
 
-Start the Benchmark workflow from the Actions tab, or run it locally after the [YOLO example setup](../examples/yolov5/README.md):
+After the [YOLO example setup](../examples/yolov5/README.md):
 
 ```sh
 python run.py backends      # the table above
 python run.py benchmark     # single convolution shapes
 ```
 
-Samples and the environment go to `out/results/backends/`; the report is `out/results/backend_comparison.md`. [Benchmarks](../benchmarks/README.md) lists the other workflows.
+Samples and the environment go to `out/results/backends/`; the report is `out/results/backend_comparison.md`. The Benchmark workflow in the Actions tab runs the same comparison on a GitHub-hosted runner. [Benchmarks](../benchmarks/README.md) lists the other workflows.
 
 ## Environment
 
-- GitHub-hosted `ubuntu-24.04` runner: AMD EPYC 7763, 4 virtual CPUs (2 cores, 2 threads each).
-- Bend v2.0.35 (official, unmodified); Clang 18.1.3 with `-O3 -march=native -ffp-contract=off -std=c11`.
+- Google Cloud `c4d-standard-8`, Ubuntu 24.04: AMD EPYC 9B45, 8 virtual CPUs (4 cores, 2 threads each).
+- Bend v2.0.36 (official, unmodified); Clang 19.1.1 with `-O3 -march=native -ffp-contract=off -std=c11`.
 - NumPy 2.4.6 with its bundled OpenBLAS; PyTorch 2.14.0 (CPU, eager, FP32), one inter-op thread.
 
 ## What is timed
 
 The forward computation: allocation, ownership copies, packing, kernels, gather and detection decode. Loading, compilation, preprocessing, diagnostic output and non-maximum suppression are outside the timer.
 
-## Raw samples
+## Samples
 
-| Setting | Samples (ms) |
-|---|---|
-| Bend-Conv, 1 thread | 271.7, 272.1, 272.3, 271.7, 271.3, 271.4, 271.6 |
-| Bend-Conv, 4 threads | 151.3, 151.5, 151.2, 151.2, 151.7, 151.7, 151.4 |
-| NumPy, 1 thread | 248.4, 249.9, 250.6, 250.8, 248.1, 249.9, 249.9 |
-| NumPy, 4 threads | 259.2, 264.2, 260.6, 260.6, 259.1, 260.0, 260.0 |
-| PyTorch, 1 thread | 89.3, 89.1, 89.3, 90.3, 89.9, 90.5, 89.8 |
-| PyTorch, 4 threads | 51.5, 51.8, 52.0, 54.3, 51.8, 51.4, 51.5 |
+| Setting | Median (ms) | Min–max (ms) |
+|---|---:|---:|
+| Stelliferous 0.0.2, 1 thread | 110 | 110–111 |
+| Stelliferous 0.0.2, 4 threads | 43 | 42–43 |
+| Stelliferous 0.0.1, 1 thread | 153.7 | 153.4–154.4 |
+| Stelliferous 0.0.1, 4 threads | 54.8 | 54.6–56.5 |
+| NumPy, 1 thread | 126.9 | 126.6–127.7 |
+| NumPy, 4 threads | 113.3 | 113.0–114.5 |
+| PyTorch, 1 thread | 49.3 | 48.7–49.5 |
+| PyTorch, 4 threads | 14.8 | 14.5–15.6 |
 
 ## Other convolution shapes
 

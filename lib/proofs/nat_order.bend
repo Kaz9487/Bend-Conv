@@ -353,3 +353,23 @@ def strict_follow(+a: Nat,+b: Nat,h: {Nat.is_lt(a,b) == True{} : Bool}) -> {Nat.
       Empty.absurd({False{} == True{} : Bool},WordEncoding.false_true(h))
     case 1n+a 1n+b:
       strict_follow(a,b,h)
+
+# Translate a comparison against a remaining extent to its absolute position.
+def below_difference(+offset: Nat,+value: Nat,+end: Nat,ordered: {Nat.is_le(offset,end) == True{} : Bool}) ->
+  {Nat.is_lt(value,Nat.sub(end,offset)) == Nat.is_lt(Nat.add(offset,value),end) : Bool}:
+  match offset end:
+    case 0n end:
+      %Equal.sym(Nat,Nat.sub(end,0n),end,subtract_zero(end)) : {Nat.is_lt(value,_) == Nat.is_lt(value,end) : Bool}
+      {==}
+    case 1n+offset 0n:
+      Empty.absurd({Nat.is_lt(value,Nat.sub(0n,1n+offset)) == Nat.is_lt(Nat.add(1n+offset,value),0n) : Bool},WordEncoding.false_true(ordered))
+    case 1n+offset 1n+end: below_difference(offset,value,end,ordered)
+
+# Two opposite bounds identify a natural number.
+def antisymmetric(+left: Nat,+right: Nat,forward: {Nat.is_le(left,right) == True{} : Bool},backward: {Nat.is_le(right,left) == True{} : Bool}) -> {left == right : Nat}:
+  match left right:
+    case 0n 0n: {==}
+    case 0n 1n+right: Empty.absurd({0n == 1n+right : Nat},WordEncoding.false_true(backward))
+    case 1n+left 0n: Empty.absurd({1n+left == 0n : Nat},WordEncoding.false_true(forward))
+    case 1n+ +left 1n+ +right:
+      Equal.cong(Nat,Nat,value => 1n+value,left,right,antisymmetric(left,right,forward,backward))

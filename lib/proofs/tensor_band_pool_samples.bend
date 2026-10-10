@@ -691,19 +691,19 @@ def middle_cells_exact(+geometry: BandWindow.Geometry,+window: BandWindow.RowWin
 def middle_ready_from(+machine: Scalar.Observation,+geometry: BandWindow.Geometry,+first: U32,+rows: U32,positive: OutputDomain.Positive<geometry>,
   domain: BandGather.Domain<BandPoolExecution.planes_geometry(geometry),Scalar.limits(machine),Machine.capacity(Scalar.limits(machine))>,
   rows_bound: {Nat.is_le(U32.to_nat(BandPoolWindowValues.window_rows(BandWindow.window(geometry,first,rows))),U32.to_nat(BandPoolWindowValues.pool_height(OutputDomain.pool(geometry)))) == True{} : Bool}) ->
-  Depth.Ready<BandPoolExecution.middle_count(geometry,BandWindow.window(geometry,first,rows))>:
+  Depth.Sized<BandPoolExecution.middle_count(geometry,BandWindow.window(geometry,first,rows))>:
   BandWindow.Geometry{Bands.Geometry{+images,+channels,+height,width},kernel,stride,padding,output_height,+output_width} = geometry
   OutputDomain.Positive{images_positive,channels_positive,height_positive,width_positive} = positive
   BandGather.Domain{capacity_ok,cp,hp,wp,planes_room,allocation_room} = domain
   +window = BandWindow.window(geometry,first,rows)
   +window_rows = BandPoolWindowValues.window_rows(window)
-  %Equal.sym(U32,BandPoolExecution.middle_count(geometry,window),(channels * window_rows * output_width : U32),middle_projection(geometry,window)) : Depth.Ready<_>
+  %Equal.sym(U32,BandPoolExecution.middle_count(geometry,window),(channels * window_rows * output_width : U32),middle_projection(geometry,window)) : Depth.Sized<_>
   Depth.bounded((channels * window_rows * output_width : U32),BandPoolExecution.count_bounded(images,channels,height,output_width,window_rows,Scalar.limits(machine),images_positive,width_positive,rows_bound,planes_room))
 
 def middle_ready(+machine: Scalar.Observation,+shape: List<&2,U32>,+geometry: BandWindow.Geometry,+planes: U32,+first: U32,+rows: U32,+selected: {OutputDomain.enabled(shape,geometry) == True{} : Bool},
   planes_counted: {Tensors.count_of(Window.middle_shape(shape,OutputDomain.pool(geometry))) == Some{planes} : Maybe<&2,U32>},
   rows_bound: {Nat.is_le(U32.to_nat(BandPoolWindowValues.window_rows(BandWindow.window(geometry,first,rows))),U32.to_nat(BandPoolWindowValues.pool_height(OutputDomain.pool(geometry)))) == True{} : Bool}) ->
-  Depth.Ready<BandPoolExecution.middle_count(geometry,BandWindow.window(geometry,first,rows))>:
+  Depth.Sized<BandPoolExecution.middle_count(geometry,BandWindow.window(geometry,first,rows))>:
   middle_ready_from(machine,geometry,first,rows,OutputDomain.positive_from_selector(shape,geometry,selected),OutputDomain.planes_domain(machine,shape,geometry,planes,selected,planes_counted),rows_bound)
 
 def middle_cells_from(+machine: Scalar.Observation,+geometry: BandWindow.Geometry,+first: U32,+rows: U32,positive: OutputDomain.Positive<geometry>,
@@ -776,7 +776,7 @@ def window_rooms(+machine: Scalar.Observation,+shape: List<&2,U32>,+geometry: Ba
 # A proof-only owner retains the same tree and length. Its certificate follows
 # from the actual ContentReady witness; no buffer or sample is synthesized.
 type CertifiedContent<-Element: Data,-content: Buffer.Content<Element>> is Data:
-  CertifiedContent{owner: Buffer.Model<Element>,exact: {Buffer.content(~Element,owner) == content : Buffer.Content<Element>},ready: Buffer.Ready<Element,owner>}
+  CertifiedContent{owner: Buffer.Model<Element>,exact: {Buffer.content(~Element,owner) == content : Buffer.Content<Element>},ready: Buffer.Sized<Element,owner>}
 
 def certify(~Element: Data,+content: Buffer.Content<Element>,ready: Buffer.ContentReady<Element,content>) -> CertifiedContent<Element,content>:
   Buffer.Content{+tree,+length} = content
@@ -784,7 +784,7 @@ def certify(~Element: Data,+content: Buffer.Content<Element>,ready: Buffer.Conte
   +certificate = {Certificate.Certificate{depth,
     Equal.sym(Array<Element>,Tree.pack(Element,Certificate.normalized(Element,depth,Tree.reflect(Element,Tree.pack(Element,tree)))),Tree.pack(Element,tree),
       Certificate.restored(Element,depth,Tree.pack(Element,tree),Witness.from_shape(Element,depth,tree,balanced)))} : Certificate.Certificate<Element,Tree.pack(Element,tree)>}
-  CertifiedContent{Buffer.Model{tree,length,certificate},{==},Buffer.Ready{depth_ok,room}}
+  CertifiedContent{Buffer.Model{tree,length,certificate},{==},Buffer.Sized{depth_ok,room}}
 
 def range_ready(~Element: Data,~Logical: Data,~original: Logical -> U32 -> Element,+logical: Logical,+geometry: Bands.Geometry,+rows: BandWindow.Rows,+content: Buffer.Content<Element>,
   values: BandHalo.RangeValues(~Element,~Logical,~original,logical,geometry,rows,content)) -> Buffer.ContentReady<Element,content>:
@@ -1107,9 +1107,9 @@ def window_leaf_facts(~Element: Data,~Logical: Data,~original: Logical -> U32 ->
   +range = window_range(machine,shape,geometry,first,rows,length,selected,domain,metadata,positive,interval)
   +rows_bound = stored_rows_bound(machine,shape,geometry,first,rows,selected,range)
   Shape.Both{
-    %window_exact : Depth.Ready<BandPoolExecution.middle_count(geometry,_)> middle_ready(machine,shape,geometry,planes,first,rows,selected,planes_counted,rows_bound),
+    %window_exact : Depth.Sized<BandPoolExecution.middle_count(geometry,_)> middle_ready(machine,shape,geometry,planes,first,rows,selected,planes_counted,rows_bound),
     Shape.Both{
-      %window_exact : Depth.Ready<BandPoolExecution.window_count(geometry,_)> OutputDomain.allocation_ready(machine,shape,geometry,count,first,rows,selected,counted),
+      %window_exact : Depth.Sized<BandPoolExecution.window_count(geometry,_)> OutputDomain.allocation_ready(machine,shape,geometry,count,first,rows,selected,counted),
       Shape.Both{
         %window_exact : {U32.to_nat(BandPoolExecution.middle_count(geometry,_)) == BandPoolExecution.middle_cells(geometry,_) : Nat}
         middle_count_cells(machine,shape,geometry,planes,first,rows,selected,planes_counted,rows_bound),

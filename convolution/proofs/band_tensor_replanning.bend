@@ -40,8 +40,8 @@ def window_input_geometry(~Logical: Data,+frame: PipelineExecution.Frame<Logical
 def existing_layout_matches(~custom: F32 -> F32,~Logical: Data,+frame: PipelineExecution.Frame<Logical>,+batched: Bool,+workers: U32,+source: Model.Model<F32>,+weights: Buffer.Model<F32>,+bias: Buffer.Model<F32>) ->
   {TensorConvolution.replanned(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),
       BandPlanning.replan(Model.layout(~F32,source),TensorConvolution.band_work(TensorConvolution.band_context(TensorExecution.execution_geometry(~Logical,frame,batched),True{},TensorExecution.execution_activation(~Logical,frame)),U32.shln(1,Buffer.depth(~F32,bias))),
-        TensorConvolution.context_window(TensorConvolution.band_context(TensorExecution.execution_geometry(~Logical,frame,batched),True{},TensorExecution.execution_activation(~Logical,frame))),workers,DefaultCost.configuration()),Model.pack(~F32,source),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers) ==
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers,(Model.pack(~F32,source),Model.layout(~F32,source))) : Tensors.Tensor<F32>}:
+        TensorConvolution.context_window(TensorConvolution.band_context(TensorExecution.execution_geometry(~Logical,frame,batched),True{},TensorExecution.execution_activation(~Logical,frame))),workers,DefaultCost.configuration()),Model.pack(~F32,source),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers) ==
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers,(Model.pack(~F32,source),Model.layout(~F32,source))) : Tensors.Tensor<F32>}:
   Buffer.Model{tree,length,Certificate.Certificate{depth,certificate}} = bias
   {==}
 
@@ -51,7 +51,7 @@ def existing_layout(~custom: F32 -> F32,~Logical: Data,~original: Logical -> U32
   weight_exact: {Buffer.tree(~F32,weights) == PipelineExecution.source_tree(~Logical,frame) : Tree.Tree<F32>},
   bias_exact: {Buffer.content(~F32,bias) == PipelineExecution.values_bias(~PipelineExecution.Frame<Logical>,PipelineExecution.settings(~Logical,~original,frame)) : Buffer.Content<F32>}) ->
   PublicFrame.Contract(~custom,~Logical,~original,PipelineExecution.output_context(~Logical,frame),
-    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights),Buffer.pack(~F32,bias),workers,(Model.pack(~F32,source),Model.layout(~F32,source)))):
+    TensorConvolution.existing_layout(~custom,TensorExecution.execution_activation(~Logical,frame),TensorExecution.execution_geometry(~Logical,frame,batched),TensorConvolution.packed(TensorExecution.execution_geometry(~Logical,frame,batched),Buffer.pack(~F32,weights)),Buffer.pack(~F32,bias),workers,(Model.pack(~F32,source),Model.layout(~F32,source)))):
   BandShape.WellFormed{+metadata,+ready,+coverage} = shape
   +limits = PipelineExecution.convolution_limits(~Logical,frame)
   +capacity = PipelineExecution.convolution_capacity(~Logical,frame)

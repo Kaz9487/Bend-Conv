@@ -64,7 +64,7 @@ def job_congruence(~Link: GemmReadback.Query -> Tree.Tree<Tile.Tile8> -> Data,~a
   +word = GemmReadback.unit_word(query,unit,group)
   +group_value = GemmReadback.group_word(query,unit,group)
   +word_exact = GemmReadback.unit_exact(query,unit,group,unit_inside,group_inside)
-  +position = (group_value * 8 : U32)
+  +position = (0 + group_value * 8 : U32)
   +accumulators = GemmReadback.unit_accumulators(query,unit,group)
   +others = other(query,tiles,unit,group)
   +index = (word * 4 : U32)
@@ -135,7 +135,7 @@ def run_congruence(~Link: GemmReadback.Query -> Tree.Tree<Tile.Tile8> -> Data,~a
   {GemmLaws.run(GemmReadback.rows(query),GemmReadback.input(query),GemmReadback.weights(query),GemmReadback.bias(query),output,GemmReadback.columns(query),GemmReadback.inner(query)) ==
     GemmLaws.run(GemmReadback.rows(query),tiles,GemmReadback.weights(query),GemmReadback.bias(query),output,GemmReadback.columns(query),GemmReadback.inner(query)) : Tree.Tree<F32>}:
   +count = Nat.mul(GemmReadback.groups(query),GemmReadback.units(query))
-  +layout = {Gemm.Layout{GemmReadback.rows(query),GemmReadback.columns(query),GemmReadback.inner(query)} : Gemm.Layout}
+  +layout = {Gemm.Layout{GemmReadback.rows(query),GemmReadback.columns(query),GemmReadback.inner(query),0,GemmReadback.columns(query)} : Gemm.Layout}
   %Equal.sym(Tree.Tree<F32>,GemmLaws.run(GemmReadback.rows(query),GemmReadback.input(query),GemmReadback.weights(query),GemmReadback.bias(query),output,GemmReadback.columns(query),GemmReadback.inner(query)),
     Writes.pure(F32,GemmWrites.all_writes(GemmWrites.job_count(GemmReadback.rows(query),GemmReadback.columns(query)),0,layout,GemmReadback.input(query),GemmReadback.weights(query),GemmReadback.bias(query)),output),
     GemmWrites.run_writes(GemmReadback.rows(query),GemmReadback.input(query),GemmReadback.weights(query),GemmReadback.bias(query),output,GemmReadback.columns(query),GemmReadback.inner(query))) :

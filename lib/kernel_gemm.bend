@@ -11,7 +11,7 @@ type Buffers is Type:
 # A job is one half of a weight block, four rows, at eight positions. Only
 # valid rows are stored; the last weight block is zero-padded to eight rows.
 type Layout is Data:
-  Layout{rows: U32,columns: U32,inner: U32}
+  Layout{rows: U32,columns: U32,inner: U32,start: U32,output_columns: U32}
 
 # input_base and weight_base address the job's first input group and weight
 # tile; the loop index advances both.
@@ -42,12 +42,12 @@ def job_count(rows: U32,columns: U32) -> U32:
 # Input-major: one input group stays in cache while every row unit passes
 # over it (the BLIS loop order). Units 2b and 2b+1 share weight block b.
 def job(layout: Layout,index: U32) -> Job:
-  Layout{+rows,+columns,+inner} = layout
+  Layout{+rows,columns,+inner,+start,+output_columns} = layout
   +index = index
   +units = row_units(rows)
   +unit = (index % units : U32)
   +group = (index / units : U32)
-  Job{Context{(unit * 4 : U32),(group * 8 : U32),rows,columns,(group * inner : U32),(unit / 2 * inner : U32)},U32.is_eq((unit % 2 : U32),1),U32.to_nat(inner)}
+  Job{Context{(unit * 4 : U32),(start + group * 8 : U32),rows,output_columns,(group * inner : U32),(unit / 2 * inner : U32)},U32.is_eq((unit % 2 : U32),1),U32.to_nat(inner)}
 
 def update(accumulators: Rows.Rows<Tile.Tile8>,+input: Tile.Tile8,weights: Rows.Rows<F32>) -> Rows.Rows<Tile.Tile8>:
   Rows.map(~Tile.Tile8,~Tile.Tile8,~F32,~Tile.update,accumulators,input,weights)
@@ -69,27 +69,33 @@ def step(~upper: Bool,state: Loop) -> Loop:
   with_weights(~upper,input,bias,output,index,Context{row,position,rows,columns,input_base,weight_base},input_base,accumulators,
     Array.get(Tile.Tile8,weights,(weight_base + index : U32)))
 
-def store(output: Array<F32>,+offset: U32,+bias: F32,+accumulator: Tile.Tile8) -> Array<F32>:
-  output = Array.set(F32,output,offset,(Tile.lane0(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 1 : U32),(Tile.lane1(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 2 : U32),(Tile.lane2(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 3 : U32),(Tile.lane3(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 4 : U32),(Tile.lane4(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 5 : U32),(Tile.lane5(accumulator) + bias : F32))
-  output = Array.set(F32,output,(offset + 6 : U32),(Tile.lane6(accumulator) + bias : F32))
-  Array.set(F32,output,(offset + 7 : U32),(Tile.lane7(accumulator) + bias : F32))
+# The last group can contain padding lanes; only real columns are written.
+def store_lane(inside: Bool,output: Array<F32>,offset: U32,value: F32) -> Array<F32>:
+  match inside:
+    case True{}: Array.set(F32,output,offset,value)
+    case False{}: output
 
-def write_bias(output: Array<F32>,offset: U32,accumulator: Tile.Tile8,read: Array<F32> & F32) -> Array<F32> & Array<F32>:
+def store_tail(+count: U32,output: Array<F32>,+offset: U32,+bias: F32,+accumulator: Tile.Tile8) -> Array<F32>:
+  output = store_lane(U32.is_lt(0,count),output,offset,(Tile.lane0(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(1,count),output,(offset + 1 : U32),(Tile.lane1(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(2,count),output,(offset + 2 : U32),(Tile.lane2(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(3,count),output,(offset + 3 : U32),(Tile.lane3(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(4,count),output,(offset + 4 : U32),(Tile.lane4(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(5,count),output,(offset + 5 : U32),(Tile.lane5(accumulator) + bias : F32))
+  output = store_lane(U32.is_lt(6,count),output,(offset + 6 : U32),(Tile.lane6(accumulator) + bias : F32))
+  store_lane(U32.is_lt(7,count),output,(offset + 7 : U32),(Tile.lane7(accumulator) + bias : F32))
+
+def write_bias(output: Array<F32>,offset: U32,accumulator: Tile.Tile8,count: U32,read: Array<F32> & F32) -> Array<F32> & Array<F32>:
   (bias,value) = read
-  (bias,store(output,offset,value,accumulator))
+  (bias,store_tail(count,output,offset,value,accumulator))
 
-def write_row(valid: Bool,+row: U32,position: U32,columns: U32,accumulator: Tile.Tile8,
+def write_row(valid: Bool,+row: U32,+position: U32,+columns: U32,accumulator: Tile.Tile8,
   owners: Array<F32> & Array<F32>) -> Array<F32> & Array<F32>:
   match valid:
     case False{}: owners
     case True{}:
       (bias,output) = owners
-      write_bias(output,(row * columns + position : U32),accumulator,Array.get(F32,bias,row))
+      write_bias(output,(row * columns + position : U32),accumulator,U32.min(8,(columns - position : U32)),Array.get(F32,bias,row))
 
 def write(context: Context,+accumulators: Rows.Rows<Tile.Tile8>,bias: Array<F32>,output: Array<F32>) -> Array<F32> & Array<F32>:
   Context{+row,+position,+rows,+columns,input_base,weight_base} = context
@@ -125,6 +131,25 @@ def result(buffers: Buffers) -> Array<F32>:
   Buffers{input,weights,bias,output} = buffers
   output
 
+# Every job in order. Only the output changes, so the caller gets its other
+# three buffers back.
+def run_keeping(+rows: U32,input: Array<Tile.Tile8>,weights: Array<Tile.Tile8>,bias: Array<F32>,output: Array<F32>,+columns: U32,inner: U32,start: U32,output_columns: U32) -> Buffers:
+  Traversal.indexed_fold(~Buffers,~Layout,~step_job,U32.to_nat(job_count(rows,columns)),0,Layout{rows,columns,inner,start,output_columns},Buffers{input,weights,bias,output})
+
+def run_at(+rows: U32,input: Array<Tile.Tile8>,weights: Array<Tile.Tile8>,bias: Array<F32>,output: Array<F32>,+columns: U32,inner: U32,start: U32,output_columns: U32) -> Array<F32>:
+  result(run_keeping(rows,input,weights,bias,output,columns,inner,start,output_columns))
+
 def run(+rows: U32,input: Array<Tile.Tile8>,weights: Array<Tile.Tile8>,bias: Array<F32>,output: Array<F32>,+columns: U32,inner: U32) -> Array<F32>:
-  result(
-    Traversal.indexed_fold(~Buffers,~Layout,~step_job,U32.to_nat(job_count(rows,columns)),0,Layout{rows,columns,inner},Buffers{input,weights,bias,output}))
+  run_at(rows,input,weights,bias,output,columns,inner,0,columns)
+
+def kept_input(buffers: Buffers) -> Array<Tile.Tile8>:
+  Buffers{input,weights,bias,output} = buffers
+  input
+
+def kept_weights(buffers: Buffers) -> Array<Tile.Tile8>:
+  Buffers{input,weights,bias,output} = buffers
+  weights
+
+def kept_bias(buffers: Buffers) -> Array<F32>:
+  Buffers{input,weights,bias,output} = buffers
+  bias

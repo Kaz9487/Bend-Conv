@@ -35,7 +35,7 @@ def planes(+shape: List<&2,U32>) -> Maybe<&2,U32>:
 def pooled(~Element: Data,name: String,+shape: List<&2,U32>,+out_shape: List<&2,U32>,fill: Element,+workers: U32,
   result: Operations.Outcome<(Storage.Buffer<Element> & Storage.Buffer<Element>)>) -> Tensors.Tensor<Element>:
   match result:
-    case Operations.Accepted{(input,output)}: Tensors.Tensor{output,out_shape,fill,Tensors.Ready{},workers}
+    case Operations.Accepted{(input,output)}: Tensors.Tensor{output,out_shape,fill,Tensors.Usable{},workers}
     case Operations.Rejected{(input,output)}: Tensors.Tensor{output,out_shape,fill,Tensors.Failed{Tensors.Problem{name,Tensors.InvalidArgument{shape}}},workers}
 
 def pool_middle(~Element: Data,~operation: Element -> Element -> Element,name: String,+pad: Element,middle: Maybe<&2,U32>,count: U32,+channels: U32,+pool: Access.Pool,
@@ -68,7 +68,7 @@ def pool_planes(~Element: Data,~operation: Element -> Element -> Element,name: S
 def pool_status(~Element: Data,~operation: Element -> Element -> Element,name: String,status: Tensors.Status,+pad: Element,+kernel: U32,+stride: U32,+padding: U32,
   storage: Storage.Buffer<Element>,+shape: List<&2,U32>,+fill: Element,+workers: U32) -> Tensors.Tensor<Element>:
   match status:
-    case Tensors.Ready{}:
+    case Tensors.Usable{}:
       pool_planes(~Element,~operation,name,pad,planes(shape),geometry(shape,kernel,stride,padding),storage,shape,fill,workers)
     case Tensors.Failed{problem}: Tensors.Tensor{storage,shape,fill,Tensors.Failed{problem},workers}
 
@@ -84,7 +84,7 @@ def band_execute(~Element: Data,~operation: Element -> Element -> Element,+pad: 
   match pool geometry:
     case Access.Pool{height,width,kernel,stride,padding,+oh,+ow} Bands.Geometry{batch,channels,ih,iw}:
       Tensors.Banded{BandPool.execute(~Element,~operation,BandPool.Context{BandWindow.Geometry{geometry,kernel,stride,padding,oh,ow},pad,fill,workers},bands),
-        Bands.Geometry{batch,channels,oh,ow},out_shape,fill,Tensors.Ready{},workers}
+        Bands.Geometry{batch,channels,oh,ow},out_shape,fill,Tensors.Usable{},workers}
 
 # The band route needs the same counts as the dense route: the planes swept
 # along the columns and the output.
@@ -93,7 +93,7 @@ def band_count(~Element: Data,~operation: Element -> Element -> Element,name: St
   match valid planes count pool:
     case True{} Some{planes} Some{count} pool: band_execute(~Element,~operation,pad,pool,geometry,bands,out_shape,fill,workers)
     case valid planes count Access.Pool{height,width,kernel,stride,padding,oh,ow}:
-      Tensors.with_dense(~Element,~Tensors.Tensor<Element>,Tensors.Banded{bands,geometry,shape,fill,Tensors.Ready{},workers},storage => shape => fill => status => workers =>
+      Tensors.with_dense(~Element,~Tensors.Tensor<Element>,Tensors.Banded{bands,geometry,shape,fill,Tensors.Usable{},workers},storage => shape => fill => status => workers =>
         pool_status(~Element,~operation,name,status,pad,kernel,stride,padding,storage,shape,fill,workers))
 
 def band_geometry(~Element: Data,~operation: Element -> Element -> Element,name: String,pad: Element,+pool: Access.Pool,+geometry: Bands.Geometry,bands: Bands.Bands(~Element),
@@ -111,7 +111,7 @@ def band_status(~Element: Data,~operation: Element -> Element -> Element,name: S
       Tensors.with_dense(~Element,~Tensors.Tensor<Element>,Tensors.Banded{bands,layout,shape,fill,Tensors.Failed{problem},workers},
         storage => shape => fill => status => workers =>
           pool_status(~Element,~operation,name,status,pad,kernel,stride,padding,storage,shape,fill,workers))
-    case Tensors.Ready{}: band_geometry(~Element,~operation,name,pad,geometry(shape,kernel,stride,padding),layout,bands,shape,fill,workers)
+    case Tensors.Usable{}: band_geometry(~Element,~operation,name,pad,geometry(shape,kernel,stride,padding),layout,bands,shape,fill,workers)
 
 def pool2d(~Element: Data,~operation: Element -> Element -> Element,name: String,+pad: Element,tensor: Tensors.Tensor<Element>,
   +kernel: U32,+stride: U32,+padding: U32) -> Tensors.Tensor<Element>:

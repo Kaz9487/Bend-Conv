@@ -2,7 +2,7 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
-量測單一卷積形狀在 Bend-Conv、packed C 參考實作與 NumPy 上的時間。
+量測單一卷積形狀在 Stelliferous、packed C 參考實作與 NumPy 上的時間。
 
 ```sh
 python run.py benchmark

@@ -204,13 +204,13 @@ def from_selector(+machine: Scalar.Observation,+shape: List<&2,U32>,+geometry: B
 
 def ready_from_positive(+machine: Scalar.Observation,+geometry: BandWindow.Geometry,+first: U32,+rows: U32,positive: Positive<geometry>,
   domain: BandGather.Domain<BandPoolExecution.allocation_guards_output_geometry(geometry),Scalar.limits(machine),Machine.capacity(Scalar.limits(machine))>) ->
-  Depth.Ready<BandPoolExecution.window_count(geometry,BandWindow.window(geometry,first,rows))>:
+  Depth.Sized<BandPoolExecution.window_count(geometry,BandWindow.window(geometry,first,rows))>:
   Positive{images,channels,height,width} = positive
   BandPoolExecution.active(geometry,first,rows,Scalar.limits(machine),domain,images)
 
 def allocation_ready(+machine: Scalar.Observation,+shape: List<&2,U32>,+geometry: BandWindow.Geometry,+count: U32,+first: U32,+rows: U32,+selected: {enabled(shape,geometry) == True{} : Bool},
   counted: {Tensors.count_of(output_shape(shape,geometry)) == Some{count} : Maybe<&2,U32>}) ->
-  Depth.Ready<BandPoolExecution.window_count(geometry,BandWindow.window(geometry,first,rows))>:
+  Depth.Sized<BandPoolExecution.window_count(geometry,BandWindow.window(geometry,first,rows))>:
   ready_from_positive(machine,geometry,first,rows,positive_from_selector(shape,geometry,selected),from_selector(machine,shape,geometry,count,selected,counted))
 
 # The output projection survives the inactive branch unchanged. Inactive
