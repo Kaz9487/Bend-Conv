@@ -3,8 +3,8 @@
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
 ```python
-import lib/tensor_f32.bend as F
-import lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 ```
 
 `F` 就是全部的公開 API。形狀是 `List<&2,U32>`。軸從零算起。張量是 `F.Tensor()`，只支援 F32。完整的程式見[開始使用](../docs/getting_started.zh-TW.md)。

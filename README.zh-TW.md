@@ -23,11 +23,14 @@ Stelliferous 是基於 Bend 2 的張量函式庫，提供卷積網路需要的�
 
 ## 開始使用
 
-需要 Node.js、[Bun](https://bun.sh)、Python 3 與 Clang，在 Linux、macOS 或 WSL 上執行。
+安裝 [Bend](https://github.com/bendlang/bend) 與 Clang，然後從 BendHub 匯入函式庫：
 
-```sh
-git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools/bend
+```python
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 ```
+
+套件以官方 Bend v2.0.36 檢查。要執行本庫的證明與效能量測，請見[開始使用](docs/getting_started.zh-TW.md)。
 
 ## 範例
 
@@ -35,8 +38,8 @@ git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools
 
 ```python
 import Base
-import ../lib/tensor_f32.bend as F
-import ../lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 
 def main() -> List<&2,F32>:
   # 1.0 到 16.0，排成 [batch, channels, height, width]
@@ -56,8 +59,8 @@ def main() -> List<&2,F32>:
 編譯並執行，會印出 `[54.0, 63.0, 90.0, 99.0]`。
 
 ```sh
-node scripts/bend_launcher.mjs examples/array_basics.bend -o out/array_basics
-./out/array_basics
+bend array_basics.bend -o array_basics
+./array_basics
 ```
 
 其他：[小型網路](examples/small_network.bend)、[儲存與載入](examples/save_and_load.bend)、[YOLOv5n](examples/yolov5/README.zh-TW.md)。

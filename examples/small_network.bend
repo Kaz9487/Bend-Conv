@@ -2,8 +2,8 @@
 # channel. Weights are tensors passed as arguments; this one fills them with
 # constants so that the program needs no files.
 import Base
-import ../lib/tensor_f32.bend as F
-import ../lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 
 # 3x3 convolution with ReLU that keeps the size, then 2x2 max pooling.
 def block(input: F.Tensor(),weights: F.Tensor(),bias: F.Tensor()) -> F.Tensor():

@@ -3,8 +3,8 @@
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
 ```python
-import lib/tensor_f32.bend as F
-import lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 ```
 
 `F` is the whole public API. A shape is a `List<&2,U32>`. Axes count from zero. Tensors are `F.Tensor()`, F32 only. [Getting started](../docs/getting_started.md) shows complete programs.

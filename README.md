@@ -23,11 +23,14 @@ Stelliferous is a tensor library built on Bend 2, with the operations a convolut
 
 ## Get started
 
-Requires Node.js, [Bun](https://bun.sh), Python 3 and Clang, on Linux, macOS or WSL.
+Install [Bend](https://github.com/bendlang/bend) and Clang, then import the library from BendHub:
 
-```sh
-git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools/bend
+```python
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 ```
+
+The package is checked with the official Bend v2.0.36. To run the proofs and benchmarks of this repository, see [getting started](docs/getting_started.md).
 
 ## Example
 
@@ -35,8 +38,8 @@ git clone --depth 1 --branch v2.0.36 https://github.com/bendlang/bend.git .tools
 
 ```python
 import Base
-import ../lib/tensor_f32.bend as F
-import ../lib/math_activation.bend as Act
+import stelliferous@0.0.2.0/tensor_f32.bend as F
+import stelliferous@0.0.2.0/math_activation.bend as Act
 
 def main() -> List<&2,F32>:
   # 1.0 .. 16.0 as [batch, channels, height, width]
@@ -56,8 +59,8 @@ def main() -> List<&2,F32>:
 Compile it and run it. It prints `[54.0, 63.0, 90.0, 99.0]`.
 
 ```sh
-node scripts/bend_launcher.mjs examples/array_basics.bend -o out/array_basics
-./out/array_basics
+bend array_basics.bend -o array_basics
+./array_basics
 ```
 
 More: [a small network](examples/small_network.bend), [saving and loading](examples/save_and_load.bend), [YOLOv5n](examples/yolov5/README.md).
